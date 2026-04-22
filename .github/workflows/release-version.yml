@@ -1,0 +1,134 @@
+name: Prepare Release Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: Release bump type
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - build
+      create_tag:
+        description: Create and push git tag after commit
+        required: true
+        default: true
+        type: boolean
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Prepare release version and changelog
+        id: prepare
+        run: |
+          chmod +x tool/prepare_release.sh
+          VERSION="$(tool/prepare_release.sh "${{ inputs.release_type }}")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Prepared version ${VERSION}"
+
+      - name: Generate release commit message
+        id: commit_message
+        run: |
+          chmod +x tool/release_commit_message.sh
+          MESSAGE="$(tool/release_commit_message.sh "${{ steps.prepare.outputs.version }}" "${{ inputs.release_type }}")"
+          echo "message=${MESSAGE}" >> "$GITHUB_OUTPUT"
+          echo "Generated commit message: ${MESSAGE}"
+
+      - name: Run analyzer
+        run: flutter analyze
+
+      - name: Commit release metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml CHANGELOG.md CHANGELOG_RU.md
+          if git diff --cached --quiet; then
+            echo "No release changes to commit"
+            exit 0
+          fi
+          git commit -m "${{ steps.commit_message.outputs.message }}"
+          git push origin HEAD
+
+      - name: Render release notes (EN)
+        id: release_notes_en
+        run: |
+          chmod +x tool/render_release_notes.sh
+          mkdir -p build/release_notes
+          tool/render_release_notes.sh "${{ steps.prepare.outputs.version }}" --lang en > build/release_notes/release_notes_en.md
+
+      - name: Render release notes (RU)
+        id: release_notes_ru
+        run: |
+          chmod +x tool/render_release_notes.sh
+          mkdir -p build/release_notes
+          tool/render_release_notes.sh "${{ steps.prepare.outputs.version }}" --lang ru > build/release_notes/release_notes_ru.md
+
+      - name: Upload release notes artifact (EN)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-${{ steps.prepare.outputs.version }}
+          path: build/release_notes/release_notes_en.md
+
+      - name: Upload release notes artifact (RU)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-ru-${{ steps.prepare.outputs.version }}
+          path: build/release_notes/release_notes_ru.md
+
+      - name: Append release notes to workflow summary
+        run: |
+          {
+            echo "## Release Notes Rendering"
+            echo
+            echo "- EN template source: \`.github/release-template.md\`"
+            echo "- RU template source: \`.github/release-template-ru.md\`"
+            echo "- EN rendered output: \`build/release_notes/release_notes_en.md\`"
+            echo "- RU rendered output: \`build/release_notes/release_notes_ru.md\`"
+            echo
+            echo "## Release Notes (EN)"
+            echo
+            echo "- Version: \`${{ steps.prepare.outputs.version }}\`"
+            echo "- Source: \`${{ steps.release_notes_en.outputs.release_notes_source || 'CHANGELOG' }}\`"
+            echo
+            cat build/release_notes/release_notes_en.md
+            echo
+            echo "## Release Notes (RU)"
+            echo
+            echo "- Version: \`${{ steps.prepare.outputs.version }}\`"
+            echo "- Source: \`${{ steps.release_notes_ru.outputs.release_notes_source || 'CHANGELOG' }}\`"
+            echo
+            cat build/release_notes/release_notes_ru.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create git tag
+        if: ${{ inputs.create_tag }}
+        run: |
+          TAG="app-v${{ steps.prepare.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists"
+            exit 1
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
