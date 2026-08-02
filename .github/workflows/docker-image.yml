@@ -1,0 +1,115 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    tags:
+      - v*
+      - app-v*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      MIRROR_TARGET_REPO: simplegear-org/peerlink
+      MIRROR_TARGET_BRANCH: main
+      # Keep only these files/dirs in mirror repo.
+      # Edit this list when mirror scope changes.
+      MIRROR_INCLUDE: |
+        lib
+        pubspec.yaml
+        LICENSE
+        AI_CONTEXT_RU.md
+        AI_CONTEXT.md
+        ARCHITECTURE_RU.md
+        ARCHITECTURE.md
+        BOOTSTRAP_SIGNALING_PROTOCOL_RU.md
+        BOOTSTRAP_SIGNALING_PROTOCOL.md
+        CHANGELOG_RU.md
+        CHANGELOG.md
+        RELEASE_CHECKLIST_RU.md
+        RELEASE_CHECKLIST.md
+        GROUP_BLOB_V1_SPEC_RU.md
+        GROUP_BLOB_V1_SPEC.md
+        NETWORK_FLOW_RU.md
+        NETWORK_FLOW.md
+        README_RU.md
+        README.md
+        RELAY_PROTOCOL_RU.md
+        RELAY_PROTOCOL.md
+        SECURITY_MODEL_RU.md
+        SECURITY_MODEL.md
+        TASKS_RU.md
+        TASKS.md
+        VERSIONING_RU.md
+        VERSIONING.md
+        .github
+        tool
+
+    steps:
+    - name: Checkout source repository
+      uses: actions/checkout@v4
+
+    - name: Determine version tag
+      id: vars
+      run: |
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          VERSION="${GITHUB_REF#refs/tags/}"
+        else
+          VERSION="latest"
+        fi
+        echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+    - name: Mirror selected files to target repository with reset history
+      if: ${{ github.ref == 'refs/heads/main' }}
+      env:
+        MIRROR_REPO_TOKEN: ${{ secrets.MIRROR_REPO_TOKEN }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${MIRROR_REPO_TOKEN:-}" ]]; then
+          echo "MIRROR_REPO_TOKEN is empty, skipping mirror step"
+          exit 0
+        fi
+
+        SRC_DIR="$GITHUB_WORKSPACE"
+        TMP_DIR="$(mktemp -d)"
+        TARGET_DIR="$TMP_DIR/target"
+
+        git clone "https://x-access-token:${MIRROR_REPO_TOKEN}@github.com/${MIRROR_TARGET_REPO}.git" "$TARGET_DIR"
+        cd "$TARGET_DIR"
+
+        git checkout --orphan mirror-sync
+        git rm -rf . >/dev/null 2>&1 || true
+        find . -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
+
+        while IFS= read -r path; do
+          path="$(printf "%s" "$path" | tr -d "\r")"
+          # trim leading/trailing whitespace
+          path="${path#"${path%%[![:space:]]*}"}"
+          path="${path%"${path##*[![:space:]]}"}"
+          # normalize relative path markers
+          path="${path#./}"
+          # avoid accidental absolute paths in include list
+          path="${path#/}"
+          [[ -z "$path" ]] && continue
+          [[ "$path" =~ ^[[:space:]]*# ]] && continue
+
+          if [[ -e "$SRC_DIR/$path" ]]; then
+            mkdir -p "$TARGET_DIR/$(dirname "$path")"
+            rsync -a "$SRC_DIR/$path" "$TARGET_DIR/$(dirname "$path")/"
+          else
+            echo "warn: source path not found, skip: $path"
+          fi
+        done < <(printf "%s\n" "$MIRROR_INCLUDE")
+
+        git add -A
+        if git diff --cached --quiet; then
+          echo "No files to mirror after filtering"
+          exit 0
+        fi
+
+        git -c user.name="github-actions[bot]" -c user.email="github-actions[bot]@users.noreply.github.com" \
+          commit -m "chore: mirror subset from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+
+        git push --force origin mirror-sync:${MIRROR_TARGET_BRANCH}
