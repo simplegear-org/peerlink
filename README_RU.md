@@ -1,10 +1,8 @@
 # README
 
-Обновлено: 2026-08-12
-
 ## Проект
 
-PeerLink — кроссплатформенный Flutter-мессенджер с децентрализованным сетевым ядром.
+PeerLink X — кроссплатформенный Flutter-мессенджер с децентрализованным сетевым ядром.
 
 Текущее состояние сочетает:
 - прямой WebRTC-транспорт для peer-сессий overlay,
@@ -68,7 +66,7 @@ PeerLink — кроссплатформенный Flutter-мессенджер �
   - ручная проверка подтвердила рабочие подключения и обмен сообщениями/звонками с self-hosted серверами как по доменным именам, так и по IP (без включения `NSAllowsArbitraryLoads`),
   - iOS deployment target и Flutter framework `MinimumOSVersion` выставлены в `15.0`.
 - Privacy baseline платформ:
-  - контакты PeerLink — внутренние контакты приложения по Peer ID, не системная адресная книга,
+  - контакты PeerLink X — внутренние контакты приложения по Peer ID, не системная адресная книга,
   - iOS/macOS-сборки не запрашивают доступ к Contacts/address book.
 - В Settings для bootstrap/relay/turn используются агрегированные карточки:
   - версия приложения показывается в самом верху главного экрана Settings перед первой карточкой,
@@ -379,37 +377,23 @@ flutter run \
   --dart-define=PUSH_API_TOKEN=your_secret_token
 ```
 
-В `.vscode/launch.json` уже добавлены шаблоны `toolArgs` с плейсхолдерами:
-- `__SET_PUSH_SERVER_URL__`
-- `__SET_PUSH_API_TOKEN__`
-
 ## Основные документы
 
-- `RELEASE_FLOW_RU.md`
-- `RELEASE_CHECKLIST_RU.md`
 - `CHANGELOG_RU.md`
-- `VERSIONING_RU.md`
 - `ARCHITECTURE_RU.md`
-- `NETWORK_FLOW_RU.md`
 - `SECURITY_MODEL_RU.md`
-- `BOOTSTRAP_SIGNALING_PROTOCOL.md`
-- `RELAY_PROTOCOL.md`
-- `TASKS_RU.md`
-- `AI_CONTEXT_RU.md`
+- `README_RU.md`
+- `SOURCE_SNAPSHOT.md`
+- `THIRD_PARTY_NOTICES.md`
+- `BRANDING.md`
+- `COMMERCIAL-LICENSING.md`
 
 ## Версионирование
 
-- Версия приложения ведется только через `pubspec.yaml`.
-- Для штатного bump версии использовать `dart run tool/bump_version.dart <patch|minor|major|build>`.
-- Для обычных коммитов в `dev` использовать `tool/dev_commit.sh "<сообщение>"`.
-- Если в commit message есть `[patch]`, `[minor]`, `[major]` или `[build]`, `tool/dev_commit.sh` поднимает версию локально в `dev`, обновляет `CHANGELOG.md` и `CHANGELOG_RU.md`, а затем коммитит уже подготовленное versioned-состояние вместе с кодом.
-- Если все же нужен временный development build bump прямо в `dev` без изменения semantic version, использовать `tool/dev_commit.sh --bump-build "<сообщение>"`.
-- Для подготовки релиза целиком использовать `tool/prepare_release.sh <patch|minor|major|build>`: он поднимет версию и добавит заготовки в changelog.
-- `tool/prepare_release.sh` теперь не оставляет пустые `TODO`-секции, а сразу заполняет новую changelog-запись автоматическим черновиком из git history.
-- GitHub Actions workflow `.github/workflows/branch-release.yml` только публикует append-only public source mirror при push в `main`.
-- GitHub Actions не собирает Android/iOS artifacts и не выполняет deploy в Google Play или TestFlight.
-- `tool/render_release_notes.sh <version> --lang en|ru` можно запускать локально для генерации release notes из соответствующего changelog.
-- Подробности описаны в `VERSIONING_RU.md` и `RELEASE_FLOW_RU.md`.
+- Версия публичного source snapshot задается в `pubspec.yaml`.
+- У каждого опубликованного релиза PeerLink X есть соответствующий
+  неизменяемый публичный source tag.
+- Публичные source tag используют формат `source-v<VERSION>-build-<BUILD>`.
 
 ## Лицензирование
 

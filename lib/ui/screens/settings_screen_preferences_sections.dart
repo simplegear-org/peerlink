@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/runtime/app_file_logger.dart';
 import '../../core/runtime/source_metadata.dart';
@@ -212,25 +213,47 @@ class SettingsLegalSection extends StatelessWidget {
           Text(strings.aboutLegal, style: theme.textTheme.titleLarge),
           const SizedBox(height: 12),
           _LegalRow(
-            label: strings.version(controller.appVersionLabel),
-            value: PeerLinkSourceMetadata.licenseName,
+            label: 'PeerLink X',
+            value: strings.version(controller.appVersionLabel),
           ),
           _LegalRow(
             label: strings.openSourceLicense,
-            value: PeerLinkSourceMetadata.license,
-          ),
-          _LegalRow(
-            label: strings.sourceCode,
             value:
-                '${strings.sourceForThisVersion}\n${PeerLinkSourceMetadata.sourceUrl}',
+                '${PeerLinkSourceMetadata.licenseName} '
+                '(${PeerLinkSourceMetadata.license})',
           ),
-          _LegalRow(
+          _LegalActionRow(
+            label: strings.sourceCode,
+            buttonLabel: strings.sourceForThisVersion,
+            icon: Icons.open_in_new,
+            onPressed: () => _openSourceUrl(context),
+          ),
+          _LegalActionRow(
             label: strings.thirdPartyLicenses,
-            value: 'THIRD_PARTY_NOTICES.md',
+            buttonLabel: strings.thirdPartyLicenses,
+            icon: Icons.article_outlined,
+            onPressed: () => showLicensePage(
+              context: context,
+              applicationName: 'PeerLink X',
+              applicationVersion: controller.appVersionLabel,
+              applicationLegalese:
+                  '${PeerLinkSourceMetadata.licenseName} '
+                  '(${PeerLinkSourceMetadata.license})',
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _openSourceUrl(BuildContext context) async {
+    final uri = Uri.parse(PeerLinkSourceMetadata.sourceUrl);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(PeerLinkSourceMetadata.sourceUrl)));
+    }
   }
 }
 
@@ -253,6 +276,40 @@ class _LegalRow extends StatelessWidget {
           SelectableText(
             value,
             style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegalActionRow extends StatelessWidget {
+  final String label;
+  final String buttonLabel;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _LegalActionRow({
+    required this.label,
+    required this.buttonLabel,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon),
+            label: Text(buttonLabel),
           ),
         ],
       ),

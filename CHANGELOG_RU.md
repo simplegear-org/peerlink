@@ -2,6 +2,26 @@
 
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
+
+## [3.9.1] - 2026-08-14
+
+### Изменено
+
+- Очищены публичные README: теперь они ссылаются только на файлы и workflows,
+  которые входят в public source mirror.
+- Уведомление об AI-authorship перенесено вверх в английском README.
+- В Settings About & Legal разделены версия продукта, open-source license,
+  ссылка на исходный код конкретной версии и действие third-party licenses.
+- Добавлены MPL-2.0 source headers в project-authored platform/tooling файлы.
+- Обновлены public snapshot metadata для `3.9.1+2026081401`.
+
+### Исправлено
+
+- Усилен public mirror tooling: добавлены генерация source metadata и проверка
+  согласованности snapshot.
+- Исправлен parsing в release preparation: Flutter hook output больше не
+  попадает в release version.
+
 ## [3.9.0] - 2026-08-14
 
 ### Лицензирование

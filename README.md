@@ -1,16 +1,17 @@
 # README
 
-Last updated: 2026-08-12
-
 ## Project
 
-PeerLink is a cross-platform Flutter messenger with a decentralized networking core.
+PeerLink X is a cross-platform Flutter messenger with a decentralized networking core.
 
 Current design combines:
 - WebRTC direct transport for peer sessions used by overlay traffic.
 - TURN-routed WebRTC media for audio/video calls (TURN-only policy).
 - Relay-based store-and-forward message delivery over HTTP.
 - Application-level cryptography for identity/signatures/sessions.
+
+> This project is written exclusively by AI agents; I act only as coordinator
+> and development lead. Not a single character of code was written by hand.
 
 ## Current Status
 
@@ -237,8 +238,6 @@ APNS_USE_SANDBOX=true
   - on revoke, the device must leave the shared account and return to its original first-launch standalone account,
   - `deviceId` must remain stable across pairing and revoke; only the active account membership changes.
 
-> This project is authored by AI agents; I act only as a coordinator and development lead. No character of code was written by hand.
-
 > Russian documentation is available in `README_RU.md`.
 
 ## What Is Implemented
@@ -380,57 +379,32 @@ flutter run \
   --dart-define=PUSH_API_TOKEN=your_secret_token
 ```
 
-`.vscode/launch.json` already includes `toolArgs` templates with placeholders:
-- `__SET_PUSH_SERVER_URL__`
-- `__SET_PUSH_API_TOKEN__`
-
 ## Documentation
 
 ### English
-- `RELEASE_FLOW.md`
-- `RELEASE_CHECKLIST.md`
 - `CHANGELOG.md`
-- `VERSIONING.md`
 - `ARCHITECTURE.md`
-- `NETWORK_FLOW.md`
 - `SECURITY_MODEL.md`
-- `BOOTSTRAP_SIGNALING_PROTOCOL.md`
-- `RELAY_PROTOCOL.md`
-- `GROUP_BLOB_V1_SPEC.md`
-- `TASKS.md`
-- `AI_CONTEXT.md`
+- `SOURCE_SNAPSHOT.md`
+- `THIRD_PARTY_NOTICES.md`
+- `BRANDING.md`
+- `COMMERCIAL-LICENSING.md`
 
 ### Русский / Russian
-- `RELEASE_CHECKLIST_RU.md`
 - `CHANGELOG_RU.md`
-- `VERSIONING_RU.md`
 - `ARCHITECTURE_RU.md`
-- `NETWORK_FLOW_RU.md`
 - `SECURITY_MODEL_RU.md`
-- `BOOTSTRAP_SIGNALING_PROTOCOL_RU.md`
-- `RELAY_PROTOCOL_RU.md`
-- `GROUP_BLOB_V1_SPEC_RU.md`
-- `TASKS_RU.md`
-- `AI_CONTEXT_RU.md`
 - `README_RU.md`
 
 ## Publication
-- `PUBLICATION_CHECKLIST.md` - Status for public release
 - `LICENSE` - Mozilla Public License 2.0
 
 ## Versioning
 
-- App versioning is managed only from `pubspec.yaml`.
-- Use `dart run tool/bump_version.dart <patch|minor|major|build>` for standard version bumps.
-- For routine commits on `dev`, use `tool/dev_commit.sh "<message>"`.
-- If the commit message contains `[patch]`, `[minor]`, `[major]`, or `[build]`, `tool/dev_commit.sh` bumps the version locally in `dev`, updates `CHANGELOG.md` and `CHANGELOG_RU.md`, and commits the prepared versioned state together with the code changes.
-- If you intentionally need a temporary development build bump on `dev` without changing the semantic version, use `tool/dev_commit.sh --bump-build "<message>"`.
-- Use `tool/prepare_release.sh <patch|minor|major|build>` to bump version and create changelog stubs together.
-- `tool/prepare_release.sh` now pre-fills new changelog entries with an automatic draft from git history, so release prep starts from a meaningful summary instead of empty `TODO` sections.
-- GitHub Actions workflow `.github/workflows/branch-release.yml` only publishes the append-only public source mirror on push to `main`.
-- GitHub Actions does not build Android/iOS artifacts and does not deploy to Google Play or TestFlight.
-- `tool/render_release_notes.sh <version> --lang en|ru` can render release notes locally from the matching changelog section.
-- Details are documented in `VERSIONING.md` and `RELEASE_FLOW.md`.
+- The version of a public source snapshot is defined by `pubspec.yaml`.
+- Each distributed PeerLink X release has a corresponding immutable public
+  source tag.
+- Public source tags use the format `source-v<VERSION>-build-<BUILD>`.
 
 ## Licensing
 
