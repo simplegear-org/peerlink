@@ -308,7 +308,7 @@ APNS_USE_SANDBOX=true
 
 - Signaling остается централизованным по контракту bootstrap-сервера, хотя runtime уже удерживает несколько bootstrap WebSocket-каналов одновременно.
 - DHT-слой минимальный (`KademliaProtocol` без полноценного lookup workflow).
-- Шифрование сообщений подключено, но в runtime сейчас `enableEncryption: false` в `NetworkDependencies` (режим совместимости/отладки).
+- Шифрование сообщений включено в runtime-конфигурации (`enableEncryption: true`), при этом ограничения из `SECURITY_MODEL_RU.md` остаются актуальными.
 - Failover `Direct -> TURN -> Relay` для message transport сейчас не активен: текущий `PeerSession` direct-only.
 - Модель контактов и доставки пока частично device-centric:
   - часть messaging/call/contact flow все еще резолвит пиров по device-level id,
@@ -406,12 +406,38 @@ flutter run \
 - Если все же нужен временный development build bump прямо в `dev` без изменения semantic version, использовать `tool/dev_commit.sh --bump-build "<сообщение>"`.
 - Для подготовки релиза целиком использовать `tool/prepare_release.sh <patch|minor|major|build>`: он поднимет версию и добавит заготовки в changelog.
 - `tool/prepare_release.sh` теперь не оставляет пустые `TODO`-секции, а сразу заполняет новую changelog-запись автоматическим черновиком из git history.
-- Для того же сценария добавлен GitHub Actions workflow `.github/workflows/release-version.yml` с ручным запуском через `workflow_dispatch`.
-- После тега `app-v<version>` workflow `.github/workflows/app-release-build.yml` собирает Android/iOS артефакты и публикует GitHub Release.
-- Workflow `.github/workflows/branch-release.yml` теперь дает полностью автоматический branch-flow:
-  - push в `main` после merge PR: использует уже подготовленную в `dev` версию, рендерит release notes, делает analyze и mirror
-  - push в `app` после merge PR: то же самое плюс deploy Android в Google Play Internal и iOS в TestFlight
-- `tool/render_release_notes.sh <version> --lang en|ru` теперь умеет собирать и английскую, и русскую версию release notes, сначала берет секцию версии из соответствующего changelog, а если запись еще шаблонная, автоматически строит черновик из git history.
-- Release workflow теперь складывает готовые notes в `build/release_notes/`, загружает обе версии как artifacts и добавляет обе в summary GitHub Actions job с явной подсказкой `template source -> rendered output`.
-- Tag-based GitHub Release теперь также прикладывает `build/release_notes/release_notes_ru.md` как release asset и показывает прямую ссылку на него в опубликованном release body.
-- Подробности описаны в `VERSIONING_RU.md`.
+- GitHub Actions workflow `.github/workflows/branch-release.yml` только публикует append-only public source mirror при push в `main`.
+- GitHub Actions не собирает Android/iOS artifacts и не выполняет deploy в Google Play или TestFlight.
+- `tool/render_release_notes.sh <version> --lang en|ru` можно запускать локально для генерации release notes из соответствующего changelog.
+- Подробности описаны в `VERSIONING_RU.md` и `RELEASE_FLOW_RU.md`.
+
+## Лицензирование
+
+PeerLink X — open-source ПО, распространяемое под Mozilla Public License 2.0
+(MPL-2.0).
+
+Коммерческое использование под MPL-2.0 разрешено.
+
+Организации, которым нужны другие proprietary, OEM, white-label или enterprise
+условия, могут запросить отдельное коммерческое соглашение.
+
+См.:
+
+- LICENSE
+- LICENSE-HISTORY.md
+- COMMERCIAL-LICENSING.md
+- BRANDING.md
+- THIRD_PARTY_NOTICES.md
+
+## Модель репозитория
+
+Этот репозиторий является публичным mirror-репозиторием исходных snapshot-ов
+PeerLink X.
+
+Разработка ведется в отдельном development-репозитории.
+
+Этот репозиторий содержит чистые snapshot-ы исходного кода, соответствующие
+публичным релизам PeerLink X.
+
+Git-история здесь представляет публичные source snapshot-ы и не предназначена
+для воспроизведения внутренней истории разработки проекта.

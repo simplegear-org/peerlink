@@ -294,7 +294,7 @@ APNS_USE_SANDBOX=true
 
 - Signaling is still centralized by bootstrap server contract, although runtime now keeps multiple bootstrap WebSocket channels alive simultaneously.
 - DHT layer is minimal (`KademliaProtocol` pass-through, no full lookup workflow).
-- Messaging encryption is wired, but runtime is currently configured with `enableEncryption: false` in `NetworkDependencies` for compatibility/debugging.
+- Messaging encryption is enabled in runtime configuration (`enableEncryption: true`), while the limitations in `SECURITY_MODEL.md` still apply.
 - Message transport failover `Direct -> TURN -> Relay` is not active in `PeerSession` now; current `PeerSession` is direct-only.
 - Contact and delivery model is still partially device-centric:
   - parts of messaging/call/contact flow still resolve peers by device-level ids,
@@ -416,7 +416,7 @@ flutter run \
 
 ## Publication
 - `PUBLICATION_CHECKLIST.md` - Status for public release
-- `LICENSE` - MIT License
+- `LICENSE` - Mozilla Public License 2.0
 
 ## Versioning
 
@@ -427,12 +427,37 @@ flutter run \
 - If you intentionally need a temporary development build bump on `dev` without changing the semantic version, use `tool/dev_commit.sh --bump-build "<message>"`.
 - Use `tool/prepare_release.sh <patch|minor|major|build>` to bump version and create changelog stubs together.
 - `tool/prepare_release.sh` now pre-fills new changelog entries with an automatic draft from git history, so release prep starts from a meaningful summary instead of empty `TODO` sections.
-- GitHub Actions workflow `.github/workflows/release-version.yml` can prepare the same release flow through `workflow_dispatch`.
-- GitHub Actions workflow `.github/workflows/app-release-build.yml` builds Android/iOS artifacts and publishes GitHub Release notes after pushing tag `app-v<version>`.
-- GitHub Actions workflow `.github/workflows/branch-release.yml` is the branch-driven automatic path:
-  - push to `main` after PR merge: use the already prepared version from `dev`, render release notes, analyze, mirror
-  - push to `app` after PR merge: same flow plus Android internal deploy and iOS TestFlight upload
-- `tool/render_release_notes.sh <version> --lang en|ru` now supports both English and Russian release notes, prefers the matching changelog section, and automatically falls back to a git-history draft when the changelog entry is still a placeholder.
-- Release workflows render the final files into `build/release_notes/`, upload both rendered variants as artifacts, and append both to the GitHub Actions job summary with explicit `template source -> rendered output` hints.
-- Tag-based GitHub Releases also attach `build/release_notes/release_notes_ru.md` as a release asset and include a link to it directly in the published release body.
-- Details are documented in `VERSIONING.md`.
+- GitHub Actions workflow `.github/workflows/branch-release.yml` only publishes the append-only public source mirror on push to `main`.
+- GitHub Actions does not build Android/iOS artifacts and does not deploy to Google Play or TestFlight.
+- `tool/render_release_notes.sh <version> --lang en|ru` can render release notes locally from the matching changelog section.
+- Details are documented in `VERSIONING.md` and `RELEASE_FLOW.md`.
+
+## Licensing
+
+PeerLink X is open-source software distributed under the Mozilla Public
+License 2.0 (MPL-2.0).
+
+Commercial use under MPL-2.0 is permitted.
+
+Organizations that require different proprietary, OEM, white-label or
+enterprise licensing terms may request a separate commercial agreement.
+
+See:
+
+- LICENSE
+- LICENSE-HISTORY.md
+- COMMERCIAL-LICENSING.md
+- BRANDING.md
+- THIRD_PARTY_NOTICES.md
+
+## Repository Model
+
+This repository is the public source-distribution mirror for PeerLink X.
+
+Development is performed in a separate development repository.
+
+This repository contains clean source snapshots corresponding to public
+PeerLink X releases.
+
+Its Git history represents public source snapshots and is not intended
+to reproduce the project's private internal development history.

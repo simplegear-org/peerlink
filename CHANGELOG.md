@@ -2,6 +2,17 @@
 
 All notable PeerLink application changes should be recorded in this file.
 
+## [3.9.0] - 2026-08-14
+
+### Licensing
+
+- PeerLink X source snapshots beginning with this release are distributed under
+  Mozilla Public License 2.0 (MPL-2.0).
+- Earlier public releases were distributed under MIT.
+- Separate commercial licensing may be available.
+- The public GitHub repository is maintained as an append-only public source
+  snapshot mirror rather than a copy of internal development history.
+
 ## [3.8.0] - 2026-08-12
 
 ### Added

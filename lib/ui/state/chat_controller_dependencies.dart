@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+// SPDX-License-Identifier: MPL-2.0
+
 import '../../core/messaging/chat_service.dart';
 import '../../core/node/node_facade.dart';
 import '../../core/relay/relay_media_transfer_service.dart';

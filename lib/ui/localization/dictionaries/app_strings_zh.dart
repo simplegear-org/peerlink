@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+// SPDX-License-Identifier: MPL-2.0
+
 const appStringsZh = <String, String>{
   'contacts': '联系人',
   'chats': '聊天',
@@ -160,6 +166,11 @@ const appStringsZh = <String, String>{
   'logEmpty': '日志为空。',
   'logCleared': '应用日志和归档已清空',
   'version': '版本 {version}',
+  'aboutLegal': '关于与法律',
+  'openSourceLicense': '开源许可证',
+  'sourceCode': '源代码',
+  'sourceForThisVersion': '此版本源代码',
+  'thirdPartyLicenses': '第三方许可证',
   'serverQrTitle': '服务器配置二维码',
   'serverQrDescription':
       '仅包含当前可用的 bootstrap、relay、TURN 和 push 设置。分享此二维码即可让另一台设备自动填入可用服务器。',

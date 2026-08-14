@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "org.simplegear.peerlinkapp",
+      "sha256_cert_fingerprints": [
+        "F4:84:60:3B:70:39:FB:78:57:DB:7B:F9:52:7E:46:B8:09:84:07:B8:FB:CD:F1:19:73:60:66:0D:54:3A:F6:57"
+      ]
+    }
+  }
+]

@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+// SPDX-License-Identifier: MPL-2.0
+
 const appStringsRu = <String, String>{
   'contacts': 'Контакты',
   'chats': 'Чаты',
@@ -201,6 +207,11 @@ const appStringsRu = <String, String>{
   'logEmpty': 'Лог пока пуст.',
   'logCleared': 'Логи приложения очищены',
   'version': 'Версия {version}',
+  'aboutLegal': 'О приложении и право',
+  'openSourceLicense': 'Open-source лицензия',
+  'sourceCode': 'Исходный код',
+  'sourceForThisVersion': 'Исходный код этой версии',
+  'thirdPartyLicenses': 'Лицензии сторонних компонентов',
   'serverQrTitle': 'QR конфигурации серверов',
   'serverQrDescription':
       'Содержит только доступные bootstrap, relay, TURN и push-параметры. Этим QR можно поделиться, чтобы у товарища заполнились рабочие серверы без ручного ввода.',

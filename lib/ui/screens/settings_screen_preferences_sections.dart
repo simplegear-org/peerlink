@@ -1,6 +1,13 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+// SPDX-License-Identifier: MPL-2.0
+
 import 'package:flutter/material.dart';
 
 import '../../core/runtime/app_file_logger.dart';
+import '../../core/runtime/source_metadata.dart';
 import '../localization/app_language.dart';
 import '../localization/app_strings.dart';
 import '../state/app_appearance_controller.dart';
@@ -182,6 +189,70 @@ class SettingsAppLogSection extends StatelessWidget {
                 label: Text(strings.clearLog),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsLegalSection extends StatelessWidget {
+  final SettingsController controller;
+
+  const SettingsLegalSection({super.key, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final strings = context.strings;
+    return SettingsSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(strings.aboutLegal, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 12),
+          _LegalRow(
+            label: strings.version(controller.appVersionLabel),
+            value: PeerLinkSourceMetadata.licenseName,
+          ),
+          _LegalRow(
+            label: strings.openSourceLicense,
+            value: PeerLinkSourceMetadata.license,
+          ),
+          _LegalRow(
+            label: strings.sourceCode,
+            value:
+                '${strings.sourceForThisVersion}\n${PeerLinkSourceMetadata.sourceUrl}',
+          ),
+          _LegalRow(
+            label: strings.thirdPartyLicenses,
+            value: 'THIRD_PARTY_NOTICES.md',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegalRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _LegalRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 2),
+          SelectableText(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.muted),
           ),
         ],
       ),

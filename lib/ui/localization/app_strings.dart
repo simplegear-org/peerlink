@@ -1,3 +1,9 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+//
+// SPDX-License-Identifier: MPL-2.0
+
 import 'package:flutter/widgets.dart';
 
 import '../../core/runtime/self_hosted_deploy_service.dart';
@@ -278,6 +284,11 @@ class AppStrings {
   String get logEmpty => _text('logEmpty');
   String get logCleared => _text('logCleared');
   String version(String version) => _format('version', {'version': version});
+  String get aboutLegal => _text('aboutLegal');
+  String get openSourceLicense => _text('openSourceLicense');
+  String get sourceCode => _text('sourceCode');
+  String get sourceForThisVersion => _text('sourceForThisVersion');
+  String get thirdPartyLicenses => _text('thirdPartyLicenses');
   String get serverQrTitle => _text('serverQrTitle');
   String get serverQrDescription => _text('serverQrDescription');
   String get scanServerQr => _text('scanServerQr');
