@@ -7,7 +7,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:dartssh2/dartssh2.dart';
 
@@ -232,8 +231,8 @@ class SelfHostedDeployService {
       );
     }
 
-    final turnUser = 'peerlink';
-    final turnPassword = _generateTurnPassword();
+    const turnUser = 'peerlink';
+    const turnPassword = 'peerlink';
 
     _emitStage(
       onProgress,
@@ -659,19 +658,6 @@ class SelfHostedDeployService {
     }
 
     return host;
-  }
-
-  String _generateTurnPassword() {
-    // Keep TURN credentials config-safe for coturn: avoid comment and parser
-    // metacharacters such as '#', ';', ':', quotes, and whitespace.
-    const alphabet =
-        'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final random = Random.secure();
-    final result = StringBuffer();
-    for (var i = 0; i < 20; i++) {
-      result.write(alphabet[random.nextInt(alphabet.length)]);
-    }
-    return result.toString();
   }
 
   bool _tryEmitStageMessage(

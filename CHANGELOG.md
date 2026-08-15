@@ -3,6 +3,18 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.9.2+2026081501] - 2026-08-15
+
+### Changed
+
+- Updated release metadata to `3.9.2+2026081501` and source snapshot tag `source-v3.9.2-build-2026081501`.
+
+### Fixed
+
+- Fixed self-hosted TURN deployment credentials to use the configured `peerlink` account consistently.
+- Fixed public snapshot validation for changelog entries that include build suffixes.
+
+
 ## [3.9.1] - 2026-08-14
 
 ### Changed

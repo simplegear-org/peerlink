@@ -10,9 +10,6 @@ Current design combines:
 - Relay-based store-and-forward message delivery over HTTP.
 - Application-level cryptography for identity/signatures/sessions.
 
-> This project is written exclusively by AI agents; I act only as coordinator
-> and development lead. Not a single character of code was written by hand.
-
 ## Current Status
 
 - `flutter analyze` passes for current codebase.
