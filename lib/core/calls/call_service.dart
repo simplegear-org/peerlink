@@ -282,7 +282,6 @@ class CallService {
         _outgoingTimeout?.cancel();
         _outgoingTimeout = timer;
       },
-      expectedEpoch: _callEpoch.value,
       getCurrentEpoch: () => _callEpoch.value,
       endAndReset: (status) async {
         if (_state.peerId == peerId &&

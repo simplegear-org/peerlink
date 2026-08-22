@@ -79,7 +79,7 @@ PODS:
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
     - FlutterMacOS
-  - flutter_webrtc (1.6.0):
+  - flutter_webrtc (1.4.0):
     - Flutter
     - WebRTC-SDK (= 144.7559.09)
   - GoogleDataTransport (10.1.1):
@@ -273,7 +273,7 @@ SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_app_badger: 16b371e989d04cd265df85be2c3851b49cb68d18
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
-  flutter_webrtc: f952258e6fa67477d481cfbad2885a4f117922a7
+  flutter_webrtc: 3ee86aa10e0313c38c93fdb215dd86e77014f96a
   GoogleDataTransport: a24e58982ab3ba2f64d79613e027fe7f57e88539
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
   mobile_scanner: 9157936403f5a0644ca3779a38ff8404c5434a93

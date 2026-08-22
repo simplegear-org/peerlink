@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Обновлено: 2026-08-12
+Обновлено: 2026-08-22
 
 ## 1. Назначение
 
@@ -125,13 +125,13 @@ UI
 - Стартовое позиционирование прокрутки чата работает single-flight: `ChatScreen` планирует только один проход к низу/непрочитанному за раз, чтобы убрать дублирующиеся прыжки при открытии, а режим bottom несколько кадров догоняет список, пока восстановленные медиа еще могут менять высоту.
 - Позиционирование к первому unread через probe ленивого списка ждет, пока смонтируется divider или message key, и не полагается только на ratio по индексу, который ломается на высоких failed media-placeholder.
 - Переход по reply использует монотонный smooth-scan, чтобы смонтировать исходное сообщение перед финальным `ensureVisible`, вместо видимых чередующихся probe-прыжков.
-- Пометка прочитанного в уже открытом чате учитывает низ списка: входящие обновления автоматически читаются только если пользователь уже был рядом с низом, иначе unread-состояние сохраняется.
+- Пометка прочитанного в уже открытом чате учитывает низ списка и throttled single-flight scheduling: входящие обновления автоматически читаются только если пользователь уже был рядом с низом, иначе unread-состояние сохраняется.
 - Выбор initial history window и unread-якоря при открытии чата пропускает входящие media-placeholder со статусом `Ошибка загрузки`, поэтому старые ошибки не уводят загруженное окно и viewport от новых сообщений.
 - Пузырь видеофайла показывает компактный черный placeholder с play-overlay; `video_player` не должен инициализироваться внутри каждого message bubble.
 - `MessageFilePreview`/audio/video preview используют асинхронный кеш доступности локальных файлов, а не синхронные `existsSync()` в build path.
 - Media viewer показывает user-friendly fallback для Android codec errors вроде `video/dolby-vision` / HDR 10-bit и дает открыть исходный файл во внешнем приложении.
 - Settings использует агрегированные карточки bootstrap/relay/turn на главном экране и отдельные list-screen экраны для управления каждой группой серверов.
-- Номер версии приложения показывается в самом верху главного Settings-экрана перед первой карточкой, тем же footer-форматированием и с тем же межсекционным отступом.
+- Номер версии приложения показывается в Settings только в About/Legal, без отдельного верхнего footer перед первой карточкой.
 - Сводные карточки серверов Settings подписаны на availability stream, а QR payload для server config обновляется при изменении доступности bootstrap/relay/turn/push.
 - `SettingsScreen` декомпозирован: `settings_screen.dart` держит только lifecycle/wiring, composition/layout вынесены в `settings_screen_content.dart`, `settings_screen_identity_section.dart`, `settings_screen_account_devices_section.dart`, `settings_screen_server_sections.dart`, `settings_screen_preferences_sections.dart`, общий re-export account-секций идет через `settings_screen_account_sections.dart`, общие section/account widgets живут в `settings_screen_shared_widgets.dart` и `settings_screen_account_widgets.dart`, а dialog/action flow разнесен по `settings_screen_avatar_actions.dart`, `settings_screen_pairing_actions.dart`, `settings_screen_system_actions.dart`.
 - Для bootstrap Settings показывает не legacy-ярлык `Активен`, а раздельные runtime/health статусы: `подключен` для реально открытого signaling channel, `доступен` для успешного probe без текущего channel, `недоступен` для failed probe.
@@ -243,6 +243,7 @@ UI
 - Remote control, renegotiation, video signaling/transceiver/quality, camera flip, runtime snapshot/tracking, signal transition serialization, terminal lifecycle и epoch-safe timer logic живут в отдельных `call_*` модулях.
 - `CallPeerEventController` управляет binding WebRTC peer events к runtime state updates.
 - `CallLocalMediaController` управляет local mute/speaker/camera/media-type toggles.
+- Local self-preview в call UI прозрачен при выключенном local video и получает непрозрачный черный фон только при активной отправке видео.
 - `CallConnectionStateController` управляет connected-state policy и моментом перехода transport в connected.
 - `CallService` suppress-ит полностью идентичные `CallState` и не считает byte-counter updates полноценными state-transition trace-событиями, чтобы активный звонок не создавал лишний UI/state churn.
 - `CallMediaStreamController` и `VideoStreamView` считаются частью hot media path: synthetic remote stream нельзя публиковать в UI пустым, no-op merge того же remote track не должен триггерить `onRemoteStream`, а renderer не должен повторно rebinding-ить тот же `MediaStream`/track без фактической смены источника.

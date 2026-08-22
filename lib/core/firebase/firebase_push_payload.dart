@@ -84,9 +84,9 @@ class FirebasePushPayload {
     );
   }
 
-  bool get isCallInvite => type == 'call_invite';
-
   bool get isCallEnd => callAction == 'end' || mediaType == 'end';
+
+  bool get isCallInvite => type == 'call_invite' && !isCallEnd;
 
   bool get isCallPayload => isCallInvite || isCallEnd;
 

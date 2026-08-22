@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Last updated: 2026-08-12
+Last updated: 2026-08-22
 
 ## 1. Purpose
 
@@ -115,13 +115,13 @@ UI
 - Chat opening scroll positioning is single-flight: `ChatScreen` schedules only one initial bottom/unread viewport pass at a time to avoid duplicate startup jumps, and initial bottom mode keeps settling across several frames while restored media can still change list height.
 - First-unread positioning probes the lazy list until the divider or message key is mounted, avoiding index-ratio fallback errors caused by tall failed media placeholders.
 - Reply navigation uses a monotonic smooth scan to mount the target message before final `ensureVisible`, instead of alternating visible probe jumps.
-- Open-chat read marking is bottom-aware: incoming updates are auto-read only while the user is already near the bottom, otherwise unread state is preserved.
+- Open-chat read marking is bottom-aware and uses throttled single-flight scheduling: incoming updates are auto-read only while the user is already near the bottom, otherwise unread state is preserved.
 - Chat opening initial history selection and unread anchoring skip failed incoming media placeholders, so old `Ошибка загрузки` items do not pull the loaded window or viewport away from newer content.
 - Video-file bubbles render a compact black placeholder with a play overlay; `video_player` is not initialized inside message bubbles.
 - Message file/audio/video previews use asynchronous cached local-file availability checks instead of synchronous `existsSync()` calls in build paths.
 - Media viewer shows a user-friendly fallback for Android codec errors such as `video/dolby-vision` / HDR 10-bit and lets the user open the original file in another app.
 - Settings uses aggregated bootstrap/relay/turn cards on the main screen and dedicated list screens for managing each server group.
-- The app version is shown at the very top of the main Settings screen before the first card, using the same footer formatting and inter-section spacing.
+- The app version is shown in Settings only inside About/Legal, without a separate top footer before the first card.
 - Settings server summary cards subscribe to availability streams, and exported server-config QR payloads refresh when bootstrap/relay/turn/push availability changes.
 - `SettingsController` in `lib/ui/state` is now decomposed: server-status presentation is in `settings_server_status_presenter.dart`, invite encode/parse is in `settings_invite_codec.dart`, and pairing flow logic is in `settings_pairing_flow_service.dart`.
 
@@ -215,6 +215,7 @@ UI
 - Remote control, renegotiation, video signaling/transceiver/quality, camera flip, runtime snapshot/tracking, signal transition serialization, terminal lifecycle, and epoch-safe timer logic live in dedicated `call_*` modules.
 - `CallPeerEventController` owns WebRTC peer-event binding into runtime state updates.
 - `CallLocalMediaController` owns local mute/speaker/camera/media-type toggles.
+- Local self-preview in the call UI is transparent while local video is off and uses an opaque black background only while video is being sent.
 - `CallConnectionStateController` owns connected-state policy and the transition point to connected transport.
 - `IosCallkitService` should remain a native bridge layer and must not absorb server-merge orchestration or payload normalization back into itself.
 - Current call policy: TURN-only for all network types.

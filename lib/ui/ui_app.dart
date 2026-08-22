@@ -115,6 +115,13 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         return;
       }
       final pushPayload = FirebasePushPayload.fromMap(data);
+      if (pushPayload.isCallEnd && pushPayload.hasPeerAndCallId) {
+        await widget.facade.endCallFromRemotePush(
+          peerId: pushPayload.callPeerId,
+          callId: pushPayload.callId,
+        );
+        return;
+      }
       if (pushPayload.isCallInvite) {
         if (pushPayload.hasPeerAndCallId) {
           await widget.facade.presentIncomingCallFromPush(
@@ -131,13 +138,6 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
           unawaited(_refreshMissedCallsBadge(markSeen: true));
           unawaited(_syncCallRoute(widget.facade.callState));
         }
-        return;
-      }
-      if (pushPayload.isCallEnd && pushPayload.hasPeerAndCallId) {
-        await widget.facade.endCallFromRemotePush(
-          peerId: pushPayload.callPeerId,
-          callId: pushPayload.callId,
-        );
         return;
       }
       await _pollRelayForOpenedPush(pushPayload, source: source);
@@ -574,6 +574,13 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         final pushPayload = FirebasePushPayload.fromMap(
           Map<String, dynamic>.from(uri.queryParameters),
         );
+        if (pushPayload.isCallEnd && pushPayload.hasPeerAndCallId) {
+          await widget.facade.endCallFromRemotePush(
+            peerId: pushPayload.callPeerId,
+            callId: pushPayload.callId,
+          );
+          return;
+        }
         if (pushPayload.isCallInvite && pushPayload.hasPeerAndCallId) {
           await widget.facade.presentIncomingCallFromPush(
             peerId: pushPayload.callPeerId,

@@ -38,7 +38,6 @@ class CallCommandHelper {
     required Future<void> Function(String purpose) waitForSignalingReady,
     required Future<void> Function(String error) failAndReset,
     required void Function(Timer? timer) setOutgoingTimeout,
-    required int expectedEpoch,
     required int Function() getCurrentEpoch,
     required Future<void> Function(String status) endAndReset,
     required CallCommandSignalSender sendSignal,
@@ -85,7 +84,7 @@ class CallCommandHelper {
     setOutgoingTimeout(
       CallEpochTimer.arm(
         duration: const Duration(seconds: 30),
-        expectedEpoch: expectedEpoch,
+        expectedEpoch: getCurrentEpoch(),
         getCurrentEpoch: getCurrentEpoch,
         onCurrent: () => endAndReset('Без ответа'),
       ),

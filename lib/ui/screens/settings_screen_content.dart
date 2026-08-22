@@ -84,8 +84,6 @@ class SettingsScreenContent extends StatelessWidget {
     return ListView(
       padding: SettingsScreenStyles.screenPadding,
       children: [
-        SettingsVersionFooter(controller: controller),
-        const SizedBox(height: SettingsScreenStyles.cardSeparatorHeight),
         SettingsIdentitySection(
           controller: controller,
           avatarService: avatarService,

@@ -225,7 +225,7 @@ class CallScreenContent extends StatelessWidget {
                   ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.22),
+                      color: _hasLocalVideo ? Colors.black : Colors.transparent,
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.14),
                       ),

@@ -38,6 +38,8 @@ class ChatScreenScrollCoordinator {
   Timer? _highlightClearTimer;
   Timer? _loadMoreNoticeTimer;
   DateTime? _userScrolledAwayUntil;
+  DateTime? _lastMarkReadScheduledAt;
+  bool _markReadInFlight = false;
 
   ChatScreenScrollCoordinator({
     required this.unreadDividerKey,
@@ -57,7 +59,7 @@ class ChatScreenScrollCoordinator {
   bool get initialPositionApplied => _state.initialPositionApplied;
   bool get initialPositionScheduled => _state.initialPositionScheduled;
   bool get followBottomScheduled => _state.followBottomScheduled;
-  bool get markReadScheduled => _state.markReadScheduled;
+  bool get markReadScheduled => _markReadInFlight;
   bool get isProgrammaticMessageJump => _state.isProgrammaticMessageJump;
   bool get showScrollToBottomButton => _state.showScrollToBottomButton;
   String? get unreadDividerMessageId => _state.unreadDividerMessageId;
@@ -113,15 +115,20 @@ class ChatScreenScrollCoordinator {
   }
 
   void scheduleMarkChatAsRead() {
-    if (markReadScheduled) {
+    final now = DateTime.now();
+    final lastScheduled = _lastMarkReadScheduledAt;
+    if (_markReadInFlight ||
+        (lastScheduled != null &&
+            now.difference(lastScheduled).inMilliseconds < 700)) {
       return;
     }
-    _updateState(_state.copyWith(markReadScheduled: true));
+    _markReadInFlight = true;
+    _lastMarkReadScheduledAt = now;
     unawaited(() async {
       try {
         await safeMarkChatAsRead();
       } finally {
-        _updateState(_state.copyWith(markReadScheduled: false));
+        _markReadInFlight = false;
       }
     }());
   }
@@ -687,7 +694,7 @@ class ChatScreenScrollCoordinator {
       _updateState(_state.copyWith(lastLoadedOlderCount: null));
     }
     maybeLoadMoreMessages();
-    if (initialPositionApplied && isNearBottom()) {
+    if (initialPositionApplied && isNearBottom(threshold: 24)) {
       scheduleMarkChatAsRead();
     }
     return false;

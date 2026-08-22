@@ -372,25 +372,6 @@ class SettingsDataResetSection extends StatelessWidget {
   }
 }
 
-class SettingsVersionFooter extends StatelessWidget {
-  final SettingsController controller;
-
-  const SettingsVersionFooter({super.key, required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        context.strings.version(controller.appVersionLabel),
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppTheme.muted,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-}
-
 class _LogLevelChip extends StatelessWidget {
   final String label;
   final bool selected;

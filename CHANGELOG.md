@@ -3,6 +3,22 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.9.3+2026082201] - 2026-08-22
+
+### Changed
+
+- Updated release metadata to `3.9.3+2026082201` and source snapshot tag `source-v3.9.3-build-2026082201`.
+- Pinned the Android/iOS WebRTC dependency to `flutter_webrtc 1.5.0` to avoid the Android remote-video freeze regression when video is enabled later in a call.
+- Kept the app version on the main Settings screen only in About/Legal, removing the duplicate top footer.
+
+### Fixed
+
+- Fixed call-end push/deep-link handling so `call_invite` payloads with `callAction=end` do not reopen an incoming call and instead terminate the runtime session first.
+- Bound outgoing call timeout to the current call epoch after runtime tracking reset so late timers cannot affect a newer call.
+- Made the in-call local self-preview transparent while local video is off and opaque black only while local video is being sent.
+- Throttled open-chat read marking and tightened the bottom threshold to reduce redundant read events while scrolling.
+
+
 ## [3.9.2+2026081501] - 2026-08-15
 
 ### Changed
