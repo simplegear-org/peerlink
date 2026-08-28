@@ -58,6 +58,8 @@ class CallRecoveryCoordinator {
   DateTime? _lastMediaAdvancedAt;
   DateTime? _iceUnhealthySince;
 
+  bool get recoveryInProgress => _iceUnhealthySince != null;
+
   bool get mediaRecentlyActive {
     final last = _lastMediaAdvancedAt;
     return last != null && _now().difference(last) <= mediaRecentWindow;
@@ -82,8 +84,10 @@ class CallRecoveryCoordinator {
       case CallRecoveryObservationKind.heartbeatMissed:
       case CallRecoveryObservationKind.remoteVideoFlowStalled:
       case CallRecoveryObservationKind.postIceRecoveryFlowStalled:
-      case CallRecoveryObservationKind.liveMediaFlowStalled:
         _logObservation(observation, action: 'diagnostic-only');
+        return CallRecoveryDisposition.none;
+      case CallRecoveryObservationKind.liveMediaFlowStalled:
+        _markMediaFlowUnhealthy(observation);
         return CallRecoveryDisposition.none;
     }
   }
@@ -123,6 +127,15 @@ class CallRecoveryCoordinator {
           : 'Транспорт звонка нестабилен, ждём восстановления сети',
     );
     _logObservation(observation, action: 'passive-watch');
+  }
+
+  void _markMediaFlowUnhealthy(CallRecoveryObservation observation) {
+    _iceUnhealthySince ??= _now();
+    _onRecoveryStateChanged(
+      recovering: true,
+      status: 'Медиа поток прерван, восстанавливаем звонок',
+    );
+    _logObservation(observation, action: 'media-recovery');
   }
 
   void _clearIceUnhealthy(String reason) {

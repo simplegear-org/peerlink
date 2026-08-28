@@ -17,6 +17,7 @@ class ContactTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final Widget? avatar;
   final Widget status;
+  final Widget? trailing;
 
   const ContactTile({
     super.key,
@@ -26,6 +27,7 @@ class ContactTile extends StatelessWidget {
     required this.status,
     this.onLongPress,
     this.avatar,
+    this.trailing,
   });
 
   @override
@@ -85,6 +87,7 @@ class ContactTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (trailing != null) ...[const SizedBox(width: 10), trailing!],
           ],
         ),
       ),

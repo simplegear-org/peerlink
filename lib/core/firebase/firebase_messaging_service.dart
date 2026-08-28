@@ -12,6 +12,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../runtime/account_membership_update_payload.dart';
 import '../runtime/app_file_logger.dart';
+import '../runtime/moderation_policy_service.dart';
 import '../runtime/push_token_service.dart';
 import '../runtime/storage_service.dart';
 import 'firebase_push_callback_registry.dart';
@@ -34,12 +35,20 @@ class FirebaseMessagingService {
   FirebaseMessagingService({
     FirebaseMessaging? messaging,
     StorageService? storage,
-  }) : _messaging = messaging ?? FirebaseMessaging.instance,
-       _tokenLifecycle = FirebasePushTokenLifecycle(
+  }) : this._(
          messaging: messaging ?? FirebaseMessaging.instance,
-         pushTokens: PushTokenService(storage: storage ?? StorageService()),
+         storage: storage ?? StorageService(),
+       );
+
+  FirebaseMessagingService._({
+    required FirebaseMessaging messaging,
+    required StorageService storage,
+  }) : _messaging = messaging,
+       _tokenLifecycle = FirebasePushTokenLifecycle(
+         messaging: messaging,
+         pushTokens: PushTokenService(storage: storage),
        ),
-       _inbound = FirebasePushInboundService() {
+       _inbound = FirebasePushInboundService(storage: storage) {
     _activeInstance = this;
   }
 
@@ -69,6 +78,20 @@ class FirebaseMessagingService {
     Future<void> Function(Map<String, dynamic> payload, {String? sourcePeerId})?
     callback,
   ) => FirebasePushCallbackRegistry.onGroupMembersUpdateFromPush = callback;
+
+  static Future<void> Function(
+    ModerationPolicySnapshot snapshot, {
+    required String source,
+  })?
+  get onModerationPolicyFromPush =>
+      FirebasePushCallbackRegistry.onModerationPolicyFromPush;
+  static set onModerationPolicyFromPush(
+    Future<void> Function(
+      ModerationPolicySnapshot snapshot, {
+      required String source,
+    })?
+    callback,
+  ) => FirebasePushCallbackRegistry.onModerationPolicyFromPush = callback;
 
   static Future<void> Function(
     Map<String, dynamic> data, {

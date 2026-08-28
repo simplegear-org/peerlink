@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import '../runtime/account_membership_update_payload.dart';
 import '../runtime/app_file_logger.dart';
+import '../runtime/moderation_policy_service.dart';
 import '../runtime/server_update_callback_registry.dart';
 import 'firebase_push_models.dart';
 
@@ -25,6 +26,11 @@ class FirebasePushCallbackRegistry {
     String? sourcePeerId,
   })?
   onGroupMembersUpdateFromPush;
+  static Future<void> Function(
+    ModerationPolicySnapshot snapshot, {
+    required String source,
+  })?
+  onModerationPolicyFromPush;
   static Future<void> Function(
     Map<String, dynamic> data, {
     required String source,

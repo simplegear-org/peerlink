@@ -115,6 +115,66 @@ class SettingsLanguageSection extends StatelessWidget {
   }
 }
 
+class SettingsPrivacySection extends StatelessWidget {
+  final SettingsController controller;
+  final Future<void> Function(bool value) onSetAllowMessagesOnlyFromContacts;
+  final Future<void> Function() onOpenBlockedUsers;
+
+  const SettingsPrivacySection({
+    super.key,
+    required this.controller,
+    required this.onSetAllowMessagesOnlyFromContacts,
+    required this.onOpenBlockedUsers,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final strings = context.strings;
+    return SettingsSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(strings.privacySafety, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 4),
+          Text(
+            strings.privacySafetyDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.muted),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: controller.allowMessagesOnlyFromContacts,
+            title: Text(strings.allowOnlyContacts),
+            subtitle: Text(strings.allowOnlyContactsDescription),
+            onChanged: (value) => onSetAllowMessagesOnlyFromContacts(value),
+          ),
+          const Divider(height: 24),
+          Text(strings.safetyPolicies, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text(
+            strings.safetyPoliciesDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.muted),
+          ),
+          const SizedBox(height: 14),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            onTap: onOpenBlockedUsers,
+            leading: const Icon(Icons.block_rounded),
+            title: Text(strings.blockedUsers),
+            subtitle: Text(
+              controller.blockedPeersCount == 0
+                  ? strings.blockedUsersEmpty
+                  : strings.blockedUsersCount(controller.blockedPeersCount),
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class SettingsAppLogSection extends StatelessWidget {
   final SettingsController controller;
   final Future<void> Function() onShowAppLogPreview;

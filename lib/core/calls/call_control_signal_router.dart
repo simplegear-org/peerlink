@@ -105,10 +105,13 @@ class CallControlSignalRouter {
 
     switch (message.type) {
       case 'call_invite':
-        if (currentState.isIncoming &&
-            currentState.callId == callId &&
-            currentState.peerId == peerId) {
-          log('invite:ignore duplicate peerId=$peerId callId=$callId');
+        final isCurrentCallInvite =
+            currentState.callId == callId && currentState.peerId == peerId;
+        if (isCurrentCallInvite && !currentState.isIdle) {
+          log(
+            'invite:ignore duplicate peerId=$peerId callId=$callId '
+            'phase=${currentState.phase.name}',
+          );
           return true;
         }
         if (currentState.isBusy) {

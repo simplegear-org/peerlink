@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/app_file_logger.dart';
 import '../../core/runtime/avatar_service.dart';
+import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../state/app_appearance_controller.dart';
 import '../state/app_locale_controller.dart';
@@ -20,6 +21,7 @@ import 'settings_screen_styles.dart';
 class SettingsScreenContent extends StatelessWidget {
   final SettingsController controller;
   final AvatarService avatarService;
+  final ModerationPolicySnapshot moderationPolicy;
   final AppAppearanceController appearanceController;
   final AppLocaleController localeController;
   final Future<void> Function() onShowAvatarActions;
@@ -30,6 +32,8 @@ class SettingsScreenContent extends StatelessWidget {
   final Future<void> Function() onInstallSelfHostedServers;
   final Future<void> Function(bool value) onSetShareServersInPush;
   final Future<void> Function(bool value) onSetReceiveServersFromPush;
+  final Future<void> Function(bool value) onSetAllowMessagesOnlyFromContacts;
+  final Future<void> Function() onOpenBlockedUsers;
   final Future<void> Function() onOpenPushServers;
   final Future<void> Function() onOpenBootstrapServers;
   final Future<void> Function() onOpenRelayServers;
@@ -52,6 +56,7 @@ class SettingsScreenContent extends StatelessWidget {
     super.key,
     required this.controller,
     required this.avatarService,
+    required this.moderationPolicy,
     required this.appearanceController,
     required this.localeController,
     required this.onShowAvatarActions,
@@ -62,6 +67,8 @@ class SettingsScreenContent extends StatelessWidget {
     required this.onInstallSelfHostedServers,
     required this.onSetShareServersInPush,
     required this.onSetReceiveServersFromPush,
+    required this.onSetAllowMessagesOnlyFromContacts,
+    required this.onOpenBlockedUsers,
     required this.onOpenPushServers,
     required this.onOpenBootstrapServers,
     required this.onOpenRelayServers,
@@ -87,7 +94,14 @@ class SettingsScreenContent extends StatelessWidget {
         SettingsIdentitySection(
           controller: controller,
           avatarService: avatarService,
+          moderationPolicy: moderationPolicy,
           onShowAvatarActions: onShowAvatarActions,
+        ),
+        SettingsPrivacySection(
+          controller: controller,
+          onSetAllowMessagesOnlyFromContacts:
+              onSetAllowMessagesOnlyFromContacts,
+          onOpenBlockedUsers: onOpenBlockedUsers,
         ),
         SettingsSelfHostedSection(
           onInstallSelfHostedServers: onInstallSelfHostedServers,

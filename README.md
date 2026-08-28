@@ -60,8 +60,19 @@ Current design combines:
 - Platform privacy baseline:
   - PeerLink contacts are internal app contacts keyed by Peer ID, not the system address book,
   - iOS/macOS builds do not request Contacts/address-book access.
+- App Store UGC/moderation flow is covered:
+  - Terms/EULA gate blocks communication features until the current terms version is accepted,
+  - contacts-only is enabled by default; local block suppresses incoming messages, invites, push, and calls from blocked/unknown Peer IDs,
+  - direct/group reports send only metadata: reporter, reported peer, reason, type, message id/timestamp, and `groupId` for groups; text/media/history/keys are not sent to moderators,
+  - reporting a message immediately hides it locally for the reporter,
+  - `warning`/`ban` is set only by a moderator; there is no automatic 10/20-report scoring transition,
+  - warn/ban arrives as `moderation_policy` push/status with `messageKey`, `reportCount`, and `reporterCount`, then renders fullscreen in the user's locale,
+  - warning closes with `Continue`; ban shows appeal first, then hides the screen after appeal submission while messages and calls stay blocked until `unban`,
+  - Settings shows current `warning`/`ban` in red below Peer ID/QR,
+  - the client verifies `signedStatus` when `MODERATION_STATUS_SIGNING_PUBLIC_KEY` is set and polls `/moderation/status` on startup/resume as a missed-push fallback.
 - Settings now use aggregated bootstrap/relay/turn cards:
-  - the app version is shown at the top of the main Settings screen before the first card,
+  - the app version is shown only in `About & Legal`,
+  - `Privacy & Safety` contains the contacts-only messages/calls switch and the blocked Peer ID screen,
   - the main screen shows compact available/unavailable summaries,
   - server summary cards refresh from shared availability streams,
   - tapping a card opens a dedicated list screen for that server group,

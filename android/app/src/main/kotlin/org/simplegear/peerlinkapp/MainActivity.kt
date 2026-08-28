@@ -31,6 +31,7 @@ class MainActivity : FlutterActivity() {
     private val callNotificationsMethodChannelName = "peerlink/android_call_notifications/methods"
     private val mediaThumbnailMethodChannelName = "peerlink/media_thumbnail/methods"
     private val pushPayloadMethodChannelName = "peerlink/push_payload/methods"
+    private val accessControlMethodChannelName = "peerlink/access_control/methods"
     private val writeCallLogRequestCode = 7301
     private var initialLink: String? = null
     private var eventSink: EventChannel.EventSink? = null
@@ -83,6 +84,20 @@ class MainActivity : FlutterActivity() {
         PeerlinkPushPayloadBridge.configure(
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, pushPayloadMethodChannelName)
         )
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, accessControlMethodChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "syncBlockedPeers" -> {
+                        val peers = (call.arguments as? List<*>)
+                            ?.mapNotNull { it as? String }
+                            ?: emptyList()
+                        PeerlinkAccessControl.syncBlockedPeers(this, peers)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
 
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, eventChannelName)
             .setStreamHandler(object : EventChannel.StreamHandler {

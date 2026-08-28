@@ -14,6 +14,10 @@ import '../../core/messaging/chat_service.dart';
 import '../../core/node/node_facade.dart';
 import '../../core/notification/notification_service.dart';
 import '../../core/runtime/app_file_logger.dart';
+import '../../core/runtime/contacts_repository.dart';
+import '../../core/runtime/moderation_report_models.dart';
+import '../../core/runtime/moderation_report_service.dart';
+import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/storage_service.dart';
 import '../../core/security/group_message_crypto_service.dart';
 import '../../core/security/group_key_service.dart';
@@ -113,6 +117,8 @@ class ChatController with WidgetsBindingObserver {
   late final ChatMessageSendCoordinator _messageSendCoordinator;
   late final GroupMessageCryptoService _groupMessageCryptoService;
   late final ChatReplyMetadataResolver _replyMetadataResolver;
+  late final PeerAccessControlService _accessControl;
+  late final ModerationReportService _moderationReports;
 
   final Map<String, Chat> chats = {};
   final Map<String, ChatConnectionStatus> _connectionStatus = {};
@@ -146,6 +152,15 @@ class ChatController with WidgetsBindingObserver {
           ChatAccountPayloadDecoder.decodeMembershipUpdate,
     );
     _settingsBox = dependencies.settingsBox;
+    _accessControl = PeerAccessControlService(
+      settingsBox: _settingsBox,
+      contactsRepository: ContactsRepository(storage: storage),
+    );
+    _moderationReports = ModerationReportService(
+      settingsBox: _settingsBox,
+      localPeerId: () => facade.peerId,
+      deliverReport: facade.submitModerationReport,
+    );
     _groupKeyService = dependencies.groupKeyService;
     _outboundCodec = dependencies.outboundCodec;
     _chatOutboundService = dependencies.outboundService;
@@ -930,6 +945,9 @@ class ChatController with WidgetsBindingObserver {
     String text, {
     Message? replyTo,
   }) async {
+    if (_accessControl.isBlocked(peerId)) {
+      throw StateError('Peer is blocked');
+    }
     await _messageSendCoordinator.sendMessage(peerId, text, replyTo: replyTo);
   }
 
@@ -942,6 +960,9 @@ class ChatController with WidgetsBindingObserver {
     String? mimeType,
     Message? replyTo,
   }) async {
+    if (_accessControl.isBlocked(peerId)) {
+      throw StateError('Peer is blocked');
+    }
     await _fileSendCoordinator.sendFile(
       peerId,
       fileName: fileName,
@@ -1065,6 +1086,48 @@ class ChatController with WidgetsBindingObserver {
 
   Future<void> deleteChat(String peerId) async {
     await _cleanupCoordinator.deleteChat(peerId);
+  }
+
+  bool isPeerBlocked(String peerId) => _accessControl.isBlocked(peerId);
+
+  Future<void> blockPeer(String peerId, {String? reason}) async {
+    await _accessControl.blockPeer(peerId, reason: reason);
+    _notifyMessageUpdated(peerId);
+  }
+
+  Future<void> unblockPeer(String peerId) async {
+    await _accessControl.unblockPeer(peerId);
+    _notifyMessageUpdated(peerId);
+  }
+
+  Future<void> reportPeer({
+    required String peerId,
+    required ModerationReportReason reason,
+    Message? selectedMessage,
+    String? groupId,
+  }) {
+    return _moderationReports.createDirectReport(
+      reportedPeerId: peerId,
+      reason: reason,
+      selectedMessage: selectedMessage == null
+          ? null
+          : ModerationReportedMessageMetadata(
+              messageId: selectedMessage.id,
+              senderPeerId:
+                  (selectedMessage.senderPeerId ?? selectedMessage.peerId)
+                      .trim(),
+              incoming: selectedMessage.incoming,
+              timestamp: selectedMessage.timestamp,
+              kind: selectedMessage.kind.name,
+              mimeType: selectedMessage.kind == MessageKind.file
+                  ? selectedMessage.mimeType
+                  : null,
+              fileSizeBytes: selectedMessage.kind == MessageKind.file
+                  ? selectedMessage.fileSizeBytes
+                  : null,
+            ),
+      groupId: groupId,
+    );
   }
 
   Future<void> _deleteChatLocal(
@@ -1295,5 +1358,10 @@ class ChatController with WidgetsBindingObserver {
   Stream<List<String>> get discoveredPeersStream =>
       facade.discoveredPeersStream;
 
-  Future<void> startCall(String peerId) => facade.startCall(peerId);
+  Future<void> startCall(String peerId) {
+    if (_accessControl.isBlocked(peerId)) {
+      throw StateError('Peer is blocked');
+    }
+    return facade.startCall(peerId);
+  }
 }

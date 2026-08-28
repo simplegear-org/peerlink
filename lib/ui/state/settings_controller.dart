@@ -25,6 +25,8 @@ import '../../core/runtime/app_data_cleaner_service.dart';
 import '../../core/runtime/app_storage_stats.dart';
 import '../../core/node/node_facade.dart';
 import '../../core/runtime/account_pairing_payload.dart';
+import '../../core/runtime/contacts_repository.dart';
+import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/server_config_payload.dart';
 import '../../core/runtime/server_availability.dart';
 import '../../core/runtime/server_health_coordinator.dart';
@@ -32,6 +34,7 @@ import '../../core/runtime/push_token_service.dart';
 import '../../core/runtime/push_server_sharing_preferences.dart';
 import '../../core/runtime/push_device_registration_service.dart';
 import '../../core/runtime/storage_service.dart';
+import '../../core/runtime/terms_acceptance_service.dart';
 import '../../core/security/account_identity.dart';
 import '../../core/signaling/signaling_service.dart';
 import '../../core/turn/turn_server_config.dart';
@@ -67,6 +70,8 @@ class SettingsController {
   late final SettingsServerConfigService _serverConfigService;
   late final SettingsStorageMaintenanceService _storageMaintenanceService;
   late final SettingsAccountMembershipService _accountMembershipService;
+  late final PeerAccessControlService _accessControl;
+  late final TermsAcceptanceService _termsAcceptance;
 
   SettingsController({required this.facade, required this.storage}) {
     _health = ServerHealthCoordinator(facade: facade, storage: storage);
@@ -75,6 +80,13 @@ class SettingsController {
     _pushDeviceRegistration = PushDeviceRegistrationService(
       facade: facade,
       storage: storage,
+    );
+    _accessControl = PeerAccessControlService(
+      settingsBox: storage.getSettings(),
+      contactsRepository: ContactsRepository(storage: storage),
+    );
+    _termsAcceptance = TermsAcceptanceService(
+      settingsBox: storage.getSettings(),
     );
     _readModelService = SettingsReadModelService(
       health: _health,
@@ -166,6 +178,32 @@ class SettingsController {
   }
 
   SecureStorageBox get _settings => storage.getSettings();
+
+  bool get allowMessagesOnlyFromContacts =>
+      _accessControl.allowMessagesOnlyFromContacts;
+  List<BlockedPeer> get blockedPeers => _accessControl.blockedPeers();
+  int get blockedPeersCount => blockedPeers.length;
+  String get termsVersion => TermsAcceptanceService.currentTermsVersion;
+  bool get isCurrentTermsAccepted => _termsAcceptance.isCurrentVersionAccepted;
+  TermsAcceptanceState get termsAcceptanceState => _termsAcceptance.state;
+
+  Future<void> setAllowMessagesOnlyFromContacts(bool enabled) {
+    return _accessControl.setAllowMessagesOnlyFromContacts(enabled);
+  }
+
+  Future<void> unblockPeer(String peerId) {
+    return _accessControl.unblockPeer(peerId);
+  }
+
+  Future<void> acceptCurrentTerms() {
+    return _termsAcceptance.acceptCurrentVersion();
+  }
+
+  String blockedPeerDisplayName(String peerId) {
+    return ContactsRepository(
+      storage: storage,
+    ).displayName(peerId, fallback: peerId);
+  }
 
   /// Текущий peerId локального узла.
   String get peerId => facade.peerId;
@@ -333,7 +371,7 @@ class SettingsController {
     }
     final uri = Uri.tryParse(trimmed);
     if (uri == null || !SettingsDeepLinkCodec.isAccountPairingUri(uri)) {
-      throw const FormatException('Это не привязка устройства PeerLink');
+      throw const FormatException('Это не привязка устройства PeerLink X');
     }
     final encodedPayload = SettingsDeepLinkCodec.payloadFromUri(uri);
     if (encodedPayload == null || encodedPayload.trim().isEmpty) {
@@ -450,7 +488,7 @@ class SettingsController {
   ServerConfigPayload parseServerConfigDeepLink(String raw) {
     final uri = Uri.tryParse(raw.trim());
     if (uri == null || !SettingsDeepLinkCodec.isServerConfigUri(uri)) {
-      throw const FormatException('Это не ссылка конфигурации PeerLink');
+      throw const FormatException('Это не ссылка конфигурации PeerLink X');
     }
     final encodedPayload = SettingsDeepLinkCodec.payloadFromUri(uri);
     if (encodedPayload == null || encodedPayload.trim().isEmpty) {

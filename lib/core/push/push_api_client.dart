@@ -71,11 +71,17 @@ class PushApiClient {
     final requestId = _requestId('register');
     final trimmedAppVersion = appVersion.trim();
     final trimmedVoipToken = (voipToken ?? '').trim();
+    final signingPub = base64Encode(identity.signingPublicKey.bytes);
+    final identitySchemaVersion = 2;
+    final identityNonce = identity.installationId.trim();
+    final identityProofPayload =
+        'peerlink_identity_binding_v2|$userId|$signingPub|$identityNonce';
+    final identityProofSig = await _sign(identity, identityProofPayload);
     final payloadToSign =
         '$requestId|$userId|$deviceId|$messageToken|$messageProvider|'
-        '$trimmedVoipToken|$platform|$trimmedAppVersion|$ts';
+        '$trimmedVoipToken|$platform|$trimmedAppVersion|'
+        '$identitySchemaVersion|$identityNonce|$identityProofSig|$ts';
     final sig = await _sign(identity, payloadToSign);
-    final signingPub = base64Encode(identity.signingPublicKey.bytes);
     await _postJson(baseUri, '/devices/register', <String, dynamic>{
       'id': requestId,
       'from': userId,
@@ -89,6 +95,9 @@ class PushApiClient {
       if (trimmedVoipToken.isNotEmpty) 'voipToken': trimmedVoipToken,
       'platform': platform,
       'appVersion': trimmedAppVersion,
+      'identitySchemaVersion': identitySchemaVersion,
+      'identityNonce': identityNonce,
+      'identityProofSig': identityProofSig,
     }, bearerToken: bearerToken);
   }
 

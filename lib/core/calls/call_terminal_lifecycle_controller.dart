@@ -97,6 +97,7 @@ class CallTerminalLifecycleController {
     }
     _terminalTransitionInFlight = true;
     final expectedEpoch = _getCurrentEpoch();
+    _sendTerminalEndSignal(_getState(), reason: error);
     await _getPeer()?.releaseLocalMediaForTeardown();
     _emitTerminalMediaReleasedState();
     await _lifecycleResetHelper
@@ -126,6 +127,7 @@ class CallTerminalLifecycleController {
     }
     _terminalTransitionInFlight = true;
     final expectedEpoch = _getCurrentEpoch();
+    _sendTerminalEndSignal(_getState(), reason: status);
     await _getPeer()?.releaseLocalMediaForTeardown();
     _emitTerminalMediaReleasedState();
     await _lifecycleResetHelper
@@ -173,5 +175,18 @@ class CallTerminalLifecycleController {
         clearRemoteStream: true,
       ),
     );
+  }
+
+  void _sendTerminalEndSignal(CallState state, {required String reason}) {
+    final peerId = state.peerId;
+    final callId = state.callId;
+    if (peerId == null || callId == null) {
+      return;
+    }
+    _sendDetachedSignal(peerId, 'call_end', {
+      'callId': callId,
+      'signalScope': 'call',
+      'reason': reason,
+    }, purpose: 'terminal lifecycle');
   }
 }

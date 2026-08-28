@@ -212,6 +212,31 @@ class AppStrings {
   String get chatName => _text('chatName');
   String get members => _text('members');
   String get deleteChatTitle => _text('deleteChatTitle');
+  String get blockUser => _text('blockUser');
+  String get unblockUser => _text('unblockUser');
+  String get blockUserTitle => _text('blockUserTitle');
+  String get blockUserDescription => _text('blockUserDescription');
+  String get privacySafety => _text('privacySafety');
+  String get privacySafetyDescription => _text('privacySafetyDescription');
+  String get allowOnlyContacts => _text('allowOnlyContacts');
+  String get allowOnlyContactsDescription =>
+      _text('allowOnlyContactsDescription');
+  String get safetyPolicies => _text('safetyPolicies');
+  String get safetyPoliciesDescription => _text('safetyPoliciesDescription');
+  String get blockedUsers => _text('blockedUsers');
+  String get blockedUsersEmpty => _text('blockedUsersEmpty');
+  String blockedUsersCount(int count) =>
+      _format('blockedUsersCount', {'count': count});
+  String get termsTitle => _text('termsTitle');
+  String termsVersion(String version) =>
+      _format('termsVersion', {'version': version});
+  String get termsIntro => _text('termsIntro');
+  String get termsRuleRespect => _text('termsRuleRespect');
+  String get termsRuleReport => _text('termsRuleReport');
+  String get termsRulePrivacy => _text('termsRulePrivacy');
+  String get termsRuleRestriction => _text('termsRuleRestriction');
+  String get acceptTerms => _text('acceptTerms');
+  String get termsAccepted => _text('termsAccepted');
   String deleteChatContent(String chatName) =>
       _format('deleteChatContent', {'chatName': chatName});
   String deleteGroupChatContent(String chatName) =>
@@ -604,6 +629,42 @@ class AppStrings {
   String get forwarded => _text('forwarded');
   String forwardFailed(Object error) =>
       _format('forwardFailed', {'error': error});
+  String get report => _text('report');
+  String get reportReasonSpam => _text('reportReasonSpam');
+  String get reportReasonHarassment => _text('reportReasonHarassment');
+  String get reportReasonThreats => _text('reportReasonThreats');
+  String get reportReasonIllegalContent => _text('reportReasonIllegalContent');
+  String get reportReasonOther => _text('reportReasonOther');
+  String get reportSent => _text('reportSent');
+  String reportFailed(Object error) =>
+      _format('reportFailed', {'error': error});
+  String get moderationWarningTitle => _text('moderationWarningTitle');
+  String get moderationWarningReceived => _text('moderationWarningReceived');
+  String moderationWarningMessage({
+    required int reportCount,
+    required int reporterCount,
+  }) => _format('moderationWarningMessage', {
+    'reportCount': reportCount,
+    'reporterCount': reporterCount,
+  });
+  String moderationBanMessage({
+    required int reportCount,
+    required int reporterCount,
+  }) => _format('moderationBanMessage', {
+    'reportCount': reportCount,
+    'reporterCount': reporterCount,
+  });
+  String get moderationUnbanMessage => _text('moderationUnbanMessage');
+  String get accountRestrictedTitle => _text('accountRestrictedTitle');
+  String get accountRestrictedDescription =>
+      _text('accountRestrictedDescription');
+  String get accountRestrictedScope => _text('accountRestrictedScope');
+  String get appealMessageLabel => _text('appealMessageLabel');
+  String get submitAppeal => _text('submitAppeal');
+  String get appealSent => _text('appealSent');
+  String appealFailed(Object error) =>
+      _format('appealFailed', {'error': error});
+  String get continueAction => _text('continueAction');
   String get saveToGallery => _text('saveToGallery');
   String get resend => _text('resend');
   String get deleteForMe => _text('deleteForMe');

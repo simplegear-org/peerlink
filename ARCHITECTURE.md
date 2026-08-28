@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Last updated: 2026-08-22
+Last updated: 2026-08-28
 
 ## 1. Purpose
 
@@ -16,7 +16,7 @@ Working now:
 - App startup orchestration via `AppBootstrapCoordinator`.
 - `NodeFacade` as UI entrypoint to core.
 - `MeshNode` as runtime orchestrator.
-- `PushApiClient` for signed requests to `push.js` (`/devices/register`, `/devices/unregister`, `/events/push`), with higher-level event construction delegated to `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`.
+- `PushApiClient` for signed requests to `push.js` (`/devices/register`, `/devices/unregister`, `/events/push`), with higher-level event construction delegated to `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`; moderation HTTP lives separately in `ModerationApiClient`.
 - The FCM runtime module in `lib/core/firebase` is decomposed into:
   - `FirebaseMessagingService` as the coordinator and external API,
   - `FirebasePushTokenLifecycle` for permission/token lifecycle and APNS/FCM sync,
@@ -27,6 +27,8 @@ Working now:
   - `FirebasePushCallbackRegistry` / `firebase_push_models.dart` for callback registry and shared push models.
 - The internal push/call payload model is unified through `FirebasePushPayload`: the UI open path, FCM foreground/open/native-fallback handling, and the iOS CallKit path should not keep parallel call-payload DTOs.
 - `AppBadgeService` owns app icon badge state and combines unread messages with missed-call counts before syncing the platform badge.
+- `PeerAccessControlService` owns local privacy/block rules: contacts-only is enabled by default, `blockedPeers` is stored locally, incoming messages/media/account pairing/group invites/push/call invites are filtered before UI/persistence, and outgoing calls to blocked peers are denied in `CallService`.
+- The Android FCM service and iOS CallKit bridge receive a best-effort native `blockedPeers` copy through `peerlink/access_control/methods`, so background/fullscreen/CallKit calls from blocked peers are not shown before Dart UI starts.
 - `AccountIdentity` above device identity: `accountId`, `displayName`, device list, and a `peerlink://pair` QR/deep link for pairing a second device without changing the current device-based routing.
 - Overlay router + message dedup cache.
 - HTTP relay client with live-relay preselection, bounded active pool, quorum write/quorum ack, and status tracking.
@@ -48,6 +50,7 @@ Working now:
 - Relay control writes, fetch, and blob fetch are parallelized across selected relays to avoid cumulative timeout delays from dead servers.
 - Blob fetch expands beyond the current live shortlist after all shortlist candidates return `404`, before declaring a blob missing.
 - Call stack is decomposed into bounded controllers/orchestrators for peer bootstrap, connection, negotiation, media readiness, video signaling/transceivers/quality, remote control, terminal lifecycle, runtime tracking, epoch timers, and diagnostics.
+- The call-control layer uses two channels for critical commands (`call_invite`, `call_accept`, `call_reject`, `call_end`): fast bootstrap signaling with bounded retries and a fallback direct reliable control payload `__peerlink_call_control_v1__`, so lost signaling packets or temporarily divergent bootstrap state do not leave the other side ringing indefinitely. Duplicate delivery of `call_invite` for the already current `peerId/callId` is idempotent in every non-idle phase and is not converted into `call_busy`. Terminal lifecycle also emits a final `call_end` through the same dual path before local runtime reset.
 - TURN allocator and TURN server configuration from settings.
 
 Current constraints:
@@ -69,6 +72,7 @@ UI
       -> OverlayRouter
       -> RelayClient (HTTP)
       -> PushApiClient (HTTP)
+      -> ModerationDeliveryService -> ModerationApiClient (HTTP)
       -> FirebaseMessagingService
       -> ReliableMessagingService
       -> ChatService
@@ -103,6 +107,7 @@ UI
 - `MessageBubbleStatusRow` renders outgoing receipt checks as overlapping marks: 1 check for sent, 2 for delivered, 3 for read.
 - PeerLink contacts are internal app contacts keyed by Peer ID; system Contacts/address-book access is not used and should not be requested in platform permissions.
 - Contact rows show avatar, one display label (contact name or short peer id), and last-seen text; chat rows show avatar, chat title, last message, and unread badge without last-seen text.
+- Contact rows mark locally blocked Peer IDs with a `block` icon; the long-press contact menu supports rename and block/unblock.
 - Chat rows also show top-right receipt checks for the last outgoing message and the last-message timestamp; timestamp formatting is `HH:MM`, `DD:MM`, or `DD:MM:YY` depending on the date.
 - The chat attachment sheet shows only implemented actions `Gallery` and `Paste` plus `Cancel`; placeholder `File`/`Location` actions are removed from the UI.
 - Contact rows expose a long-press action menu for renaming the saved display name while preserving the peer ID.
@@ -110,7 +115,7 @@ UI
 - The Settings `Share configuration` action produces text with direct app link `peerlink://config?payload=...` plus fallback `https://simplegear.org/config?payload=...`, containing only currently available server config. App-side config deep links merge `bootstrap/relay/turn/push` directly, while QR scan/import still uses the explicit import-mode dialog.
 - macOS deep-link delivery is native: `MainFlutterWindow` configures `DeepLinkChannel` with the created `FlutterViewController`, `AppDelegate` registers URL handlers early, and both custom scheme (`peerlink://invite|pair|config|call`) and supported web links are forwarded to Flutter. Android handles the same custom/web link families through the native runner and app links.
 - The Settings `Account and devices` block shows the current `accountId`, known device count, a `peerlink://pair` QR for pairing another owned device, and a scan flow for importing a pairing payload.
-- Call history rows use compact internal padding, smaller status-icon blocks, and tight separators between rows.
+- Call history rows use compact internal padding, smaller status-icon blocks, and tight separators between rows; display names resolve from current contacts with a short peer-id fallback.
 - Shared typography is centralized through `AppTheme.fontFamily` and applied to app text styles, AppBar, NavigationBar, inputs, dialogs, and snackbars.
 - Chat opening scroll positioning is single-flight: `ChatScreen` schedules only one initial bottom/unread viewport pass at a time to avoid duplicate startup jumps, and initial bottom mode keeps settling across several frames while restored media can still change list height.
 - First-unread positioning probes the lazy list until the divider or message key is mounted, avoiding index-ratio fallback errors caused by tall failed media placeholders.
@@ -121,6 +126,7 @@ UI
 - Message file/audio/video previews use asynchronous cached local-file availability checks instead of synchronous `existsSync()` calls in build paths.
 - Media viewer shows a user-friendly fallback for Android codec errors such as `video/dolby-vision` / HDR 10-bit and lets the user open the original file in another app.
 - Settings uses aggregated bootstrap/relay/turn cards on the main screen and dedicated list screens for managing each server group.
+- Settings contains `Privacy & Safety` above self-hosted/server sections: contacts-only switch, user-facing safety policy summary, and a dedicated blocked Peer ID screen with contact-name resolution.
 - The app version is shown in Settings only inside About/Legal, without a separate top footer before the first card.
 - Settings server summary cards subscribe to availability streams, and exported server-config QR payloads refresh when bootstrap/relay/turn/push availability changes.
 - `SettingsController` in `lib/ui/state` is now decomposed: server-status presentation is in `settings_server_status_presenter.dart`, invite encode/parse is in `settings_invite_codec.dart`, and pairing flow logic is in `settings_pairing_flow_service.dart`.
@@ -137,6 +143,11 @@ UI
 - `NetworkDependencies`: dependency graph builder.
 - `AppBootstrapCoordinator`: post-bootstrap wiring (servers, background tasks).
 - Storage and repositories (`StorageService` as facade, `storage_service_paths`, `storage_service_migrations`, `storage_service_media`, contact/call repositories).
+- `PeerAccessControlService` lives in `lib/core/runtime` next to runtime repositories and must not move into UI: UI only calls block/unblock/settings APIs, while runtime/chat/push/call paths use the shared allow/drop contract.
+- `ModerationReportService` creates metadata-only UGC reports: direct reports target the peer, group reports target the selected message author plus `groupId`, and message text/media is not included; after a report the UI hides the selected message locally for the reporter.
+- `ModerationApiClient` isolates the `/moderation/reports`, `/moderation/appeals`, and `/moderation/status` HTTP contract; `PushApiClient` must not contain moderation endpoints.
+- `ModerationDeliveryService` coordinates report/appeal/status delivery through configured push servers and keeps `MeshNode` as runtime wiring/facade.
+- `ModerationPolicyService` stores the local warning/ban snapshot, applies `moderation_policy` push/status events, verifies `signedStatus` when a pinned public key is configured, and persists warning acknowledgement / appeal submission so fullscreen warning/ban screens do not reappear after restart.
 - SQLite chat storage keeps message uniqueness scoped to a chat through `(peerId, messageId)`, so the same message id in different chats cannot overwrite another chat's row.
 - Real SQLite `StorageService` write/read coverage exists in `test/core/runtime/storage_service_chat_messages_test.dart` and should be kept for chat-message persistence changes.
 - `StorageService` now acts as an orchestration/facade layer over storage helper modules and should not grow back into a monolith.
@@ -209,6 +220,8 @@ UI
 - `CallPeerSessionController` owns peer bootstrap, incoming/outgoing session flow, and cleanup/reset.
 - `CallPeerSessionController.disposePeerConnection()` is the single terminal cleanup path for peer-runtime timers/pollers; timer cancellation must not be duplicated higher in the call stack.
 - `CallNegotiationController` owns `rtcConfig`, renegotiation, ICE restart, and recovery policy.
+- Android offer/answer guards must not call `RTCPeerConnection.getLocalDescription()` before local SDP is known; infer the local description type from `getSignalingState()` to avoid `flutter_webrtc` native null-SDP crashes in release builds.
+- Live media stall after an active call is no longer diagnostic-only: inbound-only/full media stall moves the call to `recovering`, resets media-flow baselines, and initiates an ICE restart offer; recovery clears only after new inbound media stats arrive.
 - `CallVideoController` owns the video state machine, transceiver/video-handle sync, and quality policy.
 - `CallMediaFlowController` owns audio/video flow detection, stats polling, and media-flow fallback logic.
 - `CallMediaReadinessController`, `CallLiveMediaStallDetector`, `CallPostIceRecoveryFlowWatch`, stats/recovery trackers, and diagnostics formatter own media readiness/recovery observation outside the core facade.
@@ -219,6 +232,7 @@ UI
 - `CallConnectionStateController` owns connected-state policy and the transition point to connected transport.
 - `IosCallkitService` should remain a native bridge layer and must not absorb server-merge orchestration or payload normalization back into itself.
 - Current call policy: TURN-only for all network types.
+- Android release policy: R8 minify and resource shrinking are enabled with explicit keep rules for `flutter_webrtc`, native `org.webrtc`, and `org.jni_zero`; AGP 9+ remains a separate migration after Flutter/Gradle/plugin compatibility checks.
 
 ### 4.6 Signaling (`lib/core/signaling`)
 

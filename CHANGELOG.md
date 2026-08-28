@@ -3,6 +3,91 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.10.2+2026082701] - 2026-08-27
+
+### Changed
+
+- Moderation is split into bounded services: the `/moderation/*` HTTP client, delivery orchestration, policy snapshot, and UI gate no longer spread through push/UI layers.
+- After appeal submission the account restriction screen is hidden, but the persisted ban still blocks outgoing messages and calls until `unban`.
+- The client applies `moderation_policy action=unban` and clears the local ban.
+- Warning now uses a fullscreen screen with a `Continue` button; Settings shows the current warning/ban below Peer ID/QR in red.
+- The iOS native push bridge now immediately forwards silent `moderation_policy` payloads to Flutter while the app/engine is alive.
+- App restart no longer shows fullscreen warning/ban again after warning acknowledgement or appeal submission.
+- The client verifies moderation-policy `signedStatus` when `MODERATION_STATUS_SIGNING_PUBLIC_KEY` is set and rejects unsigned/fake moderation events.
+- App documentation is synchronized with the completed App Store UGC/moderation phase.
+
+### Verified
+
+- `dart analyze`
+- `flutter test test/core/runtime/moderation_api_client_test.dart test/ui/state/app_restriction_controller_test.dart test/ui/screens/chat_report_actions_test.dart test/core/runtime/moderation_report_service_test.dart test/core/runtime/moderation_policy_service_test.dart test/core/firebase/firebase_push_payload_test.dart`
+
+
+## [3.10.1+2026082601] - 2026-08-26
+
+### Changed
+
+- The client now persists `moderation_policy` push events: warnings show a warning message, and bans open the account restriction screen while keeping appeal submission available.
+- Warning/ban text is rendered in the user's locale and includes report count plus unique reporter count without exposing reporter Peer IDs.
+- The client now polls `/moderation/status` on startup/resume and force-registers its push token so moderator warn/ban still applies after a push-server restart.
+- When a ban is persisted, the app does not present regular incoming push messages/calls or open communication UI.
+- UGC reports are now metadata-only: message text/media is not sent to moderators, and the selected message is hidden locally for the reporter.
+- Group-message reports target the message author and send only metadata (`groupId`, message id/type/timestamp), without content.
+- New-client push registration sends a v2 identity binding in the existing `/devices/register` request so the server can bind `peerId` to `signingPub` without an extra request.
+- Documentation was updated for the new moderator UI: reported-user/reporter aggregates with total/direct/group counters plus a general metadata-only report list.
+
+
+## [3.10.0+2026082401] - 2026-08-24
+
+### Added
+
+- Added a `Privacy & Safety` Settings section with a contacts-only messages/calls switch, a short safety policy summary, and a link to the blocked Peer ID list.
+- Added local Peer ID blocking: blocked senders do not create visible incoming messages, calls, or push notifications.
+- Fixed call blocking: outgoing calls to blocked Peer IDs no longer start, and Android fullscreen notifications plus iOS CallKit check the native blacklist copy before showing incoming calls.
+- Added `Block user` / `Unblock user` actions in direct chats and on the Contacts tab.
+- Blocked contacts are marked with a block icon in the contact list.
+- Added a dedicated blocked users screen; saved contact names are shown when available.
+- Added EN/RU/ES/FR/ZH translations for the new privacy/safety UI.
+
+### Changed
+
+- Updated the app version to `3.10.0+2026082401`.
+- Incoming bootstrap/push call invites and push-open handling now check local privacy/block rules before showing calls or notifications.
+
+### Verified
+
+- `flutter analyze`
+- `flutter test test/core/calls/call_service_test.dart test/core/runtime/peer_access_control_service_test.dart test/ui/state/chat_inbound_service_test.dart`
+- `flutter build apk --debug`
+- `flutter build ios --debug --no-codesign`
+
+
+## [3.9.4+2026082301] - 2026-08-23
+
+### Changed
+
+- Android release builds now enable R8 minify and resource shrinking; AGP 9+ migration remains a separate backlog task until Flutter/Gradle/plugin compatibility is verified.
+- Call history now shows the current contact name when a contact is saved; without a contact it keeps the short peer id fallback.
+- Incoming accept runtime-enrichment wait was increased to 8 seconds so updated clients can apply bootstrap/TURN metadata before answering a call.
+- Critical call commands (`call_invite`, `call_accept`, `call_reject`, `call_end`) are now duplicated through the direct reliable control payload `__peerlink_call_control_v1__` and also retried by bounded bootstrap-signaling timers.
+- After a call is active, stopped inbound RTP/media stats while outbound traffic continues is no longer treated as a healthy channel: the call enters visible recovery and initiates an ICE restart offer.
+
+### Fixed
+
+- Fixed `Answer` failing with `Signaling is not ready`: when bootstrap is temporarily unavailable, the answer is sent through the reliable fallback while signaling keeps recovering.
+- Fixed `Reject`/`End` commands getting lost and leaving the other side ringing indefinitely.
+- Fixed terminal call resets that could close the caller locally while leaving the callee on an active screen with `Call transport interrupted`.
+- Fixed calls dropping immediately after answer because of a late reliable `call_invite` retry: a duplicate for the current `peerId/callId` is no longer converted into `call_busy`.
+- Fixed Android release calls dropping immediately after answer by adding app-level R8 keep rules for `flutter_webrtc` / native WebRTC classes.
+- Removed unsafe Android `getLocalDescription()` calls from offer/answer guards to avoid native null-SDP crashes right after accepting a call.
+- Fixed network-switch calls looking active after the real media path had died just because channel byte counters kept increasing.
+
+### Verified
+
+- `flutter test test/core/calls`
+- `flutter analyze`
+- `flutter build apk --release`
+
+
 ## [3.9.3+2026082201] - 2026-08-22
 
 ### Changed

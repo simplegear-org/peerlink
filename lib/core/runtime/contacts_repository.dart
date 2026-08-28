@@ -33,6 +33,14 @@ class ContactsRepository {
     return storage.getContacts().delete(peerId);
   }
 
+  bool contains(String peerId) {
+    final normalized = peerId.trim();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    return storage.getContacts().get(normalized) is Map;
+  }
+
   String displayName(String? peerId, {String? fallback}) {
     if (peerId == null || peerId.isEmpty) {
       return fallback ?? 'Неизвестный контакт';

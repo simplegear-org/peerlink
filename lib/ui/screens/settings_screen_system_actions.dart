@@ -18,6 +18,7 @@ import '../state/settings_controller.dart';
 import '../widgets/server_config_import_dialog.dart';
 import 'account_device_history_screen.dart';
 import 'account_devices_screen.dart';
+import 'blocked_users_screen.dart';
 import 'bootstrap_servers_screen.dart';
 import 'push_servers_screen.dart';
 import 'qr_scan_screen.dart';
@@ -175,7 +176,7 @@ class SettingsScreenSystemActions {
       return;
     }
     await SharePlus.instance.share(
-      ShareParams(files: [XFile(path)], text: 'PeerLink app log'),
+      ShareParams(files: [XFile(path)], text: 'PeerLink X app log'),
     );
   }
 
@@ -225,6 +226,17 @@ class SettingsScreenSystemActions {
           avatarService: avatarService,
           chatController: chatController,
         ),
+      ),
+    );
+    if (isMounted() && context.mounted) {
+      refreshUi();
+    }
+  }
+
+  Future<void> openBlockedUsers(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlockedUsersScreen(controller: controller),
       ),
     );
     if (isMounted() && context.mounted) {

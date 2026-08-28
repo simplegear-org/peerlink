@@ -480,7 +480,7 @@ class _BootstrapAppState extends State<_BootstrapApp>
     );
     if (appearanceController == null || localeController == null) {
       return MaterialApp(
-        title: 'PeerLink',
+        title: 'PeerLink X',
         debugShowCheckedModeBanner: false,
         scrollBehavior: const AppScrollBehavior(),
         locale: AppLanguage.ru.locale,
@@ -510,7 +510,7 @@ class _BootstrapAppState extends State<_BootstrapApp>
           animation: localeController,
           builder: (context, child) {
             return MaterialApp(
-              title: 'PeerLink',
+              title: 'PeerLink X',
               debugShowCheckedModeBanner: false,
               scrollBehavior: const AppScrollBehavior(),
               locale: localeController.current.locale,

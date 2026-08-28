@@ -11,6 +11,7 @@ import '../../core/runtime/account_membership_update_payload.dart';
 import '../../core/runtime/account_pairing_payload.dart';
 import '../../core/runtime/avatar_service.dart';
 import '../../core/runtime/contacts_repository.dart';
+import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/storage_service.dart';
 import '../../core/security/group_key_service.dart';
 import '../../core/security/group_message_crypto_service.dart';
@@ -80,6 +81,11 @@ class ChatControllerDependencies {
   }) {
     final settingsBox = storage.getSettings();
     final groupMetaBox = storage.getGroupMeta();
+    final contactsRepository = ContactsRepository(storage: storage);
+    final accessControl = PeerAccessControlService(
+      settingsBox: settingsBox,
+      contactsRepository: contactsRepository,
+    );
     final groupKeyService = GroupKeyService.forSecureStorageBox(
       storage.getGroupKeys(),
     );
@@ -134,9 +140,7 @@ class ChatControllerDependencies {
       groupFlowService: groupFlowService,
       summaryService: summaryService,
       readStateService: const ChatReadStateService(),
-      contactsService: ChatContactsService(
-        repository: ContactsRepository(storage: storage),
-      ),
+      contactsService: ChatContactsService(repository: contactsRepository),
       fileQueueService: ChatFileQueueService(),
       groupService: ChatGroupService(
         facade: facade,
@@ -154,6 +158,7 @@ class ChatControllerDependencies {
         settingsBox: settingsBox,
         avatarService: avatarService,
         inboundClassifier: inboundClassifier,
+        accessControl: accessControl,
       ),
     );
   }

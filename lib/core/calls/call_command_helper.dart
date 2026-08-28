@@ -170,12 +170,19 @@ class CallCommandHelper {
       ),
     );
     resetRuntimeTracking();
-    await waitForSignalingReady('ответ на звонок');
-
-    await sendSignal(peerId, 'call_accept', {
-      'callId': callId,
-      'signalScope': 'call',
-    });
+    var signalingSent = false;
+    try {
+      await waitForSignalingReady('ответ на звонок');
+      await sendSignal(peerId, 'call_accept', {
+        'callId': callId,
+        'signalScope': 'call',
+      });
+      signalingSent = true;
+    } catch (error) {
+      log(
+        'accept:signaling deferred peerId=$peerId callId=$callId error=$error',
+      );
+    }
     final connectingState = currentState.copyWith(
       phase: CallPhase.connecting,
       mediaType: getActiveMediaType(),
@@ -186,7 +193,11 @@ class CallCommandHelper {
         debugStatus: 'Собеседник принял вызов, поднимаем video-capable сессию',
       ),
     );
-    log('accept:sent peerId=$peerId callId=$callId');
+    log(
+      signalingSent
+          ? 'accept:sent peerId=$peerId callId=$callId'
+          : 'accept:queued peerId=$peerId callId=$callId',
+    );
   }
 
   Future<void> rejectIncomingCall({

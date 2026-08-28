@@ -21,13 +21,12 @@ class CallRecoveryStateHelper {
     final returnPhase = currentState.isRecovering
         ? (currentState.recoveryReturnPhase ?? CallPhase.connecting)
         : currentState.phase;
-    final keepActiveUi = kind == CallRecoveryKind.ice && currentState.isActive;
     return currentState.copyWith(
-      phase: keepActiveUi ? currentState.phase : CallPhase.recovering,
+      phase: CallPhase.recovering,
       recoveryKind: kind,
       recoveryAttempt: attempt,
       recoveryReturnPhase: returnPhase,
-      debugStatus: keepActiveUi ? currentState.debugStatus : status,
+      debugStatus: status,
       clearError: true,
     );
   }

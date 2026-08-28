@@ -13,6 +13,54 @@ import UIKit
 import UserNotifications
 import WebRTC
 
+final class AccessControlChannel {
+  static let shared = AccessControlChannel()
+
+  private let methodChannelName = "peerlink/access_control/methods"
+  private let blockedPeersKey = "peerlink.blocked_peers.native.v1"
+  private var methodChannel: FlutterMethodChannel?
+
+  private init() {}
+
+  func configure(rootViewController: UIViewController?) {
+    guard methodChannel == nil,
+      let controller = rootViewController as? FlutterViewController
+    else {
+      return
+    }
+
+    methodChannel = FlutterMethodChannel(
+      name: methodChannelName,
+      binaryMessenger: controller.binaryMessenger
+    )
+    methodChannel?.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(nil)
+        return
+      }
+      switch call.method {
+      case "syncBlockedPeers":
+        let peers = (call.arguments as? [String])?
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty } ?? []
+        UserDefaults.standard.set(peers, forKey: self.blockedPeersKey)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  func isBlocked(peerId: String) -> Bool {
+    let normalized = peerId.trimmingCharacters(in: .whitespacesAndNewlines)
+    if normalized.isEmpty {
+      return false
+    }
+    let peers = UserDefaults.standard.stringArray(forKey: blockedPeersKey) ?? []
+    return peers.contains(normalized)
+  }
+}
+
 final class DeepLinkChannel: NSObject, FlutterStreamHandler {
   static let shared = DeepLinkChannel()
 
@@ -397,6 +445,10 @@ final class VoipCallBridge: NSObject, FlutterStreamHandler, PKPushRegistryDelega
     }
     if callId.isEmpty || callerUserId.isEmpty {
       NSLog("[CallKit] voip payload missing callId/callerUserId keys=%@", String(describing: Array(payload.keys)))
+      return
+    }
+    if AccessControlChannel.shared.isBlocked(peerId: callerUserId) {
+      NSLog("[CallKit] blocked incoming call peer=%@ callId=%@", callerUserId, callId)
       return
     }
     if UIApplication.shared.applicationState == .active {
@@ -1112,6 +1164,25 @@ final class MediaGalleryChannel: NSObject {
     writeToPeerlinkAppLog("[push][\(source)] \(fallback)")
   }
 
+  private func isModerationPolicyPayload(_ userInfo: [AnyHashable: Any]) -> Bool {
+    if (userInfo["type"] as? String) == "moderation_policy" {
+      return true
+    }
+    if let data = userInfo["data"] as? [String: Any],
+      (data["type"] as? String) == "moderation_policy"
+    {
+      return true
+    }
+    if let dataString = userInfo["data"] as? String,
+      let data = dataString.data(using: .utf8),
+      let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      (decoded["type"] as? String) == "moderation_policy"
+    {
+      return true
+    }
+    return false
+  }
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -1129,6 +1200,7 @@ final class MediaGalleryChannel: NSObject {
     }
 
     if let flutterController = window?.rootViewController {
+      AccessControlChannel.shared.configure(rootViewController: flutterController)
       DeepLinkChannel.shared.configure(rootViewController: flutterController)
       VoipCallBridge.shared.configure(rootViewController: flutterController)
       MediaGalleryChannel.shared.configure(rootViewController: flutterController)
@@ -1203,7 +1275,11 @@ final class MediaGalleryChannel: NSObject {
     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
   ) {
-    logRemoteNotificationPayload(userInfo, source: "didReceiveRemoteNotification")
+    logRemoteNotificationPayload(
+      userInfo,
+      source: "didReceiveRemoteNotification",
+      notifyFlutter: isModerationPolicyPayload(userInfo)
+    )
     super.application(
       application,
       didReceiveRemoteNotification: userInfo,

@@ -146,6 +146,18 @@ class NodeFacade {
     );
   }
 
+  Future<void> submitModerationReport(Map<String, dynamic> report) {
+    return _node.submitModerationReport(report);
+  }
+
+  Future<void> submitModerationAppeal(String text) {
+    return _node.submitModerationAppeal(text);
+  }
+
+  Future<Map<String, dynamic>?> fetchModerationStatus() {
+    return _node.fetchModerationStatus();
+  }
+
   Future<ChatSendReceipt> sendPayload(
     String targetId, {
     ChatPayloadTargetKind targetKind = ChatPayloadTargetKind.direct,
@@ -163,6 +175,7 @@ class NodeFacade {
     String? replyToTextPreview,
     String? replyToKind,
   }) {
+    _throwIfModerationRestricted();
     return _messaging.sendPayload(
       targetId,
       targetKind: targetKind,
@@ -455,14 +468,17 @@ class NodeFacade {
   Stream<CallState> get callStateStream => _calls.callStateStream;
 
   Future<void> startCall(String peerId) {
+    _throwIfModerationRestricted();
     return _calls.startCall(peerId);
   }
 
   Future<void> startVideoCall(String peerId) {
+    _throwIfModerationRestricted();
     return _calls.startVideoCall(peerId);
   }
 
   Future<void> acceptIncomingCall() {
+    _throwIfModerationRestricted();
     return _calls.acceptIncomingCall();
   }
 
@@ -472,6 +488,12 @@ class NodeFacade {
 
   Future<void> endCall() {
     return _calls.endCall();
+  }
+
+  void _throwIfModerationRestricted() {
+    if (_node.isModerationCommunicationRestricted) {
+      throw StateError('peer_banned');
+    }
   }
 
   Future<void> toggleCallMuted() {

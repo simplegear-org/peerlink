@@ -13,10 +13,12 @@ import '../models/chat.dart';
 import '../localization/app_strings.dart';
 import '../state/chat_controller.dart';
 import '../state/calls_controller.dart';
+import '../state/contacts_controller.dart';
 import '../../core/runtime/avatar_service.dart';
 import '../state/presence_service.dart';
 import '../theme/app_theme.dart';
 import 'chat_screen.dart';
+import 'calls_screen_presenter.dart';
 import 'calls_screen_styles.dart';
 import 'calls_screen_view.dart';
 
@@ -24,6 +26,7 @@ class CallsScreen extends StatefulWidget {
   final NodeFacade facade;
   final ChatController controller;
   final CallsController callsController;
+  final ContactsController contactsController;
   final PresenceService presenceService;
   final AvatarService avatarService;
   final int refreshVersion;
@@ -34,6 +37,7 @@ class CallsScreen extends StatefulWidget {
     required this.facade,
     required this.controller,
     required this.callsController,
+    required this.contactsController,
     required this.presenceService,
     required this.avatarService,
     required this.refreshVersion,
@@ -45,6 +49,8 @@ class CallsScreen extends StatefulWidget {
 }
 
 class _CallsScreenState extends State<CallsScreen> {
+  static const CallsScreenPresenter _presenter = CallsScreenPresenter();
+
   List<CallLogEntry> _entries = const <CallLogEntry>[];
   bool _loading = true;
   String? _callingPeerId;
@@ -52,15 +58,33 @@ class _CallsScreenState extends State<CallsScreen> {
   @override
   void initState() {
     super.initState();
+    widget.contactsController.addListener(_handleContactsChanged);
     _load();
   }
 
   @override
   void didUpdateWidget(covariant CallsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.contactsController != widget.contactsController) {
+      oldWidget.contactsController.removeListener(_handleContactsChanged);
+      widget.contactsController.addListener(_handleContactsChanged);
+    }
     if (oldWidget.refreshVersion != widget.refreshVersion) {
       _load();
     }
+  }
+
+  @override
+  void dispose() {
+    widget.contactsController.removeListener(_handleContactsChanged);
+    super.dispose();
+  }
+
+  void _handleContactsChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   Future<void> _load() async {
@@ -111,6 +135,7 @@ class _CallsScreenState extends State<CallsScreen> {
       entry: entry,
       icon: _iconFor(entry),
       statusColor: _statusColor(entry.status),
+      displayName: _displayName(entry),
       isCalling: _callingPeerId == entry.peerId,
       missedCount: item.missedCount,
       subtitle: _subtitle(item),
@@ -234,7 +259,7 @@ class _CallsScreenState extends State<CallsScreen> {
 
     final chat =
         widget.controller.chats[peerId] ??
-        Chat(peerId: peerId, name: entry.contactName);
+        Chat(peerId: peerId, name: _displayName(entry));
 
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -394,6 +419,10 @@ class _CallsScreenState extends State<CallsScreen> {
     final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
     final rest = (seconds % 60).toString().padLeft(2, '0');
     return '$minutes:$rest';
+  }
+
+  String _displayName(CallLogEntry entry) {
+    return _presenter.displayNameFor(entry, widget.contactsController.contacts);
   }
 }
 

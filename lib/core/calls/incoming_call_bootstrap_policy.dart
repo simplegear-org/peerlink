@@ -6,9 +6,7 @@
 
 class IncomingCallBootstrapPolicy {
   const IncomingCallBootstrapPolicy({
-    this.acceptRuntimeEnrichmentWaitTimeout = const Duration(
-      milliseconds: 1200,
-    ),
+    this.acceptRuntimeEnrichmentWaitTimeout = const Duration(seconds: 8),
   });
 
   final Duration acceptRuntimeEnrichmentWaitTimeout;

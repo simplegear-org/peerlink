@@ -84,7 +84,9 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
     await push.initialize();
     WidgetsBinding.instance.addObserver(this);
     await _startConnectivityWatch();
-    unawaited(pushDeviceRegistration.registerIfDue(reason: 'startup'));
+    unawaited(
+      pushDeviceRegistration.registerIfDue(reason: 'startup', force: true),
+    );
   }
 
   Future<void> refreshAll() async {
@@ -173,7 +175,12 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
       _log('connectivity changed from=$previous to=$results refresh=true');
       unawaited(refreshAll());
       if (_hasNetworkConnectivity(results)) {
-        unawaited(pushDeviceRegistration.registerIfDue(reason: 'connectivity'));
+        unawaited(
+          pushDeviceRegistration.registerIfDue(
+            reason: 'connectivity',
+            force: true,
+          ),
+        );
       }
     });
   }
@@ -213,7 +220,9 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _log('app resumed refresh=true');
       unawaited(refreshAll());
-      unawaited(pushDeviceRegistration.registerIfDue(reason: 'resume'));
+      unawaited(
+        pushDeviceRegistration.registerIfDue(reason: 'resume', force: true),
+      );
     }
   }
 

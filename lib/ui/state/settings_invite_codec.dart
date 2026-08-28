@@ -64,7 +64,7 @@ class SettingsInviteCodec {
   static PeerLinkInviteImport parseInviteDeepLink(String raw) {
     final uri = Uri.tryParse(raw.trim());
     if (uri == null || !SettingsDeepLinkCodec.isInviteUri(uri)) {
-      throw const FormatException('Это не приглашение PeerLink');
+      throw const FormatException('Это не приглашение PeerLink X');
     }
     final encodedPayload = SettingsDeepLinkCodec.payloadFromUri(uri);
     if (encodedPayload == null || encodedPayload.trim().isEmpty) {
@@ -78,11 +78,11 @@ class SettingsInviteCodec {
   static PeerLinkInviteImport parseInvitePayload(String raw) {
     final decoded = jsonDecode(raw);
     if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Неверный формат приглашения PeerLink');
+      throw const FormatException('Неверный формат приглашения PeerLink X');
     }
     if (decoded['type'] != invitePayloadType ||
         decoded['version'] != invitePayloadVersion) {
-      throw const FormatException('Неподдерживаемое приглашение PeerLink');
+      throw const FormatException('Неподдерживаемое приглашение PeerLink X');
     }
 
     final peer = decoded['peer'];

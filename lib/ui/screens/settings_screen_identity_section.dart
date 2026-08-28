@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/runtime/avatar_service.dart';
+import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../state/settings_controller.dart';
 import '../theme/app_theme.dart';
@@ -20,12 +21,14 @@ import 'settings_screen_shared_widgets.dart';
 class SettingsIdentitySection extends StatelessWidget {
   final SettingsController controller;
   final AvatarService avatarService;
+  final ModerationPolicySnapshot moderationPolicy;
   final Future<void> Function() onShowAvatarActions;
 
   const SettingsIdentitySection({
     super.key,
     required this.controller,
     required this.avatarService,
+    required this.moderationPolicy,
     required this.onShowAvatarActions,
   });
 
@@ -91,6 +94,10 @@ class SettingsIdentitySection extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _SettingsUserQrCode(controller: controller),
+          if (moderationPolicy.isWarning || moderationPolicy.isBanned) ...[
+            const SizedBox(height: 12),
+            _SettingsModerationStatus(policy: moderationPolicy),
+          ],
         ],
       ),
     );
@@ -106,6 +113,35 @@ class SettingsIdentitySection extends StatelessWidget {
       maxLength: 8,
       prefixLength: 4,
       separator: '...',
+    );
+  }
+}
+
+class _SettingsModerationStatus extends StatelessWidget {
+  final ModerationPolicySnapshot policy;
+
+  const _SettingsModerationStatus({required this.policy});
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    final theme = Theme.of(context);
+    final message = policy.isBanned
+        ? strings.moderationBanMessage(
+            reportCount: policy.reportCount,
+            reporterCount: policy.reporterCount,
+          )
+        : strings.moderationWarningMessage(
+            reportCount: policy.reportCount,
+            reporterCount: policy.reporterCount,
+          );
+    return Text(
+      message,
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.error,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 }

@@ -43,7 +43,7 @@ const appStringsFr = <String, String>{
   'scanPairingQr': 'Scanner le QR d’association',
   'accountPairingTitle': 'Associer votre appareil',
   'accountPairingDescription':
-      'Ouvrez PeerLink sur votre second appareil et scannez ce QR dans Réglages. L’appareil adoptera cet Account ID et la liste des serveurs disponibles.',
+      'Ouvrez PeerLink X sur votre second appareil et scannez ce QR dans Réglages. L’appareil adoptera cet Account ID et la liste des serveurs disponibles.',
   'accountPairingApproveTitle': 'Confirmer l’association de l’appareil',
   'accountPairingApproveDescription':
       'Vérifiez l’Account ID et confirmez l’association. Après confirmation, cet appareil adoptera le compte et les serveurs disponibles du QR.',
@@ -77,7 +77,7 @@ const appStringsFr = <String, String>{
   'accountPairingWarning': 'Ne montrez pas ce QR à des inconnus.',
   'accountPairingAvailableFor': 'Disponible encore : {time}',
   'accountPairingShareText':
-      'Association d’appareil PeerLink\n\nAccount ID : {accountId}\nOuvrez ce lien sur votre second appareil : {pairingLink}',
+      'Association d’appareil PeerLink X\n\nAccount ID : {accountId}\nOuvrez ce lien sur votre second appareil : {pairingLink}',
   'accountPairingImported':
       'Appareil associé. Appareils dans le compte : {count}.',
   'revokeDeviceDescription':
@@ -92,13 +92,13 @@ const appStringsFr = <String, String>{
   'launchNetwork': 'Initialisation du réseau...',
   'launchUi': 'Démarrage de l’interface...',
   'launchDone': 'Prêt',
-  'launchingPeerLink': 'Démarrage de PeerLink...',
+  'launchingPeerLink': 'Démarrage de PeerLink X...',
   'launchError': 'Erreur de démarrage : {error}',
   'newContact': 'Nouveau contact',
   'invitePlaceholder': 'L’invitation n’est pas encore configurée',
-  'inviteTitle': 'Inviter sur PeerLink',
+  'inviteTitle': 'Inviter sur PeerLink X',
   'inviteDescription':
-      'Montrez ce QR à proximité ou envoyez le lien d’invitation. Le QR ouvre PeerLink et ajoute votre contact si l’app est déjà installée.',
+      'Montrez ce QR à proximité ou envoyez le lien d’invitation. Le QR ouvre PeerLink X et ajoute votre contact si l’app est déjà installée.',
   'inviteShareText':
       'Bonjour ! Ajoute-moi sur PeerLink X :\n{inviteDirectLink}\n\nSi le lien ne s’ouvre pas :\n{inviteFallbackLink}\n\nMon Peer ID : {peerId}',
   'deleteContactTitle': 'Supprimer le contact ?',
@@ -117,6 +117,37 @@ const appStringsFr = <String, String>{
   'chatName': 'Nom de la discussion',
   'members': 'Membres',
   'deleteChatTitle': 'Supprimer la discussion ?',
+  'blockUser': 'Bloquer l’utilisateur',
+  'unblockUser': 'Débloquer l’utilisateur',
+  'blockUserTitle': 'Bloquer cet utilisateur ?',
+  'blockUserDescription':
+      'Vous ne recevrez plus de messages, d’appels ni d’invitations de ce PeerLink X ID.',
+  'privacySafety': 'Confidentialité et sécurité',
+  'privacySafetyDescription':
+      'Contrôlez qui peut vous contacter dans PeerLink X.',
+  'allowOnlyContacts': 'Recevoir messages et appels uniquement des contacts',
+  'allowOnlyContactsDescription':
+      'Les Peer ID inconnus ne pourront pas créer de discussions, vous appeler ni afficher de notifications.',
+  'safetyPolicies': 'Règles de sécurité',
+  'safetyPoliciesDescription':
+      'PeerLink X n’autorise pas les menaces, le harcèlement, les messages indésirables, le contenu illégal ni les autres abus. Les signalements incluent seulement des métadonnées minimales ; le contenu des messages, les clés privées, les clés de session et l’historique de discussion ne sont jamais envoyés.',
+  'blockedUsers': 'Utilisateurs bloqués',
+  'blockedUsersEmpty': 'Aucun Peer ID bloqué pour l’instant.',
+  'blockedUsersCount': 'Bloqués : {count}',
+  'termsTitle': 'Conditions et sécurité',
+  'termsVersion': 'Version {version}',
+  'termsIntro':
+      'Acceptez ces conditions avant d’utiliser les fonctions de communication de PeerLink X.',
+  'termsRuleRespect':
+      'N’utilisez pas PeerLink X pour les menaces, le harcèlement, les messages indésirables, le contenu illégal ou les abus.',
+  'termsRuleReport':
+      'Les utilisateurs peuvent bloquer des contacts et signaler les abus. La modération peut restreindre l’accès à l’infrastructure PeerLink X.',
+  'termsRulePrivacy':
+      'Les signalements envoient seulement des métadonnées minimales. Le contenu des messages, les clés privées, clés de session, contacts et historique ne sont pas envoyés.',
+  'termsRuleRestriction':
+      'Si votre compte est restreint, l’historique local et les médias restent sur cet appareil.',
+  'acceptTerms': 'Accepter et continuer',
+  'termsAccepted': 'Conditions acceptées',
   'deleteChatContent': 'La discussion "{chatName}" sera supprimée.',
   'deleteGroupChatContent':
       'La discussion de groupe "{chatName}" sera supprimée pour tous les membres.',
@@ -430,6 +461,32 @@ const appStringsFr = <String, String>{
   'forward': 'Transférer',
   'forwarded': 'Message transféré.',
   'forwardFailed': 'Impossible de transférer le message : {error}',
+  'report': 'Signaler',
+  'reportReasonSpam': 'Messages indésirables',
+  'reportReasonHarassment': 'Harcèlement',
+  'reportReasonThreats': 'Menaces',
+  'reportReasonIllegalContent': 'Contenu illégal',
+  'reportReasonOther': 'Autre',
+  'reportSent': 'Signalement enregistré pour examen par la modération.',
+  'reportFailed': 'Impossible de créer le signalement : {error}',
+  'moderationWarningTitle': 'Avertissement du compte',
+  'moderationWarningReceived':
+      'Votre compte peut être bloqué si d’autres signalements sont reçus.',
+  'moderationWarningMessage':
+      'Votre compte a reçu {reportCount} signalements de {reporterCount} utilisateurs. Il peut être bloqué si d’autres signalements sont reçus.',
+  'moderationBanMessage':
+      'Votre compte a été bloqué après {reportCount} signalements de {reporterCount} utilisateurs. Vous pouvez envoyer un appel.',
+  'moderationUnbanMessage': 'Votre compte PeerLink X a été débloqué.',
+  'accountRestrictedTitle': 'Compte restreint',
+  'accountRestrictedDescription':
+      'Votre compte PeerLink X est bloqué. Vous pouvez envoyer un appel.',
+  'accountRestrictedScope':
+      'Les messages, appels, messages entrants et appels entrants sont indisponibles.',
+  'appealMessageLabel': 'Message d’appel',
+  'submitAppeal': 'Envoyer l’appel',
+  'appealSent': 'Appel envoyé pour examen par la modération.',
+  'appealFailed': 'Impossible d’envoyer l’appel : {error}',
+  'continueAction': 'Continuer',
   'saveToGallery': 'Enregistrer dans la galerie',
   'resend': 'Renvoyer',
   'deleteForMe': 'Supprimer pour moi',

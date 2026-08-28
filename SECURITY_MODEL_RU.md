@@ -1,6 +1,6 @@
 # SECURITY_MODEL
 
-Обновлено: 2026-08-11
+Обновлено: 2026-08-28
 
 Документ фиксирует, что PeerLink по безопасности уже может честно заявлять сейчас, а что еще остается зоной усиления.
 
@@ -60,6 +60,14 @@
 - Signaling transport на своем уровне не является end-to-end encrypted.
 - Media идет по WebRTC security, при этом routing-policy звонка сейчас форсируется на TURN.
 
+### 2.6 Локальная защита от нежелательных контактов
+
+- Contacts-only privacy setting включен по умолчанию и запрещает unsolicited direct messages, direct media, account pairing/group invite, push presentation/open и call invite от Peer ID, которых нет в локальных контактах.
+- Локальный blacklist `blockedPeers` применяется раньше UI/persistence path: заблокированный Peer ID не создает видимые сообщения, входящие звонки или push-уведомления, а исходящий звонок к нему не стартует.
+- Android FCM service и iOS CallKit bridge получают best-effort native-копию blacklist и проверяют ее до показа background/fullscreen/CallKit входящего звонка.
+- Блокировка относится только к конкретному `peerId`; из-за децентрализованной identity-модели она не является пожизненной блокировкой физического человека.
+- Push/relay/bootstrap серверы не получают приватные ключи, session keys или историю переписки для локальной блокировки.
+
 ## 3. Что можно утверждать сейчас
 
 - Криптопримитивы и verification hooks присутствуют.
@@ -68,6 +76,12 @@
 - Group-control рассылка ключа/инвайтов/обновления участников идет через E2E session encryption.
 - Group media payload шифруется до загрузки blob в relay.
 - Group media direct fallback сохраняет тот же E2E group-media payload; меняется только маршрут доставки metadata после server-side membership отказа.
+- Contacts-only и local block уже доступны как user-controlled protection от unsolicited direct content/calls/push; local block также запрещает исходящие звонки к заблокированному Peer ID.
+- Push registration новых клиентов привязывает `peerId` к `signingPub` через проверяемый v2 identity binding (`peerId = SHA-256(signingPub + identityNonce)`) без дополнительного запроса; push/moderation endpoints в soft migration отклоняют mismatch для уже привязанных peerId и пропускают legacy unbound клиентов.
+- Жалобы на UGC отправляются как metadata-only: текст/медиа сообщения, история чата, контакты, private keys и session keys не передаются модератору. При жалобе на сообщение клиент сразу скрывает его локально у репортера.
+- HTTP-контракт модерации изолирован в `ModerationApiClient`; обычный push fanout/registration не должен расширяться moderation endpoint-ами, чтобы новый сервис не влиял на push delivery path.
+- Moderator UI показывает агрегаты по пользователям, на которых жалуются, и по пользователям, которые жалуются, включая total/direct/group счетчики; модератор вручную принимает решение `warning` или `ban`, не видя содержимого сообщения.
+- Warning/ban модель готова для App Store UGC flow: решение принимает только модератор, push отправляет пользователю `moderation_policy` с `messageKey`, `reportCount` и `reporterCount`, а клиент показывает fullscreen warning/ban на локали пользователя. Warning закрывается кнопкой `Продолжить`; ban сначала показывает экран appeal, после отправки appeal экран скрывается, но отправка сообщений и звонки локально запрещены до `unban`. Settings показывает текущий warning/ban красным под Peer ID/QR. Push также напрямую запрещает регистрацию, report и signed fanout от `banned` peer; relay/bootstrap не требуют доступа к moderation DB. `/moderation/status` возвращает `signedStatus`, если задан `MODERATION_STATUS_SIGNING_PRIVATE_KEY`; клиент проверяет подпись при заданном `MODERATION_STATUS_SIGNING_PUBLIC_KEY`.
 
 ## 4. Что нельзя утверждать
 

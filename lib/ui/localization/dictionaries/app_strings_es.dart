@@ -43,7 +43,7 @@ const appStringsEs = <String, String>{
   'scanPairingQr': 'Escanear QR de vinculación',
   'accountPairingTitle': 'Vincular tu dispositivo',
   'accountPairingDescription':
-      'Abre PeerLink en tu segundo dispositivo y escanea este QR en Ajustes. El dispositivo adoptará este Account ID y la lista de servidores activos.',
+      'Abre PeerLink X en tu segundo dispositivo y escanea este QR en Ajustes. El dispositivo adoptará este Account ID y la lista de servidores activos.',
   'accountPairingApproveTitle': 'Confirmar vinculación del dispositivo',
   'accountPairingApproveDescription':
       'Revisa el Account ID y confirma la vinculación. Después de confirmarlo, este dispositivo adoptará la cuenta y los servidores activos del QR.',
@@ -77,7 +77,7 @@ const appStringsEs = <String, String>{
   'accountPairingWarning': 'No muestres este QR a extraños.',
   'accountPairingAvailableFor': 'Disponible durante: {time}',
   'accountPairingShareText':
-      'Vinculación de dispositivo PeerLink\n\nAccount ID: {accountId}\nAbre este enlace en tu segundo dispositivo: {pairingLink}',
+      'Vinculación de dispositivo PeerLink X\n\nAccount ID: {accountId}\nAbre este enlace en tu segundo dispositivo: {pairingLink}',
   'accountPairingImported':
       'Dispositivo vinculado. Dispositivos en la cuenta: {count}.',
   'revokeDeviceDescription':
@@ -92,13 +92,13 @@ const appStringsEs = <String, String>{
   'launchNetwork': 'Inicializando red...',
   'launchUi': 'Iniciando interfaz...',
   'launchDone': 'Listo',
-  'launchingPeerLink': 'Iniciando PeerLink...',
+  'launchingPeerLink': 'Iniciando PeerLink X...',
   'launchError': 'Error de inicio: {error}',
   'newContact': 'Nuevo contacto',
   'invitePlaceholder': 'La invitación aún no está configurada',
-  'inviteTitle': 'Invitar a PeerLink',
+  'inviteTitle': 'Invitar a PeerLink X',
   'inviteDescription':
-      'Muestra este QR cerca o envía el enlace de invitación. El QR abre PeerLink y añade tu contacto si la app ya está instalada.',
+      'Muestra este QR cerca o envía el enlace de invitación. El QR abre PeerLink X y añade tu contacto si la app ya está instalada.',
   'inviteShareText':
       '¡Hola! Añádeme en PeerLink X:\n{inviteDirectLink}\n\nSi no se abre:\n{inviteFallbackLink}\n\nMi Peer ID: {peerId}',
   'deleteContactTitle': '¿Eliminar contacto?',
@@ -117,6 +117,36 @@ const appStringsEs = <String, String>{
   'chatName': 'Nombre del chat',
   'members': 'Miembros',
   'deleteChatTitle': '¿Eliminar chat?',
+  'blockUser': 'Bloquear usuario',
+  'unblockUser': 'Desbloquear usuario',
+  'blockUserTitle': '¿Bloquear a este usuario?',
+  'blockUserDescription':
+      'Ya no recibirás mensajes, llamadas ni invitaciones de este PeerLink X ID.',
+  'privacySafety': 'Privacidad y seguridad',
+  'privacySafetyDescription': 'Controla quién puede contactarte en PeerLink X.',
+  'allowOnlyContacts': 'Recibir mensajes y llamadas solo de contactos',
+  'allowOnlyContactsDescription':
+      'Los Peer ID desconocidos no podrán crear chats, llamarte ni mostrar notificaciones.',
+  'safetyPolicies': 'Políticas de seguridad',
+  'safetyPoliciesDescription':
+      'PeerLink X no permite amenazas, acoso, mensajes no deseados, contenido ilegal ni otros abusos. Los reportes incluyen solo metadatos mínimos; nunca se envían el contenido de mensajes, claves privadas, claves de sesión ni el historial del chat.',
+  'blockedUsers': 'Usuarios bloqueados',
+  'blockedUsersEmpty': 'Aún no hay Peer ID bloqueados.',
+  'blockedUsersCount': 'Bloqueados: {count}',
+  'termsTitle': 'Términos y seguridad',
+  'termsVersion': 'Versión {version}',
+  'termsIntro':
+      'Acepta estos términos antes de usar las funciones de comunicación de PeerLink X.',
+  'termsRuleRespect':
+      'No uses PeerLink X para amenazas, acoso, mensajes no deseados, contenido ilegal ni abuso.',
+  'termsRuleReport':
+      'Los usuarios pueden bloquear contactos y reportar abusos. La moderación puede restringir el acceso a la infraestructura de PeerLink X.',
+  'termsRulePrivacy':
+      'Los reportes envían solo metadatos mínimos. No se envían contenido de mensajes, claves privadas, claves de sesión, contactos ni historial.',
+  'termsRuleRestriction':
+      'Si tu cuenta se restringe, el historial local y los medios permanecen en este dispositivo.',
+  'acceptTerms': 'Aceptar y continuar',
+  'termsAccepted': 'Términos aceptados',
   'deleteChatContent': 'El chat "{chatName}" se eliminará.',
   'deleteGroupChatContent':
       'El chat grupal "{chatName}" se eliminará para todos los miembros.',
@@ -428,6 +458,32 @@ const appStringsEs = <String, String>{
   'forward': 'Reenviar',
   'forwarded': 'Mensaje reenviado.',
   'forwardFailed': 'No se pudo reenviar el mensaje: {error}',
+  'report': 'Reportar',
+  'reportReasonSpam': 'Mensajes no deseados',
+  'reportReasonHarassment': 'Acoso',
+  'reportReasonThreats': 'Amenazas',
+  'reportReasonIllegalContent': 'Contenido ilegal',
+  'reportReasonOther': 'Otro',
+  'reportSent': 'Reporte guardado para revisión de moderación.',
+  'reportFailed': 'No se pudo crear el reporte: {error}',
+  'moderationWarningTitle': 'Advertencia de cuenta',
+  'moderationWarningReceived':
+      'Tu cuenta puede bloquearse si se reciben más reportes.',
+  'moderationWarningMessage':
+      'Tu cuenta recibió {reportCount} reportes de {reporterCount} usuarios. Puede bloquearse si se reciben más reportes.',
+  'moderationBanMessage':
+      'Tu cuenta fue bloqueada después de {reportCount} reportes de {reporterCount} usuarios. Puedes enviar una apelación.',
+  'moderationUnbanMessage': 'Tu cuenta de PeerLink X fue desbloqueada.',
+  'accountRestrictedTitle': 'Cuenta restringida',
+  'accountRestrictedDescription':
+      'Tu cuenta de PeerLink X está bloqueada. Puedes enviar una apelación.',
+  'accountRestrictedScope':
+      'Los mensajes, llamadas, mensajes entrantes y llamadas entrantes no están disponibles.',
+  'appealMessageLabel': 'Mensaje de apelación',
+  'submitAppeal': 'Enviar apelación',
+  'appealSent': 'Apelación enviada para revisión de moderación.',
+  'appealFailed': 'No se pudo enviar la apelación: {error}',
+  'continueAction': 'Continuar',
   'saveToGallery': 'Guardar en la galería',
   'resend': 'Enviar de nuevo',
   'deleteForMe': 'Eliminar para mí',

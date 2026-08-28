@@ -16,6 +16,9 @@ import '../runtime/network_event_bus.dart';
 import '../runtime/network_event.dart';
 import '../runtime/runtime_servers_merge_orchestrator.dart';
 
+typedef ChatServiceControlHandler =
+    FutureOr<bool> Function(ChatMessage message);
+
 String resolveIncomingChatTargetPeerId({
   required String sourcePeerId,
   String? groupId,
@@ -135,6 +138,7 @@ class ChatService {
   late final StreamSubscription<ReliableSendStatus> _sendStatusSubscription;
   int _logSeq = 0;
   Map<String, dynamic>? Function()? _serverMetadataProvider;
+  ChatServiceControlHandler? _controlHandler;
 
   /// Подписывает chat-сервис на входящий поток надежного messaging-слоя.
   ChatService(this._messaging, this._eventBus) {
@@ -147,6 +151,10 @@ class ChatService {
     Map<String, dynamic>? Function()? serverMetadataProvider,
   ) {
     _serverMetadataProvider = serverMetadataProvider;
+  }
+
+  void setControlHandler(ChatServiceControlHandler? handler) {
+    _controlHandler = handler;
   }
 
   /// Унифицированная отправка chat payload:
@@ -468,6 +476,14 @@ class ChatService {
       chunkDataBase64: payload['chunkDataBase64'] as String?,
     );
 
+    final controlHandler = _controlHandler;
+    if (controlHandler != null) {
+      final handled = await controlHandler(message);
+      if (handled) {
+        return true;
+      }
+    }
+
     return _eventBus.emitAndWait(
       NetworkEvent(type: NetworkEventType.messageReceived, payload: message),
     );
@@ -476,6 +492,7 @@ class ChatService {
   /// Освобождает подписки chat-сервиса.
   Future<void> dispose() async {
     _messaging.setIncomingHandler(null);
+    _controlHandler = null;
     await _sendStatusSubscription.cancel();
   }
 

@@ -43,7 +43,7 @@ const appStringsRu = <String, String>{
   'scanPairingQr': 'Сканировать QR привязки',
   'accountPairingTitle': 'Привязать свое устройство',
   'accountPairingDescription':
-      'Откройте PeerLink на втором устройстве и отсканируйте этот QR в настройках. Устройство примет этот Account ID и список рабочих серверов.',
+      'Откройте PeerLink X на втором устройстве и отсканируйте этот QR в настройках. Устройство примет этот Account ID и список рабочих серверов.',
   'accountPairingApproveTitle': 'Подтвердить привязку устройства',
   'accountPairingApproveDescription':
       'Проверьте Account ID и подтвердите привязку. После подтверждения это устройство примет аккаунт и рабочие серверы из QR.',
@@ -88,7 +88,7 @@ const appStringsRu = <String, String>{
       'Запрос на привязку подтвержден: {deviceId}',
   'accountDeviceEventPairRejected': 'Запрос на привязку отклонен: {deviceId}',
   'accountPairingShareText':
-      'Привязка устройства PeerLink\n\nAccount ID: {accountId}\nОткройте эту ссылку на своем втором устройстве: {pairingLink}',
+      'Привязка устройства PeerLink X\n\nAccount ID: {accountId}\nОткройте эту ссылку на своем втором устройстве: {pairingLink}',
   'accountPairingImported':
       'Устройство привязано. Устройств в аккаунте: {count}.',
   'accountDevicesManageTitle': 'Устройства аккаунта',
@@ -114,13 +114,13 @@ const appStringsRu = <String, String>{
   'launchNetwork': 'Инициализация сети...',
   'launchUi': 'Запуск интерфейса...',
   'launchDone': 'Готово',
-  'launchingPeerLink': 'Запуск PeerLink...',
+  'launchingPeerLink': 'Запуск PeerLink X...',
   'launchError': 'Ошибка запуска: {error}',
   'newContact': 'Новый контакт',
   'invitePlaceholder': 'Приглашение пока не настроено',
-  'inviteTitle': 'Пригласить в PeerLink',
+  'inviteTitle': 'Пригласить в PeerLink X',
   'inviteDescription':
-      'Покажи этот QR рядом или отправь ссылку приглашения. QR откроет PeerLink и добавит твой контакт, если приложение уже установлено.',
+      'Покажи этот QR рядом или отправь ссылку приглашения. QR откроет PeerLink X и добавит твой контакт, если приложение уже установлено.',
   'inviteShareText':
       'Привет! Добавь меня в PeerLink X:\n{inviteDirectLink}\n\nЕсли не открылось:\n{inviteFallbackLink}\n\nМой Peer ID: {peerId}',
   'deleteContactTitle': 'Удалить контакт?',
@@ -139,6 +139,37 @@ const appStringsRu = <String, String>{
   'chatName': 'Название чата',
   'members': 'Участники',
   'deleteChatTitle': 'Удалить чат?',
+  'blockUser': 'Заблокировать',
+  'unblockUser': 'Разблокировать',
+  'blockUserTitle': 'Заблокировать пользователя?',
+  'blockUserDescription':
+      'Вы больше не будете получать сообщения, звонки и приглашения от этого PeerLink X ID.',
+  'privacySafety': 'Приватность и безопасность',
+  'privacySafetyDescription':
+      'Управляйте тем, кто может связаться с вами в PeerLink X.',
+  'allowOnlyContacts': 'Получать сообщения и звонки только от контактов',
+  'allowOnlyContactsDescription':
+      'Незнакомые Peer ID не смогут создавать чаты, звонить или показывать уведомления.',
+  'safetyPolicies': 'Политики безопасности',
+  'safetyPoliciesDescription':
+      'PeerLink X не допускает угрозы, травлю, спам, незаконный контент и другое оскорбительное поведение. Жалобы передают только минимальные метаданные; содержимое сообщений, приватные ключи, сеансовые ключи и история переписки не передаются.',
+  'blockedUsers': 'Заблокированные пользователи',
+  'blockedUsersEmpty': 'Заблокированных Peer ID пока нет.',
+  'blockedUsersCount': 'Заблокировано: {count}',
+  'termsTitle': 'Условия и безопасность',
+  'termsVersion': 'Версия {version}',
+  'termsIntro':
+      'Примите эти условия перед использованием коммуникационных функций PeerLink X.',
+  'termsRuleRespect':
+      'Не используйте PeerLink X для угроз, травли, спама, незаконного контента или оскорбительного поведения.',
+  'termsRuleReport':
+      'Пользователи могут блокировать контакты и отправлять жалобы. Модерация может ограничить доступ к инфраструктуре PeerLink X.',
+  'termsRulePrivacy':
+      'Жалобы отправляют только минимальные метаданные. Содержимое сообщений, приватные ключи, сеансовые ключи, контакты и история чатов не отправляются.',
+  'termsRuleRestriction':
+      'При ограничении аккаунта локальная история и медиа остаются на этом устройстве.',
+  'acceptTerms': 'Принять и продолжить',
+  'termsAccepted': 'Условия приняты',
   'deleteChatContent': 'Чат "{chatName}" будет удален.',
   'deleteGroupChatContent':
       'Групповой чат "{chatName}" будет удален у всех участников.',
@@ -444,6 +475,32 @@ const appStringsRu = <String, String>{
   'forward': 'Переслать',
   'forwarded': 'Сообщение переслано.',
   'forwardFailed': 'Не удалось переслать сообщение: {error}',
+  'report': 'Пожаловаться',
+  'reportReasonSpam': 'Спам',
+  'reportReasonHarassment': 'Травля',
+  'reportReasonThreats': 'Угрозы',
+  'reportReasonIllegalContent': 'Незаконный контент',
+  'reportReasonOther': 'Другое',
+  'reportSent': 'Жалоба сохранена для проверки модерацией.',
+  'reportFailed': 'Не удалось создать жалобу: {error}',
+  'moderationWarningTitle': 'Предупреждение аккаунта',
+  'moderationWarningReceived':
+      'Ваш аккаунт могут заблокировать, если на него будут новые жалобы.',
+  'moderationWarningMessage':
+      'На ваш аккаунт поступило {reportCount} жалоб от {reporterCount} пользователей. Его могут заблокировать, если поступят новые жалобы.',
+  'moderationBanMessage':
+      'Ваш аккаунт заблокирован после {reportCount} жалоб от {reporterCount} пользователей. Вы можете отправить апелляцию.',
+  'moderationUnbanMessage': 'Ваш аккаунт PeerLink X разблокирован.',
+  'accountRestrictedTitle': 'Аккаунт ограничен',
+  'accountRestrictedDescription':
+      'Ваш аккаунт PeerLink X заблокирован. Вы можете отправить апелляцию.',
+  'accountRestrictedScope':
+      'Сообщения, звонки, входящие сообщения и входящие звонки недоступны.',
+  'appealMessageLabel': 'Текст апелляции',
+  'submitAppeal': 'Отправить апелляцию',
+  'appealSent': 'Апелляция отправлена модератору.',
+  'appealFailed': 'Не удалось отправить апелляцию: {error}',
+  'continueAction': 'Продолжить',
   'saveToGallery': 'Сохранить в галерею',
   'resend': 'Отправить повторно',
   'deleteForMe': 'Удалить только у себя',

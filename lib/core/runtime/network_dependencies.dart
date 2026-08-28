@@ -33,6 +33,8 @@ import '../turn/turn_allocator.dart';
 import 'server_health_coordinator.dart';
 import 'network_event_bus.dart';
 import 'push_token_service.dart';
+import 'contacts_repository.dart';
+import 'peer_access_control_service.dart';
 
 /// Сборка и wiring всех сетевых зависимостей приложения.
 class NetworkDependencies {
@@ -231,11 +233,23 @@ class NetworkDependencies {
       await messaging.initialize();
       AppFileLogger.log('[network] creating ChatService');
       final chat = ChatService(messaging, eventBus);
+      final accessControl = PeerAccessControlService(
+        settingsBox: storage.getSettings(),
+        contactsRepository: ContactsRepository(storage: storage),
+      );
       AppFileLogger.log('[network] creating CallService');
       final calls = CallService(
         selfPeerId: identity.nodeId,
         signaling: signaling,
         turnAllocator: turnAllocator,
+        incomingCallAccessDecision: (peerId) => accessControl.evaluateIncoming(
+          peerId: peerId,
+          type: IncomingInteractionType.call,
+        ),
+        outgoingCallAccessDecision: (peerId) => accessControl.evaluateOutgoing(
+          peerId: peerId,
+          type: IncomingInteractionType.call,
+        ),
       );
       AppFileLogger.log('[network] messaging-chat:ready');
 

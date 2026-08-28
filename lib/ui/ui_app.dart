@@ -16,11 +16,14 @@ import '../core/notification/app_badge_service.dart';
 import '../core/runtime/android_call_notification_service.dart';
 import '../core/runtime/deep_link_service.dart';
 import '../core/runtime/ios_callkit_service.dart';
+import '../core/runtime/peer_access_control_service.dart';
+import 'screens/account_restricted_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/call_screen.dart';
 import 'screens/chats_screen.dart';
 import 'screens/calls_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/terms_gate_screen.dart';
 import 'localization/app_strings.dart';
 import 'models/contact.dart';
 import 'state/chat_controller.dart';
@@ -28,6 +31,7 @@ import 'state/calls_controller.dart';
 import 'state/contacts_controller.dart';
 import 'state/app_appearance_controller.dart';
 import 'state/app_locale_controller.dart';
+import 'state/app_restriction_controller.dart';
 import 'state/presence_service.dart';
 import 'state/settings_controller.dart';
 import 'state/ui_app_controller.dart';
@@ -71,7 +75,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       const AndroidCallNotificationService();
   late final PresenceService _presenceService;
   late final UiAppController _appController;
+  late final AppRestrictionController _restrictionController;
   late final ContactsRepository _contactsRepository;
+  late final PeerAccessControlService _accessControl;
   late final CallLogRepository _callLogRepository;
   late final StreamSubscription<CallState> _callStateSubscription;
   StreamSubscription<String>? _deepLinkSubscription;
@@ -103,8 +109,36 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         _updateAppIconBadge(unreadMessagesOverride: unreadCount);
       },
     );
+    _contactsRepository = ContactsRepository(storage: widget.storage);
+    _accessControl = PeerAccessControlService(
+      settingsBox: widget.storage.getSettings(),
+      contactsRepository: _contactsRepository,
+    );
+    _callLogRepository = CallLogRepository(storage: widget.storage);
+    _callsController = CallsController(repository: _callLogRepository);
+    _contactsController = ContactsController(repository: _contactsRepository);
+    _contactsController.loadIntoMemory();
+    _settingsController = SettingsController(
+      facade: widget.facade,
+      storage: widget.storage,
+    );
+    _restrictionController = AppRestrictionController(
+      facade: widget.facade,
+      settingsController: _settingsController,
+      storage: widget.storage,
+    );
+    _selfHostedDeployService = SelfHostedDeployService();
+    _presenceService = PresenceService(facade: widget.facade);
+    _appController = UiAppController(
+      contactsRepository: _contactsRepository,
+      callLogRepository: _callLogRepository,
+      contactsController: _contactsController,
+    );
     FirebaseMessagingService.onGroupMembersUpdateFromPush =
         (payload, {String? sourcePeerId}) {
+          if (_shouldDropExternalInteraction('group_members_push')) {
+            return Future<void>.value();
+          }
           return _chatController.applyGroupMembersUpdateFromPush(
             payload,
             sourcePeerId: sourcePeerId,
@@ -114,7 +148,13 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
+      if (_shouldDropExternalInteraction('push_open source=$source')) {
+        return;
+      }
       final pushPayload = FirebasePushPayload.fromMap(data);
+      if (_shouldDropOpenedPush(pushPayload, source: source)) {
+        return;
+      }
       if (pushPayload.isCallEnd && pushPayload.hasPeerAndCallId) {
         await widget.facade.endCallFromRemotePush(
           peerId: pushPayload.callPeerId,
@@ -130,6 +170,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
             mediaType: pushPayload.callMediaType,
           );
           if (!mounted) {
+            return;
+          }
+          if (!_restrictionController.gate.canHandleExternalInteraction) {
             return;
           }
           setState(() {
@@ -148,22 +191,19 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         index = 1;
       });
     };
-    _contactsRepository = ContactsRepository(storage: widget.storage);
-    _callLogRepository = CallLogRepository(storage: widget.storage);
-    _callsController = CallsController(repository: _callLogRepository);
-    _contactsController = ContactsController(repository: _contactsRepository);
-    _contactsController.loadIntoMemory();
-    _settingsController = SettingsController(
-      facade: widget.facade,
-      storage: widget.storage,
-    );
-    _selfHostedDeployService = SelfHostedDeployService();
-    _presenceService = PresenceService(facade: widget.facade);
-    _appController = UiAppController(
-      contactsRepository: _contactsRepository,
-      callLogRepository: _callLogRepository,
-      contactsController: _contactsController,
-    );
+    FirebaseMessagingService.onModerationPolicyFromPush =
+        (snapshot, {required source}) async {
+          if (!mounted) {
+            return;
+          }
+          await _restrictionController.applyPolicyFromPush(
+            snapshot,
+            callState: widget.facade.callState,
+          );
+          if (mounted) {
+            setState(() {});
+          }
+        };
     _callState = widget.facade.callState;
     unawaited(_refreshMissedCallsBadge(markSeen: index == 2));
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -171,6 +211,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         return;
       }
       unawaited(_settingsController.initialize());
+      unawaited(_refreshRestrictionStatus(reason: 'startup'));
       unawaited(_handleInitialDeepLink());
       unawaited(_syncCallRoute(_callState));
       unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
@@ -188,6 +229,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     _openCallScreenSubscription = IosCallkitService.instance.onOpenCallScreen
         .listen((_) {
           if (!mounted) {
+            return;
+          }
+          if (!_restrictionController.gate.canHandleExternalInteraction) {
             return;
           }
           setState(() {
@@ -218,10 +262,36 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     });
   }
 
+  bool _shouldDropOpenedPush(
+    FirebasePushPayload payload, {
+    required String source,
+  }) {
+    final peerId = payload.senderPeerId;
+    if (peerId.isEmpty) {
+      return false;
+    }
+    final decision = _accessControl.evaluateIncoming(
+      peerId: peerId,
+      type: payload.isCallPayload
+          ? IncomingInteractionType.call
+          : IncomingInteractionType.push,
+    );
+    if (decision == IncomingInteractionDecision.allow) {
+      return false;
+    }
+    AppFileLogger.log(
+      '[ui] push open dropped source=$source reason=${decision.name} '
+      'type=${payload.type} from=$peerId',
+      name: 'ui',
+    );
+    return true;
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     FirebaseMessagingService.onGroupMembersUpdateFromPush = null;
+    FirebaseMessagingService.onModerationPolicyFromPush = null;
     FirebaseMessagingService.onPushOpened = null;
     final route = _callRoute;
     if (route != null) {
@@ -244,12 +314,27 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       unawaited(
         IosCallkitService.instance.refreshVoipRegistration(reason: 'resume'),
       );
+      unawaited(_refreshRestrictionStatus(reason: 'resume'));
       unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_restrictionController.gate.shouldShowTermsGate) {
+      return TermsGateScreen(
+        version: _settingsController.termsVersion,
+        onAccept: _acceptCurrentTerms,
+      );
+    }
+    if (_restrictionController.gate.shouldShowModerationGate) {
+      return AccountRestrictedScreen(
+        policy: _restrictionController.moderationPolicy,
+        facade: widget.facade,
+        onAppealSubmitted: _markModerationAppealSubmitted,
+        onWarningContinued: _markModerationWarningAcknowledged,
+      );
+    }
     final screens = [
       ContactsScreen(
         controller: _chatController,
@@ -267,6 +352,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         facade: widget.facade,
         controller: _chatController,
         callsController: _callsController,
+        contactsController: _contactsController,
         refreshVersion: _callsRefreshVersion,
         presenceService: _presenceService,
         avatarService: _avatarService,
@@ -279,6 +365,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         selfHostedDeployService: _selfHostedDeployService,
         appearanceController: widget.appearanceController,
         localeController: widget.localeController,
+        moderationPolicy: _restrictionController.moderationPolicy,
       ),
     ];
     final strings = context.strings;
@@ -336,6 +423,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   }
 
   Future<void> _syncCallRoute(CallState state) async {
+    if (!_restrictionController.gate.canHandleExternalInteraction) {
+      return;
+    }
     final navigator = Navigator.of(context, rootNavigator: true);
     final route = _callRoute;
     final shouldAcknowledgeCallUiPresented =
@@ -402,6 +492,31 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     if (state.phase == CallPhase.idle) {
       _lastCallUiPresentedAckCallId = null;
     }
+  }
+
+  Future<void> _refreshRestrictionStatus({required String reason}) async {
+    final changed = await _restrictionController.refreshModerationStatus(
+      reason: reason,
+    );
+    if (changed && mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _markModerationAppealSubmitted() async {
+    await _restrictionController.markAppealSubmitted();
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  Future<void> _markModerationWarningAcknowledged() async {
+    await _restrictionController.markWarningAcknowledged();
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   Future<void> _maybeRecordCall(CallState next) async {
@@ -571,6 +686,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       final isCallDeepLink =
           uri != null && uri.scheme == 'peerlink' && uri.host == 'call';
       if (isCallDeepLink) {
+        if (_shouldDropExternalInteraction('deep_link_call')) {
+          return;
+        }
         final pushPayload = FirebasePushPayload.fromMap(
           Map<String, dynamic>.from(uri.queryParameters),
         );
@@ -649,6 +767,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       }
 
       if (_settingsController.isAccountPairingDeepLink(link)) {
+        if (_shouldDropExternalInteraction('deep_link_pairing')) {
+          return;
+        }
         await _settingsController.initialize();
         await _settingsController.requestAccountPairingDeepLink(link);
         if (!mounted) {
@@ -664,6 +785,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       }
 
       final invite = _settingsController.parseInviteDeepLink(link);
+      if (_shouldDropExternalInteraction('deep_link_invite')) {
+        return;
+      }
       await _settingsController.initialize();
       AppFileLogger.log(
         '[ui] deepLink warning invite import start '
@@ -723,6 +847,24 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  bool _shouldDropExternalInteraction(String label) {
+    return _restrictionController.shouldDropExternalInteraction(label);
+  }
+
+  Future<void> _acceptCurrentTerms() async {
+    await _restrictionController.acceptCurrentTerms();
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(context.strings.termsAccepted)));
+    unawaited(_handleInitialDeepLink());
+    unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
+    unawaited(_syncCallRoute(_callState));
   }
 
   String _extractDeepLinkCandidate(String raw) {

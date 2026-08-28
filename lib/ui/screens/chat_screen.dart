@@ -29,6 +29,7 @@ import 'chat_screen_lifecycle.dart';
 import 'chat_screen_media_actions.dart';
 import 'chat_screen_message_list.dart';
 import 'chat_screen_presenter.dart';
+import 'chat_report_actions.dart';
 import 'chat_screen_scroll_coordinator.dart';
 import 'package:peerlink/ui/screens/chat_screen_view.dart';
 
@@ -61,6 +62,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final ChatScreenAudioActions _audioActions = ChatScreenAudioActions();
   final ChatScreenMediaActions _mediaActions = const ChatScreenMediaActions();
   final ChatScreenActions _screenActions = const ChatScreenActions();
+  final ChatReportActions _reportActions = const ChatReportActions();
   final ChatForwardService _forwardService = const ChatForwardService();
   late final ChatScreenBackSwipeCoordinator _backSwipeCoordinator;
   late final ChatScreenComposerCoordinator _composerCoordinator;
@@ -242,6 +244,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         isGroupChat: _isGroupChat,
         isGroupOwner: _isGroupOwner,
         canAddChatContact: _presenter.canAddChatContact,
+        isBlocked: widget.controller.isPeerBlocked(widget.chat.peerId),
         subtitle: _isGroupChat
             ? strings.groupMembers(widget.chat.memberPeerIds.length)
             : _presenter.statusLabel(),
@@ -255,6 +258,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         onRemoveParticipantsPressed: _showRemoveParticipantsSheet,
         onRenameGroupPressed: _showRenameGroupDialog,
         onSetAvatarPressed: _pickAndSetGroupAvatar,
+        onBlockUserPressed: _confirmBlockUser,
+        onUnblockUserPressed: _unblockUser,
+        onReportUserPressed: _reportUser,
         onDeleteChatPressed: _confirmDeleteChat,
       ),
       body: AnimatedPadding(
@@ -472,7 +478,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       showAddContactDialog: _showAddContactDialog,
       saveMediaToGallery: _saveMediaToGallery,
       forwardMessage: _forwardMessage,
+      reportMessage: _reportMessage,
       removeMessage: _removeMessage,
+    );
+  }
+
+  Future<void> _reportUser() async {
+    await _reportActions.reportUser(
+      context: context,
+      chat: widget.chat,
+      controller: widget.controller,
+    );
+  }
+
+  Future<void> _reportMessage(Message message) async {
+    await _reportActions.reportMessage(
+      context: context,
+      chat: widget.chat,
+      controller: widget.controller,
+      message: message,
     );
   }
 
@@ -654,6 +678,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       chat: widget.chat,
       isGroupOwner: _isGroupOwner,
     );
+  }
+
+  Future<void> _confirmBlockUser() async {
+    await _screenActions.confirmBlockUser(
+      context: context,
+      controller: widget.controller,
+      chat: widget.chat,
+    );
+    _refreshState();
+  }
+
+  Future<void> _unblockUser() async {
+    await widget.controller.unblockPeer(widget.chat.peerId);
+    _refreshState();
   }
 
   Future<void> _showAttachMenu() async {

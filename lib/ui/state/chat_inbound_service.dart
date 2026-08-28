@@ -11,6 +11,7 @@ import '../../core/messaging/chat_service.dart';
 import '../../core/node/node_facade.dart';
 import '../../core/relay/relay_models.dart';
 import '../../core/runtime/storage_service.dart';
+import '../../core/runtime/peer_access_control_service.dart';
 import '../models/chat.dart';
 import '../models/message.dart';
 import '../../core/runtime/avatar_service.dart';
@@ -26,6 +27,7 @@ class ChatInboundService {
   final SecureStorageBox settingsBox;
   final AvatarService avatarService;
   final ChatInboundClassifier inboundClassifier;
+  final PeerAccessControlService accessControl;
   late final ChatAccountInboundHandler _accountInboundHandler;
   final ChatGroupControlInboundHandler _groupControlInboundHandler =
       const ChatGroupControlInboundHandler();
@@ -39,6 +41,7 @@ class ChatInboundService {
     required this.settingsBox,
     required this.avatarService,
     required this.inboundClassifier,
+    required this.accessControl,
   }) {
     _accountInboundHandler = ChatAccountInboundHandler(
       facade: facade,
@@ -48,6 +51,50 @@ class ChatInboundService {
 
   String _sourcePeerId(ChatMessage msg) =>
       _groupControlInboundHandler.sourcePeerId(msg);
+
+  bool _dropIncomingForAccessControl(
+    ChatMessage msg,
+    IncomingChatDispatch dispatch,
+  ) {
+    final sourcePeerId = _sourcePeerId(msg);
+    final type = switch (dispatch) {
+      IncomingDirectBlobRefDispatch() => IncomingInteractionType.directMedia,
+      IncomingMessageReceiptDispatch() =>
+        IncomingInteractionType.messageReceipt,
+      IncomingProfileAvatarDispatch() ||
+      IncomingProfileAvatarRemoveDispatch() ||
+      IncomingProfileAvatarQueryDispatch() => IncomingInteractionType.profile,
+      IncomingGroupInviteDispatch() => IncomingInteractionType.groupInvite,
+      IncomingGroupKeyDispatch() ||
+      IncomingGroupKeyRequestDispatch() ||
+      IncomingGroupDeleteDispatch() ||
+      IncomingGroupChatDeleteDispatch() ||
+      IncomingGroupMembersDispatch() => IncomingInteractionType.groupControl,
+      IncomingGroupMessageDispatch() ||
+      IncomingGroupSecureDispatch() => IncomingInteractionType.groupContent,
+      IncomingAccountPairRequestDispatch() ||
+      IncomingAccountPairApprovalDispatch() ||
+      IncomingAccountPairRejectionDispatch() ||
+      IncomingAccountMembershipUpdateDispatch() =>
+        IncomingInteractionType.accountPairing,
+      IncomingDeleteDispatch() ||
+      IncomingDisplayableDispatch() => IncomingInteractionType.directMessage,
+      IncomingIgnoredDispatch() => IncomingInteractionType.directMessage,
+    };
+    final decision = accessControl.evaluateIncoming(
+      peerId: sourcePeerId,
+      type: type,
+    );
+    if (decision == IncomingInteractionDecision.allow) {
+      return false;
+    }
+    developer.log(
+      '[chat] incoming dropped reason=${decision.name} '
+      'type=${type.name} from=$sourcePeerId target=${msg.peerId} id=${msg.id}',
+      name: 'chat',
+    );
+    return true;
+  }
 
   Future<void> handleIncomingMessage(
     ChatMessage msg, {
@@ -126,6 +173,9 @@ class ChatInboundService {
     showMessageNotification,
   }) async {
     final dispatch = inboundClassifier.classifyIncomingMessage(msg);
+    if (_dropIncomingForAccessControl(msg, dispatch)) {
+      return;
+    }
     switch (dispatch) {
       case IncomingDeleteDispatch():
         if (msg.text.isNotEmpty) {

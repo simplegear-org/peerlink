@@ -28,7 +28,7 @@ import 'chat_screen.dart';
 import 'contacts_screen_view.dart';
 import 'qr_scan_screen.dart';
 
-enum _ContactAction { rename }
+enum _ContactAction { rename, block, unblock }
 
 class _ContactPresenceStatus extends StatefulWidget {
   final String peerId;
@@ -277,6 +277,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final contact = controller.contacts[index];
+                  final isBlocked = widget.controller.isPeerBlocked(
+                    contact.peerId,
+                  );
 
                   return Padding(
                     padding: EdgeInsets.only(
@@ -302,6 +305,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           contact.peerId,
                         ),
                       ),
+                      trailing: isBlocked
+                          ? Tooltip(
+                              message: strings.blockedUsers,
+                              child: Icon(
+                                Icons.block_rounded,
+                                color: Theme.of(context).colorScheme.error,
+                                size: 20,
+                              ),
+                            )
+                          : null,
                       onLongPress: () {
                         unawaited(_showContactMenu(contact));
                       },
@@ -364,6 +377,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       useRootNavigator: false,
       builder: (sheetContext) {
         final strings = sheetContext.strings;
+        final isBlocked = widget.controller.isPeerBlocked(contact.peerId);
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -373,6 +387,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 title: Text(strings.renameContact),
                 onTap: () {
                   Navigator.pop(sheetContext, _ContactAction.rename);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  isBlocked ? Icons.remove_circle_outline : Icons.block,
+                ),
+                title: Text(
+                  isBlocked ? strings.unblockUser : strings.blockUser,
+                ),
+                onTap: () {
+                  Navigator.pop(
+                    sheetContext,
+                    isBlocked ? _ContactAction.unblock : _ContactAction.block,
+                  );
                 },
               ),
             ],
@@ -387,6 +415,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
     switch (action) {
       case _ContactAction.rename:
         await _showRenameContactDialog(contact);
+      case _ContactAction.block:
+        await widget.controller.blockPeer(contact.peerId);
+        if (mounted) {
+          setState(() {});
+        }
+      case _ContactAction.unblock:
+        await widget.controller.unblockPeer(contact.peerId);
+        if (mounted) {
+          setState(() {});
+        }
     }
   }
 

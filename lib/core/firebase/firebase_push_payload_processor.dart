@@ -11,10 +11,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../runtime/account_membership_update_payload.dart';
 import '../runtime/app_file_logger.dart';
+import '../runtime/moderation_policy_service.dart';
 import '../runtime/runtime_servers_merge_orchestrator.dart';
 import '../runtime/storage_service.dart';
 import 'firebase_push_callback_registry.dart';
 import 'firebase_push_log_formatter.dart';
+import 'firebase_push_payload.dart';
 import 'firebase_push_payload_parsers.dart';
 
 class FirebasePushPayloadProcessor {
@@ -26,15 +28,45 @@ class FirebasePushPayloadProcessor {
     FirebasePushGroupMembersPayloadParser groupMembersParser =
         const FirebasePushGroupMembersPayloadParser(),
     FirebasePushLogFormatter logFormatter = const FirebasePushLogFormatter(),
+    ModerationPolicyService? moderationPolicyService,
   }) : _serversMergeOrchestrator = serversMergeOrchestrator,
        _accountMembershipParser = accountMembershipParser,
        _groupMembersParser = groupMembersParser,
-       _logFormatter = logFormatter;
+       _logFormatter = logFormatter,
+       _moderationPolicyService = moderationPolicyService;
 
   final RuntimeServersMergeOrchestrator _serversMergeOrchestrator;
   final FirebasePushAccountMembershipPayloadParser _accountMembershipParser;
   final FirebasePushGroupMembersPayloadParser _groupMembersParser;
   final FirebasePushLogFormatter _logFormatter;
+  final ModerationPolicyService? _moderationPolicyService;
+
+  Future<FirebaseModerationProcessingResult> applyModerationGate(
+    Map<String, dynamic> data, {
+    required String source,
+  }) async {
+    final isModerationPolicy = await applyModerationPolicyFromPush(
+      data,
+      source: source,
+    );
+    if (isModerationPolicy) {
+      return const FirebaseModerationProcessingResult(
+        isModerationPolicy: true,
+        shouldDropBecauseBanned: false,
+      );
+    }
+    final shouldDropBecauseBanned = isPeerBanned();
+    if (shouldDropBecauseBanned) {
+      AppFileLogger.log(
+        '[fcm][moderation][$source] push dropped reason=account_banned',
+        name: 'FirebaseMessagingService',
+      );
+    }
+    return FirebaseModerationProcessingResult(
+      isModerationPolicy: false,
+      shouldDropBecauseBanned: shouldDropBecauseBanned,
+    );
+  }
 
   void logIncomingPush(RemoteMessage message, {required String source}) {
     final formatted = _logFormatter.incomingPush(message, source: source);
@@ -55,6 +87,48 @@ class FirebasePushPayloadProcessor {
       logName: 'FirebaseMessagingService',
       logPrefix: '[fcm][servers]',
     );
+  }
+
+  Future<bool> applyModerationPolicyFromPush(
+    Map<String, dynamic> data, {
+    required String source,
+  }) async {
+    final pushPayload = FirebasePushPayload.fromMap(data);
+    if (!pushPayload.isModerationPolicy) {
+      return false;
+    }
+    final normalizedData = <String, dynamic>{
+      ...?pushPayload.nestedData,
+      ...pushPayload.root,
+    };
+    final snapshot = await _moderationPolicyService?.applyPushPayload(
+      normalizedData,
+    );
+    if (snapshot == null) {
+      return false;
+    }
+    AppFileLogger.log(
+      '[fcm][moderation][$source] applied state=${snapshot.state.name}',
+      name: 'FirebaseMessagingService',
+    );
+    final callback = FirebasePushCallbackRegistry.onModerationPolicyFromPush;
+    if (callback != null) {
+      try {
+        await callback(snapshot, source: source);
+      } catch (error, stackTrace) {
+        AppFileLogger.log(
+          '[fcm][moderation][$source] callback failed error=$error',
+          name: 'FirebaseMessagingService',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+    return true;
+  }
+
+  bool isPeerBanned() {
+    return _moderationPolicyService?.isBanned ?? false;
   }
 
   Future<bool> applyAccountMembershipUpdateFromPush(
@@ -152,4 +226,17 @@ class FirebasePushPayloadProcessor {
     current.add(payload.toJson());
     await settings.put(accountMembershipUpdatesStorageKey, jsonEncode(current));
   }
+}
+
+class FirebaseModerationProcessingResult {
+  final bool isModerationPolicy;
+  final bool shouldDropBecauseBanned;
+
+  const FirebaseModerationProcessingResult({
+    required this.isModerationPolicy,
+    required this.shouldDropBecauseBanned,
+  });
+
+  bool get shouldStopRegularHandling =>
+      isModerationPolicy || shouldDropBecauseBanned;
 }

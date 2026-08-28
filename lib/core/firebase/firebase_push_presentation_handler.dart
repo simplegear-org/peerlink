@@ -14,6 +14,8 @@ import 'package:flutter/services.dart';
 
 import '../notification/notification_service.dart';
 import '../runtime/app_file_logger.dart';
+import '../runtime/peer_access_control_service.dart';
+import '../runtime/storage_service.dart';
 import 'firebase_push_callback_registry.dart';
 import 'firebase_push_payload.dart';
 import 'firebase_push_payload_processor.dart';
@@ -36,6 +38,8 @@ class FirebasePushPresentationHandler {
       <String, DateTime>{};
 
   final FirebasePushPayloadProcessor _payloadProcessor;
+  final PeerAccessControlService _accessControl =
+      PeerAccessControlService.forStorage(StorageService());
   static const FirebasePushServersMergeOrchestrator _serversMergeOrchestrator =
       FirebasePushServersMergeOrchestrator();
 
@@ -68,6 +72,16 @@ class FirebasePushPresentationHandler {
     if (_shouldSkipDuplicatePush(message.data, source: 'foreground')) {
       return;
     }
+    final moderation = await _payloadProcessor.applyModerationGate(
+      message.data,
+      source: 'foreground',
+    );
+    if (moderation.shouldStopRegularHandling) {
+      return;
+    }
+    if (_shouldDropForAccessControl(message.data, source: 'foreground')) {
+      return;
+    }
     await _applyPushSideEffects(message.data, source: 'foreground');
     await FirebasePushCallbackRegistry.emitPushOpened(
       Map<String, dynamic>.from(message.data),
@@ -82,6 +96,16 @@ class FirebasePushPresentationHandler {
     );
     _payloadProcessor.logIncomingPush(message, source: 'opened');
     if (_shouldSkipDuplicatePush(message.data, source: 'opened')) {
+      return;
+    }
+    final moderation = await _payloadProcessor.applyModerationGate(
+      message.data,
+      source: 'opened',
+    );
+    if (moderation.shouldStopRegularHandling) {
+      return;
+    }
+    if (_shouldDropForAccessControl(message.data, source: 'opened')) {
       return;
     }
     await _serversMergeOrchestrator.applyIfPresent(
@@ -147,6 +171,16 @@ class FirebasePushPresentationHandler {
     if (_shouldSkipDuplicatePush(normalized, source: 'native-fallback')) {
       return;
     }
+    final moderation = await _payloadProcessor.applyModerationGate(
+      normalized,
+      source: 'native-fallback',
+    );
+    if (moderation.shouldStopRegularHandling) {
+      return;
+    }
+    if (_shouldDropForAccessControl(normalized, source: 'native-fallback')) {
+      return;
+    }
     await _serversMergeOrchestrator.applyIfPresent(
       normalized,
       source: 'native-fallback',
@@ -199,12 +233,56 @@ class FirebasePushPresentationHandler {
     return '${payload.type}|${payload.senderPeerId}|$target|$businessId';
   }
 
-  Future<void> showNotificationFromPush(RemoteMessage message) async {
-    _payloadProcessor.logIncomingPush(message, source: 'display');
-    final handledSilently = await _applyPushSideEffects(
-      message.data,
-      source: 'display',
+  bool _shouldDropForAccessControl(
+    Map<String, dynamic> data, {
+    required String source,
+  }) {
+    final payload = FirebasePushPayload.fromMap(data);
+    final peerId = payload.senderPeerId;
+    if (peerId.isEmpty) {
+      return false;
+    }
+    final decision = _accessControl.evaluateIncoming(
+      peerId: peerId,
+      type: payload.isCallPayload
+          ? IncomingInteractionType.call
+          : IncomingInteractionType.push,
     );
+    if (decision == IncomingInteractionDecision.allow) {
+      return false;
+    }
+    AppFileLogger.log(
+      '[fcm] push dropped source=$source reason=${decision.name} '
+      'type=${payload.type} from=$peerId',
+      name: 'FirebaseMessagingService',
+    );
+    return true;
+  }
+
+  Future<void> showNotificationFromPush(
+    RemoteMessage message, {
+    bool moderationPolicyAlreadyApplied = false,
+  }) async {
+    _payloadProcessor.logIncomingPush(message, source: 'display');
+    final moderation = moderationPolicyAlreadyApplied
+        ? const FirebaseModerationProcessingResult(
+            isModerationPolicy: true,
+            shouldDropBecauseBanned: false,
+          )
+        : await _payloadProcessor.applyModerationGate(
+            message.data,
+            source: 'display',
+          );
+    if (moderation.shouldDropBecauseBanned) {
+      return;
+    }
+    if (!moderation.isModerationPolicy &&
+        _shouldDropForAccessControl(message.data, source: 'display')) {
+      return;
+    }
+    final handledSilently = moderation.isModerationPolicy
+        ? false
+        : await _applyPushSideEffects(message.data, source: 'display');
     if (handledSilently) {
       return;
     }
@@ -232,6 +310,16 @@ class FirebasePushPresentationHandler {
     Map<String, dynamic> data, {
     required String source,
   }) async {
+    final moderation = await _payloadProcessor.applyModerationGate(
+      data,
+      source: source,
+    );
+    if (moderation.isModerationPolicy) {
+      return false;
+    }
+    if (moderation.shouldDropBecauseBanned) {
+      return true;
+    }
     await _serversMergeOrchestrator.applyIfPresent(data, source: source);
     final isAccountMembershipUpdate = await _payloadProcessor
         .applyAccountMembershipUpdateFromPush(data, source: source);

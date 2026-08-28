@@ -3,6 +3,91 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.10.2+2026082701] - 2026-08-27
+
+### Изменено
+
+- Модерация разделена на отдельные bounded-сервисы: HTTP-клиент `/moderation/*`, delivery orchestration, policy snapshot и UI-gate больше не размазаны по push/UI слоям.
+- После отправки апелляции экран ограничения аккаунта скрывается, но сохраненный ban продолжает блокировать отправку сообщений и звонки до `unban`.
+- Клиент применяет `moderation_policy action=unban` и очищает локальный ban.
+- Warning теперь показывается fullscreen-экраном с кнопкой `Продолжить`; Settings показывает текущий warning/ban красным под Peer ID/QR.
+- iOS native push bridge теперь сразу передает silent `moderation_policy` в Flutter, если приложение/engine живы.
+- Повторный вход не показывает fullscreen warning/ban повторно, если warning уже подтвержден или appeal уже отправлена.
+- Клиент проверяет `signedStatus` moderation policy при заданном `MODERATION_STATUS_SIGNING_PUBLIC_KEY` и отклоняет неподписанные/поддельные moderation events.
+- Документация приложения синхронизирована с закрытым этапом App Store UGC/moderation.
+
+### Проверено
+
+- `dart analyze`
+- `flutter test test/core/runtime/moderation_api_client_test.dart test/ui/state/app_restriction_controller_test.dart test/ui/screens/chat_report_actions_test.dart test/core/runtime/moderation_report_service_test.dart test/core/runtime/moderation_policy_service_test.dart test/core/firebase/firebase_push_payload_test.dart`
+
+
+## [3.10.1+2026082601] - 2026-08-26
+
+### Изменено
+
+- Клиент сохраняет `moderation_policy` push-события: warning показывает предупреждение, ban открывает экран ограничения аккаунта и оставляет только отправку апелляции.
+- Warning/ban текст строится на локали пользователя и включает количество жалоб и число уникальных жалобщиков без раскрытия Peer ID.
+- Клиент опрашивает `/moderation/status` на startup/resume и принудительно перерегистрирует push token, чтобы moderator warn/ban применялся после рестарта push-сервера.
+- При сохраненном ban приложение не показывает обычные входящие push-сообщения/звонки и не открывает коммуникационный UI.
+- Жалобы на UGC теперь metadata-only: текст/медиа сообщения не отправляются модератору, а выбранное сообщение скрывается локально у репортера.
+- Для групповых сообщений report таргетит автора сообщения и передает только metadata (`groupId`, message id/type/timestamp), без содержимого.
+- Push registration новых клиентов отправляет v2 identity binding в существующем `/devices/register`, чтобы сервер мог привязать `peerId` к `signingPub` без дополнительного запроса.
+- Документация обновлена под новый moderator UI: агрегаты reported users/reporters с total/direct/group счетчиками и общий список metadata-only жалоб.
+
+
+## [3.10.0+2026082401] - 2026-08-24
+
+### Добавлено
+
+- В Settings добавлен блок `Приватность и безопасность` с переключателем приема сообщений и звонков только от контактов, кратким описанием политик безопасности и переходом к списку заблокированных Peer ID.
+- Добавлена локальная блокировка Peer ID: заблокированный отправитель не создает видимые входящие сообщения, звонки и push-уведомления.
+- Исправлена блокировка звонков: исходящий вызов к заблокированному Peer ID теперь не стартует, а Android fullscreen notification и iOS CallKit проверяют native-копию blacklist до показа входящего звонка.
+- В личном чате и во вкладке `Контакты` добавлены действия `Заблокировать` / `Разблокировать`.
+- В списке контактов заблокированные контакты помечаются значком блокировки.
+- Добавлен отдельный экран заблокированных пользователей; если Peer ID сохранен в контактах, показывается имя контакта.
+- Добавлены переводы новых privacy/safety строк для EN/RU/ES/FR/ZH.
+
+### Изменено
+
+- Версия приложения поднята до `3.10.0+2026082401`.
+- Входящие bootstrap/push call invite-ы и открытие push теперь проверяют локальные privacy/block правила до показа звонка или уведомления.
+
+### Проверено
+
+- `flutter analyze`
+- `flutter test test/core/calls/call_service_test.dart test/core/runtime/peer_access_control_service_test.dart test/ui/state/chat_inbound_service_test.dart`
+- `flutter build apk --debug`
+- `flutter build ios --debug --no-codesign`
+
+
+## [3.9.4+2026082301] - 2026-08-23
+
+### Изменено
+
+- Android release-сборка теперь включает R8 minify и resource shrinking; миграция на AGP 9+ оставлена отдельной задачей в backlog до проверки совместимости Flutter/Gradle/plugins.
+- Журнал вызовов теперь показывает актуальное имя из контактов, если контакт сохранен; без контакта остается короткий peer id.
+- Входящий accept runtime-enrichment wait увеличен до 8 секунд, чтобы новая версия успевала принять bootstrap/TURN metadata перед ответом на звонок.
+- Критичные команды звонка (`call_invite`, `call_accept`, `call_reject`, `call_end`) теперь дублируются через direct reliable control payload `__peerlink_call_control_v1__` и дополнительно повторяются bounded-таймерами поверх bootstrap signaling.
+- После активного звонка остановка входящего RTP/media stats при продолжающемся outbound traffic больше не считается живым каналом: звонок переходит в видимое восстановление и инициирует ICE restart offer.
+
+### Исправлено
+
+- Исправлен сценарий, где кнопка `Ответить` могла завершаться ошибкой `Signaling еще не готов`: при временно недоступном bootstrap ответ отправляется резервным reliable-каналом, а signaling продолжает восстановление.
+- Исправлен сценарий, где `Отклонить`/`Завершить` могли не доходить до второй стороны и оставлять ее в бесконечном дозвоне.
+- Исправлен terminal-сброс звонка, когда у звонящего экран закрывался локально, а у принимающего оставался активный экран со статусом `Транспорт звонка прерван`.
+- Исправлен сброс звонка сразу после ответа из-за позднего reliable-повтора `call_invite`: повтор текущего `peerId/callId` больше не превращается в `call_busy`.
+- Исправлен сброс Android release-звонка сразу после ответа: добавлены app-level R8 keep rules для `flutter_webrtc` / native WebRTC классов.
+- Из offer/answer guard-ов убраны небезопасные Android-вызовы `getLocalDescription()`, чтобы избежать native null-SDP crash сразу после ответа на звонок.
+- Исправлен сценарий после смены сети во время звонка: UI больше не показывает мертвый media path как обычный активный звонок только из-за роста счетчиков `Канал`.
+
+### Проверено
+
+- `flutter test test/core/calls`
+- `flutter analyze`
+- `flutter build apk --release`
+
+
 ## [3.9.3+2026082201] - 2026-08-22
 
 ### Изменено

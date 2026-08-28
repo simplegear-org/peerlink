@@ -195,29 +195,34 @@ class CallLiveMediaStallDetector {
     if (outboundAdvanced) {
       _log(
         'diagnostic:warning freeze cause=inbound-only-stall '
-        'action=no-ice-restart inboundStallPolls=$_liveMediaStallThresholdPolls '
+        'action=media-recovery inboundStallPolls=$_liveMediaStallThresholdPolls '
         '${CallMediaDiagnosticsFormatter.format(stats)} '
         'audioDelta=${CallMediaDiagnosticsFormatter.delta(stats.receivedBytes, previousLiveInboundBytes)} '
         'packetDelta=${CallMediaDiagnosticsFormatter.delta(stats.packetsReceived, previousLiveInboundPackets)} '
         'audioOutDelta=${CallMediaDiagnosticsFormatter.delta(stats.audioSentBytes, previousLiveOutboundBytes)}',
       );
-      return;
+      unawaited(
+        _onLiveMediaFlowStalled(
+          'Inbound media stalled while local outbound continued',
+        ),
+      );
+    } else {
+      _log(
+        'diagnostic:warning freeze cause=full-media-stall action=media-recovery '
+        'stallPolls=$_liveMediaStallThresholdPolls '
+        '${CallMediaDiagnosticsFormatter.format(stats)} '
+        'audioDelta=${CallMediaDiagnosticsFormatter.delta(stats.receivedBytes, previousLiveInboundBytes)} '
+        'packetDelta=${CallMediaDiagnosticsFormatter.delta(stats.packetsReceived, previousLiveInboundPackets)} '
+        'audioOutDelta=${CallMediaDiagnosticsFormatter.delta(stats.audioSentBytes, previousLiveOutboundBytes)} '
+        'videoDelta=${CallMediaDiagnosticsFormatter.delta(stats.videoBytesReceived, previousLiveInboundVideoBytes)} '
+        'frameDelta=${CallMediaDiagnosticsFormatter.delta(stats.videoFramesDecoded, previousLiveInboundVideoFrames)}',
+      );
+      unawaited(
+        _onLiveMediaFlowStalled(
+          'Live media stalled while ICE remained connected',
+        ),
+      );
     }
-    _log(
-      'diagnostic:warning freeze cause=full-media-stall action=diagnostic-only '
-      'stallPolls=$_liveMediaStallThresholdPolls '
-      '${CallMediaDiagnosticsFormatter.format(stats)} '
-      'audioDelta=${CallMediaDiagnosticsFormatter.delta(stats.receivedBytes, previousLiveInboundBytes)} '
-      'packetDelta=${CallMediaDiagnosticsFormatter.delta(stats.packetsReceived, previousLiveInboundPackets)} '
-      'audioOutDelta=${CallMediaDiagnosticsFormatter.delta(stats.audioSentBytes, previousLiveOutboundBytes)} '
-      'videoDelta=${CallMediaDiagnosticsFormatter.delta(stats.videoBytesReceived, previousLiveInboundVideoBytes)} '
-      'frameDelta=${CallMediaDiagnosticsFormatter.delta(stats.videoFramesDecoded, previousLiveInboundVideoFrames)}',
-    );
-    unawaited(
-      _onLiveMediaFlowStalled(
-        'Live media stalled while ICE remained connected',
-      ),
-    );
   }
 
   void _evaluateLocalAudioOutboundStall({

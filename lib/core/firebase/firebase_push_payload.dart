@@ -104,6 +104,19 @@ class FirebasePushPayload {
   bool get isGroupMembersUpdate =>
       type == 'group_members_update' || type == 'group_members';
 
+  bool get isModerationPolicy => type == 'moderation_policy';
+
+  String get moderationPolicyState =>
+      (_readString(root, nestedData, const <String>['policyState']) ?? '')
+          .toLowerCase();
+
+  bool get isModerationBan => moderationPolicyState == 'banned';
+
+  bool get isModerationWarning => moderationPolicyState == 'warning';
+
+  Object? get rawSignedModerationStatus =>
+      _readValue(root, nestedData, const <String>['signedStatus']);
+
   bool get isMessageLike =>
       type == 'group_update' || type == 'message' || type == 'direct_update';
 

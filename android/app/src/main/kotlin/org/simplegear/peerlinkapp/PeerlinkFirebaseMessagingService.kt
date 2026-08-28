@@ -53,6 +53,10 @@ class PeerlinkFirebaseMessagingService : FirebaseMessagingService() {
         if (callId.isBlank() || callerUserId.isBlank()) {
             return
         }
+        if (PeerlinkAccessControl.isBlocked(this, callerUserId)) {
+            Log.i(TAG, "blocked incoming call notification from peer=$callerUserId callId=$callId")
+            return
+        }
         if (PeerlinkAppVisibility.isForeground) {
             return
         }
@@ -125,7 +129,7 @@ class PeerlinkFirebaseMessagingService : FirebaseMessagingService() {
             "Звонки",
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = "Входящие звонки PeerLink"
+            description = "Входящие звонки PeerLink X"
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
         }
         manager.createNotificationChannel(channel)

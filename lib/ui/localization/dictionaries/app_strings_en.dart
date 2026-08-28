@@ -44,7 +44,7 @@ const appStringsEn = <String, String>{
   'scanPairingQr': 'Scan pairing QR',
   'accountPairingTitle': 'Pair your device',
   'accountPairingDescription':
-      'Open PeerLink on your second device and scan this QR in Settings. The device will adopt this Account ID and working server list.',
+      'Open PeerLink X on your second device and scan this QR in Settings. The device will adopt this Account ID and working server list.',
   'accountPairingApproveTitle': 'Confirm device pairing',
   'accountPairingApproveDescription':
       'Review the Account ID and confirm pairing. After confirmation, this device will adopt the account and working servers from the QR.',
@@ -87,7 +87,7 @@ const appStringsEn = <String, String>{
   'accountDeviceEventPairApproved': 'Pairing request approved: {deviceId}',
   'accountDeviceEventPairRejected': 'Pairing request rejected: {deviceId}',
   'accountPairingShareText':
-      'PeerLink device pairing\n\nAccount ID: {accountId}\nOpen this link on your second device: {pairingLink}',
+      'PeerLink X device pairing\n\nAccount ID: {accountId}\nOpen this link on your second device: {pairingLink}',
   'accountPairingImported': 'Device paired. Devices in account: {count}.',
   'accountDevicesManageTitle': 'Account devices',
   'accountDevicesManageDescription':
@@ -112,13 +112,13 @@ const appStringsEn = <String, String>{
   'launchNetwork': 'Initializing network...',
   'launchUi': 'Starting interface...',
   'launchDone': 'Ready',
-  'launchingPeerLink': 'Starting PeerLink...',
+  'launchingPeerLink': 'Starting PeerLink X...',
   'launchError': 'Startup error: {error}',
   'newContact': 'New contact',
   'invitePlaceholder': 'Invite is not configured yet',
-  'inviteTitle': 'Invite to PeerLink',
+  'inviteTitle': 'Invite to PeerLink X',
   'inviteDescription':
-      'Show this QR nearby or send the invite link. The QR opens PeerLink and adds your contact when the app is already installed.',
+      'Show this QR nearby or send the invite link. The QR opens PeerLink X and adds your contact when the app is already installed.',
   'inviteShareText':
       'Hi! Add me on PeerLink X:\n{inviteDirectLink}\n\nIf it does not open:\n{inviteFallbackLink}\n\nMy Peer ID: {peerId}',
   'deleteContactTitle': 'Delete contact?',
@@ -137,6 +137,36 @@ const appStringsEn = <String, String>{
   'chatName': 'Chat name',
   'members': 'Members',
   'deleteChatTitle': 'Delete chat?',
+  'blockUser': 'Block user',
+  'unblockUser': 'Unblock user',
+  'blockUserTitle': 'Block this user?',
+  'blockUserDescription':
+      'You will no longer receive messages, calls, or invitations from this PeerLink X ID.',
+  'privacySafety': 'Privacy & Safety',
+  'privacySafetyDescription': 'Control who can contact you in PeerLink X.',
+  'allowOnlyContacts': 'Receive messages and calls only from contacts',
+  'allowOnlyContactsDescription':
+      'Unknown Peer IDs cannot create chats, call you, or show notifications.',
+  'safetyPolicies': 'Safety policies',
+  'safetyPoliciesDescription':
+      'PeerLink X does not allow threats, harassment, spam, illegal content, or other abusive behavior. Reports include only minimal metadata; message content, private keys, session keys, and chat history are never sent.',
+  'blockedUsers': 'Blocked users',
+  'blockedUsersEmpty': 'No blocked Peer IDs yet.',
+  'blockedUsersCount': 'Blocked: {count}',
+  'termsTitle': 'Terms & Safety',
+  'termsVersion': 'Version {version}',
+  'termsIntro':
+      'Accept these terms before using PeerLink X communication features.',
+  'termsRuleRespect':
+      'Do not use PeerLink X for threats, harassment, spam, illegal content, or abusive behavior.',
+  'termsRuleReport':
+      'Users can block contacts and report abuse. Moderation may restrict access to PeerLink X infrastructure.',
+  'termsRulePrivacy':
+      'Reports send only minimal metadata. Message content, private keys, session keys, contacts, and chat history are not sent.',
+  'termsRuleRestriction':
+      'If your account is restricted, local history and media stay on this device.',
+  'acceptTerms': 'Accept and continue',
+  'termsAccepted': 'Terms accepted',
   'deleteChatContent': 'Chat "{chatName}" will be deleted.',
   'deleteGroupChatContent':
       'Group chat "{chatName}" will be deleted for all participants.',
@@ -445,6 +475,32 @@ const appStringsEn = <String, String>{
   'forward': 'Forward',
   'forwarded': 'Message forwarded.',
   'forwardFailed': 'Could not forward message: {error}',
+  'report': 'Report',
+  'reportReasonSpam': 'Spam',
+  'reportReasonHarassment': 'Harassment',
+  'reportReasonThreats': 'Threats',
+  'reportReasonIllegalContent': 'Illegal content',
+  'reportReasonOther': 'Other',
+  'reportSent': 'Report saved for moderation review.',
+  'reportFailed': 'Could not create report: {error}',
+  'moderationWarningTitle': 'Account warning',
+  'moderationWarningReceived':
+      'Your account may be blocked if more reports are received.',
+  'moderationWarningMessage':
+      'Your account received {reportCount} reports from {reporterCount} users. It may be blocked if more reports are received.',
+  'moderationBanMessage':
+      'Your account was blocked after {reportCount} reports from {reporterCount} users. You can submit an appeal.',
+  'moderationUnbanMessage': 'Your PeerLink X account has been unblocked.',
+  'accountRestrictedTitle': 'Account restricted',
+  'accountRestrictedDescription':
+      'Your PeerLink X account has been blocked. You can submit an appeal.',
+  'accountRestrictedScope':
+      'Messaging, calls, incoming messages and incoming calls are unavailable.',
+  'appealMessageLabel': 'Appeal message',
+  'submitAppeal': 'Submit appeal',
+  'appealSent': 'Appeal sent for moderation review.',
+  'appealFailed': 'Could not send appeal: {error}',
+  'continueAction': 'Continue',
   'saveToGallery': 'Save to gallery',
   'resend': 'Send again',
   'deleteForMe': 'Delete for me',

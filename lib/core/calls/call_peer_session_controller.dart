@@ -225,13 +225,31 @@ class CallPeerSessionController {
     String? context,
   }) async {
     try {
-      return (await peer.getLocalDescription())?.type;
+      final signalingState = await peer.getSignalingState();
+      return _localDescriptionTypeForSignalingState(signalingState);
     } catch (error) {
       _log(
         'localDescription:unavailable'
         '${context == null ? "" : " context=$context"} error=$error',
       );
       return null;
+    }
+  }
+
+  String? _localDescriptionTypeForSignalingState(
+    RTCSignalingState? signalingState,
+  ) {
+    switch (signalingState) {
+      case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
+        return 'offer';
+      case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
+        return 'pranswer';
+      case RTCSignalingState.RTCSignalingStateStable:
+      case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
+      case RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
+      case RTCSignalingState.RTCSignalingStateClosed:
+      case null:
+        return null;
     }
   }
 
@@ -754,19 +772,16 @@ class CallPeerSessionController {
     }
     _log('sdp:remote-answer ${sdpMediaSummary(sdp)}');
     final signalingState = await peer.getSignalingState();
-    RTCSessionDescription? localDescription;
-    try {
-      localDescription = await peer.getLocalDescription();
-    } catch (error) {
-      _log('localDescription:unavailable context=answer-handle error=$error');
-    }
+    final localDescriptionType = _localDescriptionTypeForSignalingState(
+      signalingState,
+    );
     final isWaitingForAnswer = CallSignalingInvariants.isWaitingForAnswer(
       signalingState: signalingState,
-      localDescriptionType: localDescription?.type,
+      localDescriptionType: localDescriptionType,
     );
     if (!isWaitingForAnswer) {
       _log(
-        'answer:ignored signalingState=$signalingState localDescriptionType=${localDescription?.type}',
+        'answer:ignored signalingState=$signalingState localDescriptionType=$localDescriptionType',
       );
       return;
     }

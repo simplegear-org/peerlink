@@ -191,7 +191,7 @@ class PushEventFactory {
       return null;
     }
     return <String, dynamic>{
-      'title': 'PeerLink',
+      'title': 'PeerLink X',
       'body': _displayNotificationType(normalized),
     };
   }

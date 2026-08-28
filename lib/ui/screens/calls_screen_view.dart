@@ -16,6 +16,7 @@ class CallHistoryTileData {
   final CallLogEntry entry;
   final IconData icon;
   final Color statusColor;
+  final String displayName;
   final bool isCalling;
   final int missedCount;
   final String subtitle;
@@ -26,6 +27,7 @@ class CallHistoryTileData {
     required this.entry,
     required this.icon,
     required this.statusColor,
+    required this.displayName,
     required this.isCalling,
     required this.missedCount,
     required this.subtitle,
@@ -110,7 +112,6 @@ class CallHistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final entry = data.entry;
     return SwipeDeleteTile(
       onDeleteRequested: onDeleteRequested,
       onTap: data.isCalling ? null : onTap,
@@ -147,7 +148,7 @@ class CallHistoryTile extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    entry.contactName,
+                    data.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleMedium?.copyWith(

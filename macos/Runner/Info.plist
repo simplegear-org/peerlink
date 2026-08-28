@@ -61,6 +61,6 @@
 		<string>INSendMessageIntent</string>
 	</array>
 	<key>NSUserNotificationUsageDescription</key>
-	<string>PeerLink uses notifications to alert you about new messages.</string>
+	<string>PeerLink X uses notifications to alert you about new messages.</string>
 </dict>
 </plist>

@@ -21,6 +21,7 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isGroupChat;
   final bool isGroupOwner;
   final bool canAddChatContact;
+  final bool isBlocked;
   final String subtitle;
   final VoidCallback? onCallPressed;
   final Future<void> Function(String peerId) onAddContactPressed;
@@ -28,6 +29,9 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Future<void> Function() onRemoveParticipantsPressed;
   final Future<void> Function() onRenameGroupPressed;
   final Future<void> Function() onSetAvatarPressed;
+  final Future<void> Function() onBlockUserPressed;
+  final Future<void> Function() onUnblockUserPressed;
+  final Future<void> Function() onReportUserPressed;
   final Future<void> Function() onDeleteChatPressed;
 
   const ChatScreenAppBar({
@@ -37,6 +41,7 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.isGroupChat,
     required this.isGroupOwner,
     required this.canAddChatContact,
+    required this.isBlocked,
     required this.subtitle,
     required this.onCallPressed,
     required this.onAddContactPressed,
@@ -44,6 +49,9 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onRemoveParticipantsPressed,
     required this.onRenameGroupPressed,
     required this.onSetAvatarPressed,
+    required this.onBlockUserPressed,
+    required this.onUnblockUserPressed,
+    required this.onReportUserPressed,
     required this.onDeleteChatPressed,
   });
 
@@ -108,6 +116,15 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
               case ChatMenuAction.setAvatar:
                 unawaited(onSetAvatarPressed());
                 break;
+              case ChatMenuAction.blockUser:
+                unawaited(onBlockUserPressed());
+                break;
+              case ChatMenuAction.unblockUser:
+                unawaited(onUnblockUserPressed());
+                break;
+              case ChatMenuAction.reportUser:
+                unawaited(onReportUserPressed());
+                break;
               case ChatMenuAction.deleteChat:
                 unawaited(onDeleteChatPressed());
                 break;
@@ -138,6 +155,21 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
               PopupMenuItem(
                 value: ChatMenuAction.setAvatar,
                 child: Text(strings.addAvatar),
+              ),
+            if (!isGroupChat && !isBlocked)
+              PopupMenuItem(
+                value: ChatMenuAction.blockUser,
+                child: Text(strings.blockUser),
+              ),
+            if (!isGroupChat && isBlocked)
+              PopupMenuItem(
+                value: ChatMenuAction.unblockUser,
+                child: Text(strings.unblockUser),
+              ),
+            if (!isGroupChat)
+              PopupMenuItem(
+                value: ChatMenuAction.reportUser,
+                child: Text(strings.report),
               ),
             PopupMenuItem(
               value: ChatMenuAction.deleteChat,

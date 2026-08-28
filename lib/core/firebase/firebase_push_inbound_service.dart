@@ -7,20 +7,31 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../notification/app_badge_service.dart';
+import '../runtime/moderation_policy_service.dart';
+import '../runtime/storage_service.dart';
 import 'firebase_push_payload_processor.dart';
 import 'firebase_push_presentation_handler.dart';
 
 class FirebasePushInboundService {
   FirebasePushInboundService({
-    FirebasePushPayloadProcessor payloadProcessor =
-        const FirebasePushPayloadProcessor(),
-  }) : _payloadProcessor = payloadProcessor,
-       _presentationHandler = FirebasePushPresentationHandler(
-         payloadProcessor: payloadProcessor,
-       );
+    FirebasePushPayloadProcessor? payloadProcessor,
+    StorageService? storage,
+  }) {
+    final processor =
+        payloadProcessor ??
+        FirebasePushPayloadProcessor(
+          moderationPolicyService: ModerationPolicyService.forStorage(
+            storage ?? StorageService(),
+          ),
+        );
+    _payloadProcessor = processor;
+    _presentationHandler = FirebasePushPresentationHandler(
+      payloadProcessor: processor,
+    );
+  }
 
-  final FirebasePushPayloadProcessor _payloadProcessor;
-  final FirebasePushPresentationHandler _presentationHandler;
+  late final FirebasePushPayloadProcessor _payloadProcessor;
+  late final FirebasePushPresentationHandler _presentationHandler;
   final AppBadgeService _appBadgeService = AppBadgeService();
 
   Future<void> configureForegroundPresentation(FirebaseMessaging messaging) {
@@ -29,6 +40,13 @@ class FirebasePushInboundService {
 
   Future<void> handleBackgroundMessage(RemoteMessage message) async {
     _payloadProcessor.logIncomingPush(message, source: 'background');
+    final moderation = await _payloadProcessor.applyModerationGate(
+      message.data,
+      source: 'background',
+    );
+    if (moderation.shouldDropBecauseBanned) {
+      return;
+    }
     await _payloadProcessor.applyAccountMembershipUpdateFromPush(
       message.data,
       source: 'background',
@@ -37,7 +55,10 @@ class FirebasePushInboundService {
       message.data,
       source: 'background',
     );
-    await _presentationHandler.showNotificationFromPush(message);
+    await _presentationHandler.showNotificationFromPush(
+      message,
+      moderationPolicyAlreadyApplied: moderation.isModerationPolicy,
+    );
     await _appBadgeService.applyBackgroundPushHint(message.data);
   }
 

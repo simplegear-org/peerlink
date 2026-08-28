@@ -23,6 +23,7 @@ enum ChatMessageAction {
   addContact,
   saveMessage,
   forward,
+  report,
   saveToGallery,
   retrySend,
   deleteLocal,
@@ -37,6 +38,9 @@ enum ChatMenuAction {
   removeParticipants,
   renameGroup,
   setAvatar,
+  blockUser,
+  unblockUser,
+  reportUser,
   deleteChat,
 }
 
@@ -52,6 +56,7 @@ class ChatScreenActions {
     required Future<void> Function(String peerId) showAddContactDialog,
     required Future<void> Function(Message message) saveMediaToGallery,
     required Future<void> Function(Message message) forwardMessage,
+    required Future<void> Function(Message message) reportMessage,
     required Future<void> Function(String peerId, String messageId)
     removeMessage,
   }) async {
@@ -79,6 +84,7 @@ class ChatScreenActions {
       canSaveMessage: canSaveMessage,
       canSaveToGallery: canSaveToGallery,
       canRetry: canRetry,
+      canReport: message.incoming,
       canDeleteEverywhere: !message.incoming,
     );
     if (action == null) {
@@ -108,6 +114,11 @@ class ChatScreenActions {
 
     if (action == ChatMessageAction.forward) {
       await forwardMessage(message);
+      return;
+    }
+
+    if (action == ChatMessageAction.report) {
+      await reportMessage(message);
       return;
     }
 
@@ -647,6 +658,57 @@ class ChatScreenActions {
     }
   }
 
+  Future<void> confirmBlockUser({
+    required BuildContext context,
+    required ChatController controller,
+    required Chat chat,
+  }) async {
+    final shouldBlock = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final strings = context.strings;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(strings.blockUserTitle, style: theme.textTheme.titleLarge),
+                const SizedBox(height: 8),
+                Text(
+                  strings.blockUserDescription,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.muted,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.block_rounded),
+                  title: Text(strings.blockUser),
+                  onTap: () => Navigator.of(context).pop(true),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.close_rounded),
+                  title: Text(strings.cancel),
+                  onTap: () => Navigator.of(context).pop(false),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (shouldBlock != true) {
+      return;
+    }
+    await controller.blockPeer(chat.peerId);
+  }
+
   Future<ChatAttachAction?> showAttachMenu({required BuildContext context}) {
     return showModalBottomSheet<ChatAttachAction>(
       context: context,
@@ -737,6 +799,7 @@ class ChatScreenActions {
     required bool canSaveMessage,
     required bool canSaveToGallery,
     required bool canRetry,
+    required bool canReport,
     required bool canDeleteEverywhere,
   }) {
     return showModalBottomSheet<ChatMessageAction>(
@@ -794,6 +857,15 @@ class ChatScreenActions {
                     title: Text(strings.resend),
                     onTap: () {
                       Navigator.of(context).pop(ChatMessageAction.retrySend);
+                    },
+                  ),
+                if (canReport)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.report_gmailerrorred_rounded),
+                    title: Text(strings.report),
+                    onTap: () {
+                      Navigator.of(context).pop(ChatMessageAction.report);
                     },
                   ),
                 ListTile(

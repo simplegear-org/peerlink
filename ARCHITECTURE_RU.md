@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Обновлено: 2026-08-22
+Обновлено: 2026-08-28
 
 ## 1. Назначение
 
@@ -16,7 +16,7 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - Стартовая оркестрация через `AppBootstrapCoordinator`.
 - `NodeFacade` как единая точка входа UI в core.
 - `MeshNode` как оркестратор runtime.
-- `PushApiClient` для подписанных запросов в `push.js` (`/devices/register`, `/devices/unregister`, `/events/push`), при этом высокоуровневая сборка событий вынесена в `PushEventFactory`, `PushRuntimeMetadataBuilder` и `PushEventService`.
+- `PushApiClient` для подписанных запросов в `push.js` (`/devices/register`, `/devices/unregister`, `/events/push`), при этом высокоуровневая сборка событий вынесена в `PushEventFactory`, `PushRuntimeMetadataBuilder` и `PushEventService`; moderation HTTP живет отдельно в `ModerationApiClient`.
 - Call-push интеграция в `lib/core/node` частично декомпозирована:
   - `MeshCallPushHelper` — registration/unregister device token и call push fanout через `/events/push`,
   - `MeshNode` оставляет у себя orchestration signaling/transport/session lifecycle и только делегирует call-push операции.
@@ -30,6 +30,8 @@ PeerLink — Flutter-мессенджер с децентрализованны�
   - `FirebasePushCallbackRegistry` / `firebase_push_models.dart` — callback registry и shared push models.
 - Внутренний push/call payload model унифицирован через `FirebasePushPayload`: UI open path, FCM open/foreground/native-fallback и iOS CallKit path не должны держать параллельные call-payload DTO.
 - `AppBadgeService` владеет состоянием badge иконки приложения и синхронизирует platform badge как сумму непрочитанных сообщений и пропущенных звонков.
+- `PeerAccessControlService` владеет локальными privacy/block правилами: contacts-only включен по умолчанию, `blockedPeers` хранится локально, входящие сообщения/медиа/account pairing/group invite/push/call invite фильтруются до UI/persistence, а исходящие звонки к blocked peer запрещаются в `CallService`.
+- Android FCM service и iOS CallKit bridge получают best-effort native-копию `blockedPeers` через `peerlink/access_control/methods`, чтобы background/fullscreen/CallKit звонки от blocked peer не появлялись до Dart UI.
 - Для всех push-событий используется единый контракт `/events/push`: подписывается весь `payload` приложения, а сервер работает как transport-only fanout слой без собственной message/call-семантики.
 - Если в `payload` присутствуют `servers` / `priority_servers`, они считаются runtime-метаданными приложения и обрабатываются только клиентом.
 - `AccountIdentity` поверх device identity: `accountId`, `displayName`, список устройств и QR/deep link `peerlink://pair` для привязки второго устройства без изменения текущей device-based маршрутизации.
@@ -53,6 +55,7 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - Relay control write, fetch и blob fetch выполняются параллельно по выбранным relay, чтобы не накапливать таймауты от недоступных серверов.
 - Blob fetch расширяется за пределы текущего live shortlist после `404` от всех shortlist-кандидатов, прежде чем считать blob отсутствующим.
 - Стек звонков декомпозирован на bounded controller/orchestrator-модули для peer bootstrap, connection, negotiation, media readiness, video signaling/transceivers/quality, remote control, terminal lifecycle, runtime tracking, epoch timers и diagnostics.
+- Call-control слой использует два канала для критичных команд (`call_invite`, `call_accept`, `call_reject`, `call_end`): быстрый bootstrap signaling с bounded retry и резервный direct reliable control payload `__peerlink_call_control_v1__`, чтобы потеря signaling-пакета или временно разные bootstrap-состояния не оставляли вторую сторону в бесконечном дозвоне. Повторная доставка `call_invite` для уже текущего `peerId/callId` идемпотентна во всех не-idle фазах и не переводится в `call_busy`. Terminal lifecycle также отправляет финальный `call_end` тем же двойным путем до локального сброса runtime.
 - TURN allocator и настройка TURN серверов из UI.
 
 Ограничения:
@@ -74,6 +77,7 @@ UI
       -> OverlayRouter
       -> RelayClient (HTTP)
       -> PushApiClient (HTTP)
+      -> ModerationDeliveryService -> ModerationApiClient (HTTP)
       -> FirebaseMessagingService
       -> ReliableMessagingService
       -> ChatService
@@ -113,6 +117,7 @@ UI
 - `MessageBubble` остается composition wrapper-ом; text/emoji, reply preview, status row, file/audio/video preview и transfer progress живут в отдельных `message_bubble_*` widget-модулях.
 - `MessageBubbleStatusRow` показывает исходящие receipt-статусы внахлест: 1 галка для sent, 2 для delivered, 3 для read.
 - Строки контактов показывают аватар, один display label (имя контакта или короткий peer id) и last-seen; строки чатов показывают аватар, название, последнее сообщение и badge непрочитанных без last-seen.
+- Строки контактов помечают локально заблокированный Peer ID icon `block`; long-press меню контакта поддерживает rename и block/unblock.
 - Строки чатов дополнительно показывают справа сверху receipt-галки последнего исходящего сообщения и timestamp последнего сообщения; timestamp форматируется как `ЧЧ:ММ`, `ДД:ММ` или `ДД:ММ:ГГ` в зависимости от даты.
 - Attachment sheet в чате показывает только реализованные действия `Галерея` и `Вставить` плюс `Отмена`; placeholder-пункты `Файл`/`Геопозиция` удалены из UI.
 - Строки контактов открывают action menu по долгому нажатию для переименования сохраненного display name без изменения peer ID.
@@ -120,7 +125,7 @@ UI
 - Действие `Поделиться конфигурацией` в Settings создает текст с direct app link `peerlink://config?payload=...` и fallback `https://simplegear.org/config?payload=...` только с текущей доступной конфигурацией серверов. App-side config deep link напрямую merge-ит `bootstrap/relay/turn/push`, а QR scan/import сохраняет явный диалог выбора режима импорта.
 - Доставка deep links на macOS нативная: `MainFlutterWindow` конфигурирует `DeepLinkChannel` созданным `FlutterViewController`, `AppDelegate` рано регистрирует URL handler-ы, а custom scheme (`peerlink://invite|pair|config|call`) и поддерживаемые web-ссылки передаются во Flutter. Android runner поддерживает тот же набор custom/web ссылок через app links.
 - Блок `Аккаунт и устройства` в Settings показывает текущий `accountId`, количество известных устройств, QR `peerlink://pair` для привязки своего второго устройства и scan-flow для импорта pairing payload.
-- Строки истории звонков используют компактные внутренние поля, меньший блок status-icon и плотный separator между строками.
+- Строки истории звонков используют компактные внутренние поля, меньший блок status-icon и плотный separator между строками; display name резолвится из текущих контактов с fallback на короткий peer id.
 - Общая типографика централизована через `AppTheme.fontFamily` и применяется к text styles, AppBar, NavigationBar, inputs, dialogs и snackbars.
 - Стартовое позиционирование прокрутки чата работает single-flight: `ChatScreen` планирует только один проход к низу/непрочитанному за раз, чтобы убрать дублирующиеся прыжки при открытии, а режим bottom несколько кадров догоняет список, пока восстановленные медиа еще могут менять высоту.
 - Позиционирование к первому unread через probe ленивого списка ждет, пока смонтируется divider или message key, и не полагается только на ratio по индексу, который ломается на высоких failed media-placeholder.
@@ -131,6 +136,7 @@ UI
 - `MessageFilePreview`/audio/video preview используют асинхронный кеш доступности локальных файлов, а не синхронные `existsSync()` в build path.
 - Media viewer показывает user-friendly fallback для Android codec errors вроде `video/dolby-vision` / HDR 10-bit и дает открыть исходный файл во внешнем приложении.
 - Settings использует агрегированные карточки bootstrap/relay/turn на главном экране и отдельные list-screen экраны для управления каждой группой серверов.
+- Settings содержит блок `Приватность и безопасность` выше self-hosted/server sections: contacts-only переключатель, user-facing safety policy summary и переход на отдельный экран заблокированных Peer ID с display name из контактов.
 - Номер версии приложения показывается в Settings только в About/Legal, без отдельного верхнего footer перед первой карточкой.
 - Сводные карточки серверов Settings подписаны на availability stream, а QR payload для server config обновляется при изменении доступности bootstrap/relay/turn/push.
 - `SettingsScreen` декомпозирован: `settings_screen.dart` держит только lifecycle/wiring, composition/layout вынесены в `settings_screen_content.dart`, `settings_screen_identity_section.dart`, `settings_screen_account_devices_section.dart`, `settings_screen_server_sections.dart`, `settings_screen_preferences_sections.dart`, общий re-export account-секций идет через `settings_screen_account_sections.dart`, общие section/account widgets живут в `settings_screen_shared_widgets.dart` и `settings_screen_account_widgets.dart`, а dialog/action flow разнесен по `settings_screen_avatar_actions.dart`, `settings_screen_pairing_actions.dart`, `settings_screen_system_actions.dart`.
@@ -151,6 +157,11 @@ UI
 - `NetworkDependencies`: сборка dependency graph.
 - `AppBootstrapCoordinator`: post-bootstrap конфигурация (сервера, background-задачи).
 - Сервисы хранения и репозитории (`StorageService` как facade, `storage_service_paths`, `storage_service_migrations`, `storage_service_media`, репозитории контактов/логов звонков).
+- `PeerAccessControlService` живет в `lib/core/runtime` рядом с runtime repositories и не должен переноситься в UI: UI только вызывает block/unblock/settings API, а runtime/chat/push/call paths используют общий allow/drop контракт.
+- `ModerationReportService` формирует metadata-only UGC reports: direct report указывает собеседника, group report указывает автора выбранного сообщения и `groupId`, но не включает текст/медиа сообщения; UI после жалобы скрывает выбранное сообщение локально у репортера.
+- `ModerationApiClient` изолирует HTTP-контракт `/moderation/reports`, `/moderation/appeals`, `/moderation/status`; `PushApiClient` не должен содержать moderation endpoint-ы.
+- `ModerationDeliveryService` координирует отправку report/appeal/status через настроенные push-серверы и оставляет `MeshNode` только runtime wiring/facade-слоем.
+- `ModerationPolicyService` хранит локальный warning/ban snapshot, применяет `moderation_policy` push/status, проверяет `signedStatus` при заданном pinned public key, помнит подтвержденный warning и отправленную appeal, чтобы fullscreen warning/ban не показывался повторно после перезапуска.
 - `StorageService` теперь выступает как orchestration/facade-слой над storage helper-модулями и не должен обратно разрастаться.
 - SQLite chat storage хранит уникальность сообщений в пределах конкретного чата: ключ `(peerId, messageId)` не допускает вытеснения сообщения из одного чата записью с таким же `messageId` в другом чате.
 - Storage runtime декомпозирован на:
@@ -237,6 +248,8 @@ UI
 - `CallPeerSessionController` управляет peer bootstrap, incoming/outgoing session flow и cleanup/reset.
 - `CallPeerSessionController.disposePeerConnection()` является единым terminal cleanup path для peer runtime timers/pollers; локальное дублирование отмены таймеров выше по стеку возвращать нельзя.
 - `CallNegotiationController` управляет `rtcConfig`, renegotiation, ICE restart и recovery policy; repeated restart/reoffer path дополнительно ограничен cooldown-ами, чтобы unstable network/media stall не разгоняли плотный recovery loop.
+- Android offer/answer guard-ы не должны вызывать `RTCPeerConnection.getLocalDescription()` до появления local SDP; тип local description нужно выводить из `getSignalingState()`, чтобы не ловить native null-SDP crash в `flutter_webrtc` release-сборках.
+- Live media stall после активного звонка больше не является только диагностикой: inbound-only/full media stall переводит звонок в `recovering`, сбрасывает media-flow baseline и инициирует ICE restart offer; recovery очищается только после новых входящих media stats.
 - `CallVideoController` управляет video state machine, transceiver/video-handle sync и quality policy.
 - `CallMediaFlowController` управляет audio/video flow detection, stats polling и fallback логикой media-flow; stats polling intentionally остается умеренным, а repeated waiting-trace throttled, чтобы call diagnostics не становились hot path.
 - `CallMediaReadinessController`, `CallLiveMediaStallDetector`, `CallPostIceRecoveryFlowWatch`, stats/recovery tracker-ы и diagnostics formatter держат media readiness/recovery observation вне facade-слоя.
@@ -250,6 +263,7 @@ UI
 - `IosCallkitService` должен оставаться native bridge-слоем и не должен обратно забирать в себя orchestration merge серверов или payload normalization.
 - Для снижения риска первого нативного WebRTC cold start после обновления приложения audio path использует одноразовый `audio-only` warm-up перед первым боевым `getUserMedia`, не затрагивая video transceiver/media-type flow.
 - Текущая политика звонков: TURN-only для всех типов сети.
+- Android release policy: R8 minify и resource shrinking включены с явными keep rules для `flutter_webrtc`, native `org.webrtc` и `org.jni_zero`; AGP 9+ остается отдельной миграцией после проверки совместимости Flutter/Gradle/plugins.
 
 ### 4.6 Signaling (`lib/core/signaling`)
 

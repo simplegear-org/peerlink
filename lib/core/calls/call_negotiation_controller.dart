@@ -128,11 +128,22 @@ class CallNegotiationController {
   bool _shouldOfferVideo() => _getMediaType() == CallMediaType.video;
 
   Future<void> runRenegotiation(String reason) async {
+    return _runOfferRenegotiation(reason: reason, iceRestart: false);
+  }
+
+  Future<void> runIceRestart(String reason) async {
+    return _runOfferRenegotiation(reason: reason, iceRestart: true);
+  }
+
+  Future<void> _runOfferRenegotiation({
+    required String reason,
+    required bool iceRestart,
+  }) async {
     final now = DateTime.now();
     final lastRenegotiationAt = _lastRenegotiationAt;
     if (lastRenegotiationAt != null &&
         now.difference(lastRenegotiationAt) < _renegotiationCooldown) {
-      _log('renegotiation:cooldown reason="$reason"');
+      _log('renegotiation:cooldown iceRestart=$iceRestart reason="$reason"');
       return;
     }
     final peer = _getPeer();
@@ -145,7 +156,9 @@ class CallNegotiationController {
     }
 
     final signalingState = await peer.getSignalingState();
-    final localDescriptionType = (await peer.getLocalDescription())?.type;
+    final localDescriptionType = _localDescriptionTypeForSignalingState(
+      signalingState,
+    );
     if (signalingState == RTCSignalingState.RTCSignalingStateHaveLocalOffer) {
       _log(
         'renegotiation:skip pending-local-offer '
@@ -156,7 +169,7 @@ class CallNegotiationController {
     }
 
     _log(
-      'renegotiation:start reason="$reason" mode=${mode.name} '
+      'renegotiation:start iceRestart=$iceRestart reason="$reason" mode=${mode.name} '
       'connected=${_getConnected()} remoteDescriptionSet=${_getRemoteDescriptionSet()} '
       'media=${_getMediaType().name} signalingState=$signalingState '
       'localDescriptionType=$localDescriptionType',
@@ -166,6 +179,7 @@ class CallNegotiationController {
       final rawOffer = await peer.createOffer({
         'offerToReceiveAudio': true,
         'offerToReceiveVideo': _shouldOfferVideo(),
+        if (iceRestart) 'iceRestart': true,
       });
       final rawSdp = rawOffer.sdp;
       final offer = rawSdp == null || rawSdp.isEmpty
@@ -201,10 +215,28 @@ class CallNegotiationController {
         'signalScope': 'call',
         'transportMode': mode.name,
         'mediaType': _getMediaType().name,
+        if (iceRestart) 'iceRestart': true,
       });
-      _log('renegotiation:offer sent mode=${mode.name}');
+      _log('renegotiation:offer sent mode=${mode.name} iceRestart=$iceRestart');
     } catch (error) {
-      _log('renegotiation:failed error=$error');
+      _log('renegotiation:failed iceRestart=$iceRestart error=$error');
+    }
+  }
+
+  String? _localDescriptionTypeForSignalingState(
+    RTCSignalingState? signalingState,
+  ) {
+    switch (signalingState) {
+      case RTCSignalingState.RTCSignalingStateHaveLocalOffer:
+        return 'offer';
+      case RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
+        return 'pranswer';
+      case RTCSignalingState.RTCSignalingStateStable:
+      case RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
+      case RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
+      case RTCSignalingState.RTCSignalingStateClosed:
+      case null:
+        return null;
     }
   }
 

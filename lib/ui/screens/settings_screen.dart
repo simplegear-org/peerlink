@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/self_hosted_deploy_service.dart';
 import '../../core/runtime/avatar_service.dart';
+import '../../core/runtime/moderation_policy_service.dart';
 import '../state/app_appearance_controller.dart';
 import '../state/app_locale_controller.dart';
 import '../state/chat_controller.dart';
@@ -28,6 +29,7 @@ class SettingsScreen extends StatefulWidget {
   final SelfHostedDeployService selfHostedDeployService;
   final AppAppearanceController appearanceController;
   final AppLocaleController localeController;
+  final ModerationPolicySnapshot moderationPolicy;
 
   const SettingsScreen({
     super.key,
@@ -37,6 +39,7 @@ class SettingsScreen extends StatefulWidget {
     required this.selfHostedDeployService,
     required this.appearanceController,
     required this.localeController,
+    required this.moderationPolicy,
   });
 
   @override
@@ -135,6 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SettingsScreenContent(
         controller: controller,
         avatarService: widget.avatarService,
+        moderationPolicy: widget.moderationPolicy,
         appearanceController: widget.appearanceController,
         localeController: widget.localeController,
         onShowAvatarActions: () => _avatarActions.showAvatarActions(context),
@@ -155,6 +159,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await controller.setReceiveServersFromPush(value);
           _refreshUi();
         },
+        onSetAllowMessagesOnlyFromContacts: (value) async {
+          await controller.setAllowMessagesOnlyFromContacts(value);
+          _refreshUi();
+        },
+        onOpenBlockedUsers: () => _systemActions.openBlockedUsers(context),
         onOpenPushServers: () => _systemActions.openPushServers(context),
         onOpenBootstrapServers: () =>
             _systemActions.openBootstrapServers(context),

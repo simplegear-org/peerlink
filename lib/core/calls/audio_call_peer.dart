@@ -195,7 +195,7 @@ class AudioCallPeer {
       getPeerId: () => _peerId,
       getCallId: () => _callId,
       getIceConnected: () => _iceConnected,
-      getIceRecoveryInProgress: () => false,
+      getIceRecoveryInProgress: () => _recoveryCoordinator.recoveryInProgress,
       getLocalAudioMuted: () => _muted,
       getRemoteAudioMuted: () => _remoteAudioMuted,
       getRemoteAudioTrackSeen: () => _remoteAudioTrackSeen,
@@ -237,13 +237,16 @@ class AudioCallPeer {
         );
       },
       onPostIceRecoveryVideoOnlyStalled: _fallbackToAudioOnlyAfterVideoStall,
-      onLiveMediaFlowStalled: (reason) {
-        return observeRecovery(
+      onLiveMediaFlowStalled: (reason) async {
+        _mediaFlowController.beginIceRecoveryFlowWatch();
+        await observeRecovery(
           CallRecoveryObservation(
             kind: CallRecoveryObservationKind.liveMediaFlowStalled,
             reason: reason,
           ),
         );
+        await _negotiationController.runIceRestart(reason);
+        _mediaFlowController.armPostIceRecoveryFlowWatch();
       },
       onLocalAudioOutboundStalled: _refreshLocalAudioOutbound,
       onStats: ({required sentBytes, required receivedBytes}) {

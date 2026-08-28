@@ -32,6 +32,9 @@ import '../runtime/network_event.dart';
 import '../runtime/push_token_service.dart';
 import '../runtime/push_servers_service.dart';
 import '../runtime/push_server_sharing_preferences.dart';
+import '../runtime/moderation_api_client.dart';
+import '../runtime/moderation_delivery_service.dart';
+import '../runtime/moderation_policy_service.dart';
 import '../runtime/storage_service.dart';
 import '../runtime/account_membership_update_payload.dart';
 import '../dht/rpc/kademlia_protocol.dart';
@@ -94,6 +97,7 @@ class MeshNode {
   late final PushEventFactory _pushEventFactory;
   late final PushEventService _pushEventService;
   late final PushRuntimeMetadataBuilder _pushRuntimeMetadataBuilder;
+  late final ModerationDeliveryService _moderationDelivery;
   int _logSeq = 0;
 
   MeshNode({
@@ -120,6 +124,13 @@ class MeshNode {
       pushApiClient: pushApiClient,
       resolvePushBaseUris: _resolvePushBaseUris,
       pushBearerToken: _pushBearerToken,
+      log: _log,
+    );
+    _moderationDelivery = ModerationDeliveryService(
+      identity: identity,
+      apiClient: const ModerationApiClient(),
+      policyService: ModerationPolicyService(settingsBox: settingsBox),
+      resolvePushBaseUris: _resolvePushBaseUris,
       log: _log,
     );
     _pushRuntimeMetadataBuilder = PushRuntimeMetadataBuilder(
@@ -153,6 +164,24 @@ class MeshNode {
     calls.setCallInviteMetadataBuilder(
       _pushRuntimeMetadataBuilder.buildCallInviteRuntimeMetadata,
     );
+    calls.setReliableControlSender(
+      (peerId, text) => chat.sendControlMessage(
+        peerId,
+        kind: 'callControl',
+        text: text,
+        forcePlain: true,
+      ),
+    );
+    chat.setControlHandler((message) {
+      final sourcePeerId = (message.senderPeerId ?? message.peerId).trim();
+      if (sourcePeerId.isEmpty) {
+        return false;
+      }
+      return calls.handleReliableControlPayload(
+        fromPeerId: sourcePeerId,
+        text: message.text,
+      );
+    });
     _signalRouter = MeshSignalRouter(
       selfPeerId: identity.nodeId,
       calls: calls,
@@ -587,6 +616,21 @@ class MeshNode {
       return envToken;
     }
     return null;
+  }
+
+  bool get isModerationCommunicationRestricted =>
+      _moderationDelivery.restrictsOutgoingCommunication;
+
+  Future<void> submitModerationReport(Map<String, dynamic> report) async {
+    await _moderationDelivery.submitReport(report);
+  }
+
+  Future<void> submitModerationAppeal(String text) async {
+    await _moderationDelivery.submitAppeal(text);
+  }
+
+  Future<Map<String, dynamic>?> fetchModerationStatus() async {
+    return _moderationDelivery.fetchStatus();
   }
 
   String _platformName() {
