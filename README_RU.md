@@ -90,9 +90,10 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
   - текст шаринга конфигурации серверов мультиязычный и содержит `peerlink://config?payload=...` плюс fallback `https://simplegear.org/config?payload=...`,
   - оба типа ссылок содержат только текущую доступную конфигурацию серверов,
   - QR payload обновляется при изменении доступности серверов,
-  - app-side deep links merge-ят серверы в существующие настройки; config-ссылки merge-ятся напрямую, а QR/manual import конфигурации сохраняет выбор `Объединить` / `Заменить`.
+  - app-side deep links merge-ят серверы в существующие настройки; config-ссылки merge-ятся напрямую, а QR/manual import конфигурации сохраняет выбор `Объединить` / `Заменить`,
+  - если при старте нет ни одного локального bootstrap/relay/TURN/push сервера, приложение best-effort скачивает `https://simplegear.org/config/initial-server-config.json` и импортирует публичную конфигурацию из QR; недоступность сайта не блокирует запуск.
 - Android/macOS native runners передают во Flutter `peerlink://invite|pair|config|call` и поддерживаемые `https://simplegear.org/...` ссылки; macOS хранит pending links при cold start, чтобы переход с сайта в приложение не терял payload.
-- Отображаемое имя приложения для публикации — `PeerLink X`; package/bundle id и custom scheme остаются `org.simplegear.peerlinkapp` / `peerlink://`.
+- Отображаемое имя приложения для публикации — `PeerLink X`; custom scheme остается `peerlink://`.
 - В Settings добавлен отдельный экран `Push servers`:
   - поддерживает добавление/удаление push endpoint-ов (`push.js`) для прямой регистрации токенов и group push-событий,
   - при миграции учитывается legacy-значение `push_server_url`, которое переносится в новый список `push_servers`.
@@ -144,6 +145,7 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
 - Relay polling и уведомления (push/local) интегрированы.
 - FCM token lifecycle интегрирован с выделенным `push.js` сервисом:
   - регистрация/деактивация устройства идет напрямую в `push.js` (`/devices/register`, `/devices/unregister`) с Ed25519-подписью,
+  - privacy/block snapshot отправляется напрямую в `push.js` через `POST /devices/access-policy`; push-сервер фильтрует fanout до APNs/FCM по `blockedPeerIds` и `Allow messages only from contacts`,
   - после успешной runtime-операции клиент best-effort отправляет событие `/events/push` для fanout по устройствам получателей.
   - восстановление group/direct событий не зависит только от открытия приложения через push: runtime дополнительно вызывает `pollRelay()` на startup, при `resume` и при восстановлении сети.
   - приложение само формирует `payload` для `/events/push`; сервер использует только `recipientUserIds`, `notification` и `delivery`, не преобразуя payload,
@@ -153,7 +155,7 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
   - opened push handling может сначала выполнить poll по relay hints из push payload, а затем полный relay poll.
   - входящий relay group envelope сохраняет `groupId` до `ChatService`, поэтому group payload маршрутизируется в чат группы, а не в direct-чат отправителя.
   - входящее group-сообщение теперь отдельно сохраняет реального отправителя в `senderPeerId`, чтобы group target и peer отправителя не смешивались во inbound flow.
-  - на уровне клиента разрешены только `POST /devices/register`, `POST /devices/unregister`, `POST /events/push`; другие пути блокируются в `PushApiClient`.
+  - на уровне клиента разрешены только `POST /devices/register`, `POST /devices/unregister`, `POST /devices/access-policy`, `POST /events/push`; другие пути блокируются в `PushApiClient`.
   - сборка push events разделена между `PushEventFactory`, `PushRuntimeMetadataBuilder` и `PushEventService`; `PushApiClient` остается низкоуровневым signed HTTP transport.
   - badge иконки приложения синхронизируется через `AppBadgeService`, который хранит счетчики непрочитанных сообщений и пропущенных звонков.
   - foreground push на iOS/Android не показывает системное уведомление: сообщения обновляют UI/счетчики, а звонки показывают экран входящего вызова внутри приложения.
@@ -209,6 +211,22 @@ APNS_USE_SANDBOX=true
   - `id`, `from`, `ts`, `sig`, `signingPub`,
   - `userId`, `deviceId`, `token`.
 - Ответ: `{ ok: true|false }`.
+
+#### `POST /devices/access-policy`
+
+- Назначение: синхронизация privacy/block snapshot пользователя на push-сервер.
+- Payload:
+  - `id`, `from`, `ts`, `sig`, `signingPub`,
+  - `userId`,
+  - `allowMessagesOnlyFromContacts`,
+  - `contactPeerIds`,
+  - `blockedPeerIds`,
+  - `policyVersion`,
+  - `updatedAt` (UTC ISO-8601 с millisecond precision),
+  - `snapshotHash`.
+- Клиент отправляет snapshot при startup/resume, регистрации push-токена, изменении push-серверов, block/unblock, изменении контактов и переключателя contacts-only.
+- Если snapshot отсутствует у старого клиента, push-сервер работает в compatibility mode и пропускает fanout без фильтрации.
+- Ответ: `{ ok: true }`.
 
 #### `POST /events/push`
 

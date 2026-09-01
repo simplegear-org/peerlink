@@ -402,7 +402,11 @@ class _BootstrapAppState extends State<_BootstrapApp>
     }
 
     try {
-      await facade.registerPushDeviceToken(normalizedToken);
+      await facade.syncPushDeviceState(
+        reason: 'push_token_register',
+        forceRegister: true,
+        forcePolicy: true,
+      );
       _registeredRelayFcmToken = normalizedToken;
       AppFileLogger.log('[main] registerPushDeviceToken success');
     } catch (error, stackTrace) {
@@ -693,6 +697,22 @@ Future<void> _applyPushServersToRuntime({
   }
   if (priorityPush.isNotEmpty) {
     await health.push.merge(priorityPush);
+  }
+  if (push.isNotEmpty || priorityPush.isNotEmpty) {
+    unawaited(
+      facade
+          .syncPushDeviceState(
+            reason: 'servers_apply_push',
+            forceRegister: true,
+            forcePolicy: true,
+          )
+          .catchError((Object error, StackTrace stackTrace) {
+            AppFileLogger.log(
+              '[main][servers] push register/policy sync failed error=$error',
+              stackTrace: stackTrace,
+            );
+          }),
+    );
   }
   if (turn.isNotEmpty) {
     await health.turn.merge(turn);

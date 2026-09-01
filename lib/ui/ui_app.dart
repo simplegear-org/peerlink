@@ -116,7 +116,21 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     );
     _callLogRepository = CallLogRepository(storage: widget.storage);
     _callsController = CallsController(repository: _callLogRepository);
-    _contactsController = ContactsController(repository: _contactsRepository);
+    _contactsController = ContactsController(
+      repository: _contactsRepository,
+      accessControl: _accessControl,
+      onAccessPolicyChanged: (reason) {
+        unawaited(
+          widget.facade.syncPushDeviceState(reason: reason, forcePolicy: true),
+        );
+      },
+      onAccessPolicyChangedNow: (reason) {
+        return widget.facade.syncPushDeviceState(
+          reason: reason,
+          forcePolicy: true,
+        );
+      },
+    );
     _contactsController.loadIntoMemory();
     _settingsController = SettingsController(
       facade: widget.facade,

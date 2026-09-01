@@ -62,9 +62,9 @@
 
 ### 2.6 Локальная защита от нежелательных контактов
 
-- Contacts-only privacy setting включен по умолчанию и запрещает unsolicited direct messages, direct media, account pairing/group invite, push presentation/open и call invite от Peer ID, которых нет в локальных контактах.
-- Локальный blacklist `blockedPeers` применяется раньше UI/persistence path: заблокированный Peer ID не создает видимые сообщения, входящие звонки или push-уведомления, а исходящий звонок к нему не стартует.
-- Android FCM service и iOS CallKit bridge получают best-effort native-копию blacklist и проверяют ее до показа background/fullscreen/CallKit входящего звонка.
+- Contacts-only privacy setting включен по умолчанию и передается на push-сервер как часть access-policy snapshot, чтобы сервер не отправлял push от Peer ID вне локальных контактов.
+- Локальный blacklist `blockedPeers` синхронизируется на push-сервер через `/devices/access-policy`; сервер отбрасывает push fanout от заблокированного Peer ID до APNs/FCM, а исходящий звонок к нему не стартует локально.
+- iOS Notification Service Extension и App Group не входят в модель серверной push-блокировки.
 - Блокировка относится только к конкретному `peerId`; из-за децентрализованной identity-модели она не является пожизненной блокировкой физического человека.
 - Push/relay/bootstrap серверы не получают приватные ключи, session keys или историю переписки для локальной блокировки.
 
@@ -76,7 +76,7 @@
 - Group-control рассылка ключа/инвайтов/обновления участников идет через E2E session encryption.
 - Group media payload шифруется до загрузки blob в relay.
 - Group media direct fallback сохраняет тот же E2E group-media payload; меняется только маршрут доставки metadata после server-side membership отказа.
-- Contacts-only и local block уже доступны как user-controlled protection от unsolicited direct content/calls/push; local block также запрещает исходящие звонки к заблокированному Peer ID.
+- Contacts-only и local block уже доступны как user-controlled protection от unsolicited push через server-side access-policy; local block также запрещает исходящие звонки к заблокированному Peer ID.
 - Push registration новых клиентов привязывает `peerId` к `signingPub` через проверяемый v2 identity binding (`peerId = SHA-256(signingPub + identityNonce)`) без дополнительного запроса; push/moderation endpoints в soft migration отклоняют mismatch для уже привязанных peerId и пропускают legacy unbound клиентов.
 - Жалобы на UGC отправляются как metadata-only: текст/медиа сообщения, история чата, контакты, private keys и session keys не передаются модератору. При жалобе на сообщение клиент сразу скрывает его локально у репортера.
 - HTTP-контракт модерации изолирован в `ModerationApiClient`; обычный push fanout/registration не должен расширяться moderation endpoint-ами, чтобы новый сервис не влиял на push delivery path.

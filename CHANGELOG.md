@@ -3,6 +3,26 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.11.0+2026090101] - 2026-09-01
+
+### Changed
+
+- Added a single push device-state sync path: token registration and
+  access-policy snapshots now run together on startup/resume, push-token
+  registration, push-server changes, block/unblock, and contacts-only changes.
+- Push device registration failures no longer prevent the access-policy snapshot
+  sync from running for reachable push servers.
+- Access-policy sync timestamps are normalized to UTC milliseconds before
+  signing, matching the push server canonical signature format.
+- iOS signing now uses a single app target/profile; the Notification Service
+  Extension and App Group entitlement are not used for server-side push
+  blocking.
+- On startup with completely empty server configuration, the app now
+  best-effort fetches `https://simplegear.org/config/initial-server-config.json`
+  and imports bootstrap/relay/TURN/push from the public `Server configuration`
+  QR payload; site unavailability does not block startup.
+
+
 ## [3.10.2+2026082701] - 2026-08-27
 
 ### Changed

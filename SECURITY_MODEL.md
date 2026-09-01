@@ -62,9 +62,9 @@ Assume:
 
 ### 2.6 Local Protection Against Unwanted Contacts
 
-- The contacts-only privacy setting is enabled by default and blocks unsolicited direct messages, direct media, account pairing/group invites, push presentation/open, and call invites from Peer IDs that are not in local contacts.
-- The local `blockedPeers` blacklist is applied before UI/persistence paths: a blocked Peer ID cannot create visible messages, incoming calls, or push notifications, and outgoing calls to that Peer ID do not start.
-- The Android FCM service and iOS CallKit bridge receive a best-effort native blacklist copy and check it before showing background/fullscreen/CallKit incoming calls.
+- The contacts-only privacy setting is enabled by default and is sent to the push server as part of the access-policy snapshot, so the server does not send push from Peer IDs outside local contacts.
+- The local `blockedPeers` blacklist is synced to the push server through `/devices/access-policy`; the server drops push fanout from blocked Peer IDs before APNs/FCM, and outgoing calls to blocked Peer IDs do not start locally.
+- iOS Notification Service Extension and App Group are not part of the server-side push-blocking model.
 - Blocking applies only to the specific `peerId`; because identity is decentralized, this is not a lifetime ban of a physical person.
 - Push/relay/bootstrap servers do not receive private keys, session keys, or chat history for local blocking.
 
@@ -76,7 +76,7 @@ Assume:
 - Group control distribution for key/membership/invite runs over E2E session encryption.
 - Group media payloads are encrypted before blob upload to relay.
 - Group media direct fallback preserves the same E2E group-media payload; only metadata delivery changes after a server-side membership rejection.
-- Contacts-only and local block are available as user-controlled protection against unsolicited direct content, calls, and push notifications; local block also denies outgoing calls to blocked Peer IDs.
+- Contacts-only and local block are available as user-controlled protection against unsolicited push through server-side access-policy; local block also denies outgoing calls to blocked Peer IDs.
 - New-client push registration binds `peerId` to `signingPub` through a verifiable v2 identity binding (`peerId = SHA-256(signingPub + identityNonce)`) without an extra request; push/moderation endpoints run soft migration by rejecting mismatches for already bound peer IDs while allowing legacy unbound clients.
 - UGC reports are metadata-only: message text/media, chat history, contacts, private keys, and session keys are not sent to moderators. When a message is reported, the client immediately hides it locally for the reporter.
 - The moderation HTTP contract is isolated in `ModerationApiClient`; regular push fanout/registration must not grow moderation endpoints, so the new service does not affect the push delivery path.

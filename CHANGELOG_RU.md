@@ -3,6 +3,27 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.11.0+2026090101] - 2026-09-01
+
+### Изменено
+
+- Добавлен единый путь синхронизации push device-state: регистрация токенов и
+  access-policy snapshot теперь выполняются вместе на startup/resume,
+  регистрации push-token, изменении push-серверов, block/unblock и изменении
+  режима contacts-only.
+- Ошибки регистрации push-устройства больше не блокируют отправку
+  access-policy snapshot на доступные push-серверы.
+- Timestamp для access-policy sync нормализуется до UTC milliseconds перед
+  подписью, чтобы совпадать с canonical signature format push-сервера.
+- iOS signing теперь использует один app target/profile; Notification Service
+  Extension и App Group entitlement не используются для server-side push
+  blocking.
+- При старте с полностью пустой конфигурацией серверов приложение теперь
+  best-effort скачивает `https://simplegear.org/config/initial-server-config.json`
+  и импортирует bootstrap/relay/TURN/push из публичного QR `Конфигурация
+  серверов`; недоступность сайта не блокирует запуск.
+
+
 ## [3.10.2+2026082701] - 2026-08-27
 
 ### Изменено

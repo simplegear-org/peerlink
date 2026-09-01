@@ -32,7 +32,6 @@ import '../../core/runtime/server_availability.dart';
 import '../../core/runtime/server_health_coordinator.dart';
 import '../../core/runtime/push_token_service.dart';
 import '../../core/runtime/push_server_sharing_preferences.dart';
-import '../../core/runtime/push_device_registration_service.dart';
 import '../../core/runtime/storage_service.dart';
 import '../../core/runtime/terms_acceptance_service.dart';
 import '../../core/security/account_identity.dart';
@@ -62,7 +61,6 @@ class SettingsController {
   late final ServerHealthCoordinator _health;
   late final AppDataCleanerService _dataCleaner;
   late final PushTokenService _pushTokens;
-  late final PushDeviceRegistrationService _pushDeviceRegistration;
   late final SettingsPairingStateRepository _pairingStateRepository;
   late final SettingsPairingStateService _pairingStateService;
   late final SettingsPairingFlowService _pairingFlow;
@@ -77,10 +75,6 @@ class SettingsController {
     _health = ServerHealthCoordinator(facade: facade, storage: storage);
     _dataCleaner = AppDataCleanerService(facade: facade, storage: storage);
     _pushTokens = PushTokenService(storage: storage);
-    _pushDeviceRegistration = PushDeviceRegistrationService(
-      facade: facade,
-      storage: storage,
-    );
     _accessControl = PeerAccessControlService(
       settingsBox: storage.getSettings(),
       contactsRepository: ContactsRepository(storage: storage),
@@ -187,12 +181,17 @@ class SettingsController {
   bool get isCurrentTermsAccepted => _termsAcceptance.isCurrentVersionAccepted;
   TermsAcceptanceState get termsAcceptanceState => _termsAcceptance.state;
 
-  Future<void> setAllowMessagesOnlyFromContacts(bool enabled) {
-    return _accessControl.setAllowMessagesOnlyFromContacts(enabled);
+  Future<void> setAllowMessagesOnlyFromContacts(bool enabled) async {
+    await _accessControl.setAllowMessagesOnlyFromContacts(enabled);
+    await facade.syncPushDeviceState(
+      reason: 'allow_contacts_toggle',
+      forcePolicy: true,
+    );
   }
 
-  Future<void> unblockPeer(String peerId) {
-    return _accessControl.unblockPeer(peerId);
+  Future<void> unblockPeer(String peerId) async {
+    await _accessControl.unblockPeer(peerId);
+    await facade.syncPushDeviceState(reason: 'unblock_peer', forcePolicy: true);
   }
 
   Future<void> acceptCurrentTerms() {
@@ -622,32 +621,55 @@ class SettingsController {
     return _serverConfigService.removeTurnServer(url);
   }
 
-  Future<void> addPushServer(String endpoint) {
-    return _serverConfigService.addPushServer(endpoint);
+  Future<void> addPushServer(String endpoint) async {
+    await _serverConfigService.addPushServer(endpoint);
+    await facade.syncPushDeviceState(
+      reason: 'push_server_add',
+      forceRegister: true,
+      forcePolicy: true,
+    );
   }
 
-  Future<void> removePushServer(String endpoint) {
-    return _serverConfigService.removePushServer(endpoint);
+  Future<void> removePushServer(String endpoint) async {
+    await _serverConfigService.removePushServer(endpoint);
+    await facade.syncPushDeviceState(
+      reason: 'push_server_remove',
+      forcePolicy: true,
+    );
   }
 
   Future<void> updatePushServer(
     String currentEndpoint, {
     required String host,
     int? port,
-  }) {
-    return _serverConfigService.updatePushServer(
+  }) async {
+    await _serverConfigService.updatePushServer(
       currentEndpoint,
       host: host,
       port: port,
     );
+    await facade.syncPushDeviceState(
+      reason: 'push_server_update',
+      forceRegister: true,
+      forcePolicy: true,
+    );
   }
 
-  Future<void> pausePushServer(String endpoint) {
-    return _serverConfigService.pausePushServer(endpoint);
+  Future<void> pausePushServer(String endpoint) async {
+    await _serverConfigService.pausePushServer(endpoint);
+    await facade.syncPushDeviceState(
+      reason: 'push_server_pause',
+      forcePolicy: true,
+    );
   }
 
-  Future<void> resumePushServer(String endpoint) {
-    return _serverConfigService.resumePushServer(endpoint);
+  Future<void> resumePushServer(String endpoint) async {
+    await _serverConfigService.resumePushServer(endpoint);
+    await facade.syncPushDeviceState(
+      reason: 'push_server_resume',
+      forceRegister: true,
+      forcePolicy: true,
+    );
   }
 
   ServerConfigImportPreview previewImport(ServerConfigPayload payload) {
@@ -1004,9 +1026,10 @@ class SettingsController {
       return;
     }
     try {
-      await _pushDeviceRegistration.registerIfDue(
+      await facade.syncPushDeviceState(
         reason: 'server_import',
-        force: true,
+        forceRegister: true,
+        forcePolicy: true,
       );
     } catch (error, stackTrace) {
       AppFileLogger.log(

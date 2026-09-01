@@ -10,14 +10,23 @@ import 'package:flutter/foundation.dart';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import '../../core/runtime/contacts_repository.dart';
+import '../../core/runtime/peer_access_control_service.dart';
 import '../models/contact.dart';
 
 class ContactsController extends ChangeNotifier {
   final ContactsRepository repository;
+  final PeerAccessControlService accessControl;
+  final void Function(String reason)? onAccessPolicyChanged;
+  final Future<void> Function(String reason)? onAccessPolicyChangedNow;
 
   final List<Contact> _contacts;
 
-  ContactsController({required this.repository}) : _contacts = [];
+  ContactsController({
+    required this.repository,
+    required this.accessControl,
+    this.onAccessPolicyChanged,
+    this.onAccessPolicyChangedNow,
+  }) : _contacts = [];
 
   UnmodifiableListView<Contact> get contacts =>
       UnmodifiableListView<Contact>(_contacts);
@@ -43,6 +52,7 @@ class ContactsController extends ChangeNotifier {
 
   Future<void> saveContact(Contact c) async {
     await repository.save(c);
+    onAccessPolicyChanged?.call('contact_save');
   }
 
   Future<void> addContact(Contact contact) async {
@@ -120,6 +130,21 @@ class ContactsController extends ChangeNotifier {
   Future<void> removeContact(String peerId) async {
     _contacts.removeWhere((c) => c.peerId == peerId);
     await repository.delete(peerId);
+    onAccessPolicyChanged?.call('contact_remove');
+    notifyListeners();
+  }
+
+  bool isPeerBlocked(String peerId) => accessControl.isBlocked(peerId);
+
+  Future<void> blockPeer(String peerId, {String? reason}) async {
+    await accessControl.blockPeer(peerId, reason: reason);
+    await onAccessPolicyChangedNow?.call('contact_block_peer');
+    notifyListeners();
+  }
+
+  Future<void> unblockPeer(String peerId) async {
+    await accessControl.unblockPeer(peerId);
+    await onAccessPolicyChangedNow?.call('contact_unblock_peer');
     notifyListeners();
   }
 }

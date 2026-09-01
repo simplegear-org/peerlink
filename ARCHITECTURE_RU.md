@@ -16,7 +16,7 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - Стартовая оркестрация через `AppBootstrapCoordinator`.
 - `NodeFacade` как единая точка входа UI в core.
 - `MeshNode` как оркестратор runtime.
-- `PushApiClient` для подписанных запросов в `push.js` (`/devices/register`, `/devices/unregister`, `/events/push`), при этом высокоуровневая сборка событий вынесена в `PushEventFactory`, `PushRuntimeMetadataBuilder` и `PushEventService`; moderation HTTP живет отдельно в `ModerationApiClient`.
+- `PushApiClient` для подписанных запросов в `push.js` (`/devices/register`, `/devices/unregister`, `/devices/access-policy`, `/events/push`), при этом высокоуровневая сборка событий вынесена в `PushEventFactory`, `PushRuntimeMetadataBuilder` и `PushEventService`; moderation HTTP живет отдельно в `ModerationApiClient`.
 - Call-push интеграция в `lib/core/node` частично декомпозирована:
   - `MeshCallPushHelper` — registration/unregister device token и call push fanout через `/events/push`,
   - `MeshNode` оставляет у себя orchestration signaling/transport/session lifecycle и только делегирует call-push операции.
@@ -30,8 +30,8 @@ PeerLink — Flutter-мессенджер с децентрализованны�
   - `FirebasePushCallbackRegistry` / `firebase_push_models.dart` — callback registry и shared push models.
 - Внутренний push/call payload model унифицирован через `FirebasePushPayload`: UI open path, FCM open/foreground/native-fallback и iOS CallKit path не должны держать параллельные call-payload DTO.
 - `AppBadgeService` владеет состоянием badge иконки приложения и синхронизирует platform badge как сумму непрочитанных сообщений и пропущенных звонков.
-- `PeerAccessControlService` владеет локальными privacy/block правилами: contacts-only включен по умолчанию, `blockedPeers` хранится локально, входящие сообщения/медиа/account pairing/group invite/push/call invite фильтруются до UI/persistence, а исходящие звонки к blocked peer запрещаются в `CallService`.
-- Android FCM service и iOS CallKit bridge получают best-effort native-копию `blockedPeers` через `peerlink/access_control/methods`, чтобы background/fullscreen/CallKit звонки от blocked peer не появлялись до Dart UI.
+- `PeerAccessControlService` владеет локальными privacy/block правилами: contacts-only включен по умолчанию, `blockedPeers` хранится локально, а исходящие звонки к blocked peer запрещаются в `CallService`.
+- `PushAccessPolicySyncService` отправляет privacy/block snapshot (`allowMessagesOnlyFromContacts`, `contactPeerIds`, `blockedPeerIds`, `policyVersion`, `updatedAt`, `snapshotHash`) в `push.js` через `/devices/access-policy`; push-сервер фильтрует fanout до APNs/FCM. iOS Notification Service Extension и App Group для этой схемы не используются.
 - Для всех push-событий используется единый контракт `/events/push`: подписывается весь `payload` приложения, а сервер работает как transport-only fanout слой без собственной message/call-семантики.
 - Если в `payload` присутствуют `servers` / `priority_servers`, они считаются runtime-метаданными приложения и обрабатываются только клиентом.
 - `AccountIdentity` поверх device identity: `accountId`, `displayName`, список устройств и QR/deep link `peerlink://pair` для привязки второго устройства без изменения текущей device-based маршрутизации.
@@ -179,6 +179,7 @@ UI
 - `AvatarService` теперь живет в `lib/core/runtime`: хранит локальный avatar cache, embedded backup/restore, blob download и best-effort avatar announce/remove/query flow.
 - Сервисы проверки серверов теперь разделяют общий контракт `ServerAvailabilityProvider`, чтобы будущая runtime-оркестрация могла единообразно работать с probing для bootstrap/relay/turn.
 - `ServerHealthCoordinator` владеет общими health-сервисами bootstrap/relay/turn и запускает их после app bootstrap, поэтому runtime и Settings используют одно и то же состояние доступности без дублирующихся probe loop.
+- При полностью пустой локальной серверной конфигурации `ServerHealthCoordinator` запускает `InitialServerConfigBootstrapper`: он best-effort скачивает `https://simplegear.org/config/initial-server-config.json`, проверяет `ServerConfigPayload` и merge-ит bootstrap/relay/TURN/push. Недоступность сайта или некорректный ответ только логируются и не останавливают startup.
 - Эти health-сервисы также используют общий polling/backoff engine, поэтому cadence повторных проверок унифицирован для bootstrap/relay/turn, а повторные неудачи автоматически увеличивают интервал probing.
 - При общем refresh availability due-probes выполняются параллельно, чтобы несколько мертвых bootstrap/relay/turn endpoint-ов не суммировали startup/foreground latency последовательными timeout-ами.
 - Bootstrap health refresh работает single-flight и переводит WebSocket connect timeout в availability snapshot `unavailable`, а не пробрасывает timeout exception из периодических проверок.

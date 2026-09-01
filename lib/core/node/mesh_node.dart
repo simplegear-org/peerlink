@@ -32,6 +32,8 @@ import '../runtime/network_event.dart';
 import '../runtime/push_token_service.dart';
 import '../runtime/push_servers_service.dart';
 import '../runtime/push_server_sharing_preferences.dart';
+import '../runtime/push_access_policy_sync_service.dart';
+import '../runtime/push_device_registration_service.dart';
 import '../runtime/moderation_api_client.dart';
 import '../runtime/moderation_delivery_service.dart';
 import '../runtime/moderation_policy_service.dart';
@@ -97,6 +99,8 @@ class MeshNode {
   late final PushEventFactory _pushEventFactory;
   late final PushEventService _pushEventService;
   late final PushRuntimeMetadataBuilder _pushRuntimeMetadataBuilder;
+  late final PushAccessPolicySyncService _pushAccessPolicySync;
+  late final PushDeviceRegistrationService _pushDeviceSync;
   late final ModerationDeliveryService _moderationDelivery;
   int _logSeq = 0;
 
@@ -125,6 +129,12 @@ class MeshNode {
       resolvePushBaseUris: _resolvePushBaseUris,
       pushBearerToken: _pushBearerToken,
       log: _log,
+    );
+    _pushAccessPolicySync = PushAccessPolicySyncService(
+      identity: identity,
+      storage: StorageService(),
+      pushApiClient: pushApiClient,
+      resolvePushBaseUris: _resolvePushBaseUris,
     );
     _moderationDelivery = ModerationDeliveryService(
       identity: identity,
@@ -160,6 +170,13 @@ class MeshNode {
       pushRuntimeMetadataBuilder: _pushRuntimeMetadataBuilder,
       platformName: _platformName,
       log: _log,
+    );
+    _pushDeviceSync = PushDeviceRegistrationService(
+      storage: StorageService(),
+      registerPushDeviceToken: _callPush.registerPushDeviceToken,
+      syncAccessPolicy: _pushAccessPolicySync.syncNow,
+      retryPendingAccessPolicySync: ({required reason, force = false}) =>
+          _pushAccessPolicySync.retryPending(reason: reason),
     );
     calls.setCallInviteMetadataBuilder(
       _pushRuntimeMetadataBuilder.buildCallInviteRuntimeMetadata,
@@ -401,6 +418,18 @@ class MeshNode {
     await _callPush.registerPushDeviceToken(token, force: force);
   }
 
+  Future<void> syncPushDeviceState({
+    required String reason,
+    bool forceRegister = false,
+    bool forcePolicy = true,
+  }) {
+    return _pushDeviceSync.syncNow(
+      reason: reason,
+      forceRegister: forceRegister,
+      forcePolicy: forcePolicy,
+    );
+  }
+
   Future<void> registerVoipDeviceToken(String token) =>
       _callPush.registerVoipDeviceToken(token);
 
@@ -410,6 +439,21 @@ class MeshNode {
 
   Future<void> unregisterVoipDeviceToken(String token) =>
       _callPush.unregisterVoipDeviceToken(token);
+
+  Future<void> syncPushAccessPolicy({
+    required String reason,
+    bool force = false,
+  }) {
+    return _pushAccessPolicySync.syncNow(reason: reason, force: force);
+  }
+
+  Future<void> retryPendingPushAccessPolicySync({required String reason}) {
+    return _pushAccessPolicySync.retryPending(reason: reason);
+  }
+
+  Future<void> retryPendingPushDeviceStateSync({required String reason}) {
+    return _pushDeviceSync.retryPending(reason: reason);
+  }
 
   Future<void> sendGroupPushEvent({
     required String groupId,
@@ -595,16 +639,6 @@ class MeshNode {
       final parsed = Uri.tryParse(legacyConfigured.trim());
       if (parsed != null && parsed.hasScheme && parsed.host.isNotEmpty) {
         result.putIfAbsent(parsed.toString(), () => parsed);
-      }
-    }
-    if (result.isNotEmpty) {
-      return result.values.toList(growable: false);
-    }
-    if (_relayServers.isNotEmpty) {
-      final relayUri = Uri.tryParse(_relayServers.first);
-      if (relayUri != null && relayUri.host.isNotEmpty) {
-        final fallback = Uri(scheme: 'https', host: relayUri.host, port: 445);
-        result.putIfAbsent(fallback.toString(), () => fallback);
       }
     }
     return result.values.toList(growable: false);

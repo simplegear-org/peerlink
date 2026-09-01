@@ -13,9 +13,9 @@ import '../node/node_facade.dart';
 import '../turn/turn_server_config.dart';
 import 'app_file_logger.dart';
 import 'bootstrap_servers_service.dart';
+import 'initial_server_config_bootstrapper.dart';
 import 'relay_servers_service.dart';
 import 'push_servers_service.dart';
-import 'push_device_registration_service.dart';
 import 'server_availability.dart';
 import 'storage_service.dart';
 import 'turn_servers_service.dart';
@@ -35,7 +35,6 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
   late final RelayServersService relay;
   late final TurnServersService turn;
   late final PushServersService push;
-  late final PushDeviceRegistrationService pushDeviceRegistration;
 
   Future<void>? _initializeFuture;
   final Connectivity _connectivity = Connectivity();
@@ -62,10 +61,6 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
     relay = RelayServersService(facade: facade, storage: storage);
     turn = TurnServersService(facade: facade, storage: storage);
     push = PushServersService(storage: storage);
-    pushDeviceRegistration = PushDeviceRegistrationService(
-      facade: facade,
-      storage: storage,
-    );
   }
 
   Future<void> initialize() {
@@ -82,10 +77,20 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
     await relay.initialize();
     await turn.initialize();
     await push.initialize();
+    await InitialServerConfigBootstrapper(
+      bootstrap: bootstrap,
+      relay: relay,
+      turn: turn,
+      push: push,
+    ).importIfEmpty();
     WidgetsBinding.instance.addObserver(this);
     await _startConnectivityWatch();
     unawaited(
-      pushDeviceRegistration.registerIfDue(reason: 'startup', force: true),
+      facade.syncPushDeviceState(
+        reason: 'startup',
+        forceRegister: true,
+        forcePolicy: true,
+      ),
     );
   }
 
@@ -176,10 +181,7 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
       unawaited(refreshAll());
       if (_hasNetworkConnectivity(results)) {
         unawaited(
-          pushDeviceRegistration.registerIfDue(
-            reason: 'connectivity',
-            force: true,
-          ),
+          facade.retryPendingPushDeviceStateSync(reason: 'connectivity'),
         );
       }
     });
@@ -221,7 +223,11 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
       _log('app resumed refresh=true');
       unawaited(refreshAll());
       unawaited(
-        pushDeviceRegistration.registerIfDue(reason: 'resume', force: true),
+        facade.syncPushDeviceState(
+          reason: 'resume',
+          forceRegister: true,
+          forcePolicy: true,
+        ),
       );
     }
   }

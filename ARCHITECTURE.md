@@ -16,7 +16,7 @@ Working now:
 - App startup orchestration via `AppBootstrapCoordinator`.
 - `NodeFacade` as UI entrypoint to core.
 - `MeshNode` as runtime orchestrator.
-- `PushApiClient` for signed requests to `push.js` (`/devices/register`, `/devices/unregister`, `/events/push`), with higher-level event construction delegated to `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`; moderation HTTP lives separately in `ModerationApiClient`.
+- `PushApiClient` for signed requests to `push.js` (`/devices/register`, `/devices/unregister`, `/devices/access-policy`, `/events/push`), with higher-level event construction delegated to `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`; moderation HTTP lives separately in `ModerationApiClient`.
 - The FCM runtime module in `lib/core/firebase` is decomposed into:
   - `FirebaseMessagingService` as the coordinator and external API,
   - `FirebasePushTokenLifecycle` for permission/token lifecycle and APNS/FCM sync,
@@ -27,8 +27,8 @@ Working now:
   - `FirebasePushCallbackRegistry` / `firebase_push_models.dart` for callback registry and shared push models.
 - The internal push/call payload model is unified through `FirebasePushPayload`: the UI open path, FCM foreground/open/native-fallback handling, and the iOS CallKit path should not keep parallel call-payload DTOs.
 - `AppBadgeService` owns app icon badge state and combines unread messages with missed-call counts before syncing the platform badge.
-- `PeerAccessControlService` owns local privacy/block rules: contacts-only is enabled by default, `blockedPeers` is stored locally, incoming messages/media/account pairing/group invites/push/call invites are filtered before UI/persistence, and outgoing calls to blocked peers are denied in `CallService`.
-- The Android FCM service and iOS CallKit bridge receive a best-effort native `blockedPeers` copy through `peerlink/access_control/methods`, so background/fullscreen/CallKit calls from blocked peers are not shown before Dart UI starts.
+- `PeerAccessControlService` owns local privacy/block rules: contacts-only is enabled by default, `blockedPeers` is stored locally, and outgoing calls to blocked peers are denied in `CallService`.
+- `PushAccessPolicySyncService` sends the privacy/block snapshot (`allowMessagesOnlyFromContacts`, `contactPeerIds`, `blockedPeerIds`, `policyVersion`, `updatedAt`, `snapshotHash`) to `push.js` through `/devices/access-policy`; the push server filters fanout before APNs/FCM. iOS Notification Service Extension and App Group are not used for this scheme.
 - `AccountIdentity` above device identity: `accountId`, `displayName`, device list, and a `peerlink://pair` QR/deep link for pairing a second device without changing the current device-based routing.
 - Overlay router + message dedup cache.
 - HTTP relay client with live-relay preselection, bounded active pool, quorum write/quorum ack, and status tracking.
@@ -165,6 +165,7 @@ UI
 - `AvatarService` now lives in `lib/core/runtime`: it owns local avatar cache, embedded backup/restore, blob download, and best-effort avatar announce/remove/query flow.
 - Server-health services share the `ServerAvailabilityProvider` contract so future runtime orchestration can work with bootstrap/relay/turn probing through one interface.
 - `ServerHealthCoordinator` owns the shared bootstrap/relay/turn health services and starts them after app bootstrap, so runtime and Settings use the same availability state instead of duplicate probe loops.
+- When local server configuration is completely empty, `ServerHealthCoordinator` runs `InitialServerConfigBootstrapper`: it best-effort fetches `https://simplegear.org/config/initial-server-config.json`, validates `ServerConfigPayload`, and merges bootstrap/relay/TURN/push. Site unavailability or malformed responses are logged and do not stop startup.
 - Those health services also share a common polling/backoff engine, so retry cadence is unified across bootstrap/relay/turn and repeated failures automatically widen the probe interval.
 - Bootstrap health refresh is single-flight and converts WebSocket connect timeouts into `unavailable` availability snapshots instead of bubbling timeout exceptions from periodic probes.
 - `HttpRelayClient` and `TurnAllocator` are wired to coordinator-backed relay/turn availability lookups, so runtime routing decisions can reuse the same shared health snapshots that drive Settings.

@@ -400,6 +400,18 @@ class NodeFacade {
     return _network.registerPushDeviceToken(token, force: force);
   }
 
+  Future<void> syncPushDeviceState({
+    required String reason,
+    bool forceRegister = false,
+    bool forcePolicy = true,
+  }) {
+    return _network.syncPushDeviceState(
+      reason: reason,
+      forceRegister: forceRegister,
+      forcePolicy: forcePolicy,
+    );
+  }
+
   Future<void> unregisterPushDeviceToken(String token) {
     return _network.unregisterPushDeviceToken(token);
   }
@@ -410,6 +422,21 @@ class NodeFacade {
 
   Future<void> unregisterVoipDeviceToken(String token) {
     return _network.unregisterVoipDeviceToken(token);
+  }
+
+  Future<void> syncPushAccessPolicy({
+    required String reason,
+    bool force = false,
+  }) {
+    return _network.syncPushAccessPolicy(reason: reason, force: force);
+  }
+
+  Future<void> retryPendingPushAccessPolicySync({required String reason}) {
+    return _network.retryPendingPushAccessPolicySync(reason: reason);
+  }
+
+  Future<void> retryPendingPushDeviceStateSync({required String reason}) {
+    return _network.retryPendingPushDeviceStateSync(reason: reason);
   }
 
   Future<void> sendGroupPushEvent({

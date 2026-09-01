@@ -87,6 +87,18 @@ class NodeFacadeNetworkDelegate {
     return _node.registerPushDeviceToken(token, force: force);
   }
 
+  Future<void> syncPushDeviceState({
+    required String reason,
+    bool forceRegister = false,
+    bool forcePolicy = true,
+  }) {
+    return _node.syncPushDeviceState(
+      reason: reason,
+      forceRegister: forceRegister,
+      forcePolicy: forcePolicy,
+    );
+  }
+
   Future<void> unregisterPushDeviceToken(String token) {
     return _node.unregisterPushDeviceToken(token);
   }
@@ -97,6 +109,21 @@ class NodeFacadeNetworkDelegate {
 
   Future<void> unregisterVoipDeviceToken(String token) {
     return _node.unregisterVoipDeviceToken(token);
+  }
+
+  Future<void> syncPushAccessPolicy({
+    required String reason,
+    bool force = false,
+  }) {
+    return _node.syncPushAccessPolicy(reason: reason, force: force);
+  }
+
+  Future<void> retryPendingPushAccessPolicySync({required String reason}) {
+    return _node.retryPendingPushAccessPolicySync(reason: reason);
+  }
+
+  Future<void> retryPendingPushDeviceStateSync({required String reason}) {
+    return _node.retryPendingPushDeviceStateSync(reason: reason);
   }
 
   Future<void> sendGroupPushEvent({

@@ -14,44 +14,110 @@ import 'push_servers_service.dart';
 import 'push_token_service.dart';
 import 'storage_service.dart';
 
+typedef PushDeviceTokenRegistrar =
+    Future<void> Function(String? token, {bool force});
+typedef PushAccessPolicySync =
+    Future<void> Function({required String reason, bool force});
+
 class PushDeviceRegistrationService {
   static const _lastRegisterAtMsKey = 'push_device_last_register_at_ms';
   static const _lastRegisterSignatureKey =
       'push_device_last_register_signature';
   static const Duration defaultRefreshInterval = Duration(hours: 24);
 
-  final NodeFacade facade;
+  final NodeFacade? facade;
   final StorageService storage;
   final Duration refreshInterval;
   final DateTime Function() now;
+  final PushDeviceTokenRegistrar _registerPushDeviceToken;
+  final PushAccessPolicySync _syncAccessPolicy;
+  final PushAccessPolicySync? _retryPendingAccessPolicySync;
   late final PushTokenService _pushTokens;
+  Future<void>? _syncFuture;
 
   PushDeviceRegistrationService({
-    required this.facade,
+    this.facade,
     required this.storage,
     this.refreshInterval = defaultRefreshInterval,
     DateTime Function()? now,
-  }) : now = now ?? DateTime.now {
+    PushDeviceTokenRegistrar? registerPushDeviceToken,
+    PushAccessPolicySync? syncAccessPolicy,
+    PushAccessPolicySync? retryPendingAccessPolicySync,
+  }) : now = now ?? DateTime.now,
+       _registerPushDeviceToken =
+           registerPushDeviceToken ??
+           ((token, {force = false}) =>
+               facade!.registerPushDeviceToken(token, force: force)),
+       _syncAccessPolicy =
+           syncAccessPolicy ??
+           (({required reason, force = false}) =>
+               facade!.syncPushAccessPolicy(reason: reason, force: force)),
+       _retryPendingAccessPolicySync =
+           retryPendingAccessPolicySync ??
+           (facade == null
+               ? null
+               : ({required reason, force = false}) =>
+                     facade.retryPendingPushAccessPolicySync(reason: reason)) {
     _pushTokens = PushTokenService(storage: storage);
   }
 
   SecureStorageBox get _settings => storage.getSettings();
 
-  Future<void> registerIfDue({
+  Future<void> registerIfDue({required String reason, bool force = false}) {
+    return syncNow(reason: reason, forceRegister: force, forcePolicy: true);
+  }
+
+  Future<void> syncNow({
     required String reason,
-    bool force = false,
+    bool forceRegister = false,
+    bool forcePolicy = true,
+  }) async {
+    final current = _syncFuture;
+    if (current != null) {
+      await current;
+    }
+    final future = _syncNowImpl(
+      reason: reason,
+      forceRegister: forceRegister,
+      forcePolicy: forcePolicy,
+    );
+    _syncFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_syncFuture, future)) {
+        _syncFuture = null;
+      }
+    }
+  }
+
+  Future<void> retryPending({required String reason}) async {
+    await syncNow(reason: reason, forceRegister: true, forcePolicy: false);
+    await _retryPendingAccessPolicySync?.call(reason: reason, force: true);
+  }
+
+  Future<void> _syncNowImpl({
+    required String reason,
+    required bool forceRegister,
+    required bool forcePolicy,
   }) async {
     final fcmToken = (_pushTokens.fcmToken ?? '').trim();
     final apnsToken = (_pushTokens.apnsToken ?? '').trim();
     final voipToken = (_pushTokens.voipToken ?? '').trim();
     if (fcmToken.isEmpty && apnsToken.isEmpty) {
-      _log('skip reason=$reason no_token');
+      if (forcePolicy) {
+        await _syncAccessPolicy(reason: reason, force: true);
+      }
+      _log('skip register reason=$reason no_token');
       return;
     }
 
     final endpoints = _activePushEndpoints();
     if (endpoints.isEmpty) {
-      _log('skip reason=$reason no_endpoint');
+      if (forcePolicy) {
+        await _syncAccessPolicy(reason: reason, force: true);
+      }
+      _log('skip register reason=$reason no_endpoint');
       return;
     }
 
@@ -67,19 +133,46 @@ class PushDeviceRegistrationService {
     final ttlExpired =
         lastAtMs == null || nowMs - lastAtMs >= refreshInterval.inMilliseconds;
     final signatureChanged = lastSignature != signature;
-    if (!force && !signatureChanged && !ttlExpired) {
-      _log('skip reason=$reason fresh endpoints=${endpoints.length}');
+    if (!forceRegister && !signatureChanged && !ttlExpired) {
+      _log('skip register reason=$reason fresh endpoints=${endpoints.length}');
+      if (forcePolicy) {
+        await _syncAccessPolicy(reason: reason, force: true);
+      }
       return;
     }
 
     _log(
-      'start reason=$reason force=$force signatureChanged=$signatureChanged '
+      'start reason=$reason forceRegister=$forceRegister '
+      'forcePolicy=$forcePolicy signatureChanged=$signatureChanged '
       'ttlExpired=$ttlExpired endpoints=${endpoints.length}',
     );
-    await facade.registerPushDeviceToken(
-      fcmToken.isEmpty ? null : fcmToken,
-      force: force || !signatureChanged,
-    );
+    Object? registerError;
+    StackTrace? registerStackTrace;
+    try {
+      await _registerPushDeviceToken(
+        fcmToken.isEmpty ? null : fcmToken,
+        force: forceRegister || !signatureChanged,
+      );
+    } catch (error, stackTrace) {
+      registerError = error;
+      registerStackTrace = stackTrace;
+      _log(
+        'register failed reason=$reason error=$error',
+        stackTrace: stackTrace,
+      );
+    }
+    if (forcePolicy) {
+      _log('policy sync start reason=$reason');
+      await _syncAccessPolicy(reason: reason, force: true);
+      _log('policy sync done reason=$reason');
+    }
+    if (registerError != null) {
+      _log(
+        'done with register error reason=$reason endpoints=${endpoints.length}',
+        stackTrace: registerStackTrace,
+      );
+      return;
+    }
     await _settings.put(_lastRegisterAtMsKey, nowMs);
     await _settings.put(_lastRegisterSignatureKey, signature);
     _log('done reason=$reason endpoints=${endpoints.length}');
@@ -126,7 +219,7 @@ class PushDeviceRegistrationService {
         .toString();
   }
 
-  void _log(String message) {
-    AppFileLogger.log('[push_register] $message');
+  void _log(String message, {StackTrace? stackTrace}) {
+    AppFileLogger.log('[push_register] $message', stackTrace: stackTrace);
   }
 }

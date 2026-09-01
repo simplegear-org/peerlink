@@ -84,9 +84,10 @@ Current design combines:
   - localized server-configuration share text includes `peerlink://config?payload=...` plus fallback `https://simplegear.org/config?payload=...`,
   - both link types include only currently available server configuration,
   - QR payloads refresh when availability changes,
-  - app-side deep links merge imported servers into existing settings; config links merge directly, while QR/manual config import still offers merge/replace.
+  - app-side deep links merge imported servers into existing settings; config links merge directly, while QR/manual config import still offers merge/replace,
+  - when startup has no local bootstrap/relay/TURN/push servers, the app best-effort fetches `https://simplegear.org/config/initial-server-config.json` and imports the public QR configuration; site unavailability does not block startup.
 - Android/macOS native runners forward `peerlink://invite|pair|config|call` and supported `https://simplegear.org/...` links into Flutter; macOS keeps pending links during cold start so website-to-app transitions are not lost.
-- The published app display name is `PeerLink X`; package/bundle id and custom scheme remain `org.simplegear.peerlinkapp` / `peerlink://`.
+- The published app display name is `PeerLink X`; the custom scheme remains `peerlink://`.
 - Settings include a `Server sharing via push` section:
   - `Allow sending your servers` controls whether outgoing push events include `servers` / `priority_servers`,
   - `Allow receiving other servers` controls whether incoming bootstrap/relay/push/turn servers are merged locally,
@@ -133,13 +134,14 @@ Current design combines:
   - audio/file/video bubbles use asynchronous cached file-availability checks instead of synchronous file existence probes.
 - iPhone Dolby Vision/HDR videos may be unsupported by the built-in Android decoder; in that case the app shows a clear error and offers opening the file in another app.
 - Relay polling and push/local notifications are integrated.
+  - privacy/block snapshots are sent directly to `push.js` through `POST /devices/access-policy`; the push server filters fanout before APNs/FCM using `blockedPeerIds` and `Allow messages only from contacts`.
   - recovery of group/direct events does not depend only on opening the app from a push notification: runtime also calls `pollRelay()` on startup, on app resume, and after connectivity restoration.
   - incoming `servers` metadata may be merged into local bootstrap/relay/push/turn configuration when receiving external servers is enabled in Settings.
   - foreground message/group push events now also trigger `pollRelay()` without forcing navigation to the chats tab.
   - opened push handling can poll relay hints from the push payload before running a full relay poll.
   - incoming relay group envelopes preserve `groupId` up to `ChatService`, so group payload is routed into the group chat instead of the sender's direct chat.
   - incoming group messages now also preserve the real sender separately as `senderPeerId`, so group inbound handling does not confuse the group target with the sender peer.
-- Client-side push API is restricted to `/devices/register`, `/devices/unregister`, and `/events/push`; other paths are rejected in `PushApiClient`.
+- Client-side push API is restricted to `/devices/register`, `/devices/unregister`, `/devices/access-policy`, and `/events/push`; other paths are rejected in `PushApiClient`.
 - Push event construction is split between `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`; `PushApiClient` stays the low-level signed HTTP transport.
 - App badge state is synchronized through `AppBadgeService`, which persists unread-message and missed-call counts.
 - Foreground push on iOS/Android does not show system notifications: messages update UI/counters, while calls show the in-app incoming-call screen.
@@ -195,6 +197,22 @@ APNS_USE_SANDBOX=true
   - `id`, `from`, `ts`, `sig`, `signingPub`,
   - `userId`, `deviceId`, `token`.
 - Response: `{ ok: true|false }`.
+
+#### `POST /devices/access-policy`
+
+- Purpose: synchronize the user's privacy/block snapshot to the push server.
+- Payload:
+  - `id`, `from`, `ts`, `sig`, `signingPub`,
+  - `userId`,
+  - `allowMessagesOnlyFromContacts`,
+  - `contactPeerIds`,
+  - `blockedPeerIds`,
+  - `policyVersion`,
+  - `updatedAt` (UTC ISO-8601 with millisecond precision),
+  - `snapshotHash`.
+- The client sends the snapshot on startup/resume, push-token registration, push-server changes, block/unblock, contact changes, and contacts-only changes.
+- If an old client has no snapshot, the push server uses compatibility mode and allows fanout without filtering.
+- Response: `{ ok: true }`.
 
 #### `POST /events/push`
 

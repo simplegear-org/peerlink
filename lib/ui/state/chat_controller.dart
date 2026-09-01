@@ -1092,11 +1092,13 @@ class ChatController with WidgetsBindingObserver {
 
   Future<void> blockPeer(String peerId, {String? reason}) async {
     await _accessControl.blockPeer(peerId, reason: reason);
+    await facade.syncPushDeviceState(reason: 'block_peer', forcePolicy: true);
     _notifyMessageUpdated(peerId);
   }
 
   Future<void> unblockPeer(String peerId) async {
     await _accessControl.unblockPeer(peerId);
+    await facade.syncPushDeviceState(reason: 'unblock_peer', forcePolicy: true);
     _notifyMessageUpdated(peerId);
   }
 

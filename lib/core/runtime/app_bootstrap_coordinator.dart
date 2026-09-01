@@ -26,16 +26,16 @@ class AppBootstrapCoordinator {
   Future<void> postBootstrap({
     required Future<void> Function() configureBackgroundFetch,
   }) async {
+    await ServerHealthCoordinator(
+      facade: deps.nodeFacade,
+      storage: storage,
+    ).initialize();
     final relayServers = deps.nodeFacade.relayServers;
     if (relayServers.isEmpty) {
       AppFileLogger.log('[background_fetch] skipped relay disabled servers=0');
     } else {
       await configureBackgroundFetch();
     }
-    await ServerHealthCoordinator(
-      facade: deps.nodeFacade,
-      storage: storage,
-    ).initialize();
     _disableAutoConnectContacts();
   }
 

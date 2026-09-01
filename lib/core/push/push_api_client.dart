@@ -50,6 +50,7 @@ class PushApiClient {
   static const Set<String> _allowedPaths = <String>{
     '/devices/register',
     '/devices/unregister',
+    '/devices/access-policy',
     '/events/push',
   };
 
@@ -123,6 +124,51 @@ class PushApiClient {
       'userId': userId,
       'deviceId': deviceId,
       'token': token,
+    }, bearerToken: bearerToken);
+  }
+
+  Future<void> syncAccessPolicy({
+    required Uri baseUri,
+    required IdentityService identity,
+    required String userId,
+    required bool allowMessagesOnlyFromContacts,
+    required List<String> contactPeerIds,
+    required List<String> blockedPeerIds,
+    required int policyVersion,
+    required String updatedAt,
+    required String snapshotHash,
+    String? bearerToken,
+  }) async {
+    final normalizedUserId = userId.trim();
+    if (normalizedUserId.isEmpty) {
+      return;
+    }
+    final contacts = _normalizePeerIdList(contactPeerIds);
+    final blocked = _normalizePeerIdList(blockedPeerIds);
+    final normalizedUpdatedAt = updatedAt.trim();
+    final normalizedHash = snapshotHash.trim();
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final requestId = _requestId('policy');
+    final payloadToSign =
+        '$requestId|$normalizedUserId|$normalizedUserId|'
+        '$allowMessagesOnlyFromContacts|${jsonEncode(contacts)}|'
+        '${jsonEncode(blocked)}|$policyVersion|$normalizedUpdatedAt|'
+        '$normalizedHash|$ts';
+    final sig = await _sign(identity, payloadToSign);
+    final signingPub = base64Encode(identity.signingPublicKey.bytes);
+    await _postJson(baseUri, '/devices/access-policy', <String, dynamic>{
+      'id': requestId,
+      'from': normalizedUserId,
+      'ts': ts,
+      'sig': sig,
+      'signingPub': signingPub,
+      'userId': normalizedUserId,
+      'allowMessagesOnlyFromContacts': allowMessagesOnlyFromContacts,
+      'contactPeerIds': contacts,
+      'blockedPeerIds': blocked,
+      'policyVersion': policyVersion,
+      'updatedAt': normalizedUpdatedAt,
+      'snapshotHash': normalizedHash,
     }, bearerToken: bearerToken);
   }
 
@@ -295,6 +341,15 @@ class PushApiClient {
       normalized['body'] = body;
     }
     return normalized;
+  }
+
+  List<String> _normalizePeerIdList(List<String> input) {
+    final normalized = input
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty && item.length <= 128)
+        .toSet()
+        .toList(growable: false);
+    return normalized..sort();
   }
 
   String? _normalizeShortString(dynamic value, {required int maxLength}) {
