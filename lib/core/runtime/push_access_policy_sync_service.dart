@@ -100,18 +100,13 @@ class PushAccessPolicySyncService {
     );
     final bearerToken = _pushBearerToken();
     var failed = 0;
+    var acceptedVersion = version;
     for (final baseUri in endpoints) {
       try {
-        await pushApiClient.syncAccessPolicy(
+        acceptedVersion = await _syncEndpoint(
           baseUri: baseUri,
-          identity: identity,
-          userId: identity.nodeId,
-          allowMessagesOnlyFromContacts: snapshot.allowMessagesOnlyFromContacts,
-          contactPeerIds: snapshot.contactPeerIds,
-          blockedPeerIds: snapshot.blockedPeerIds,
-          policyVersion: version,
-          updatedAt: snapshot.updatedAt,
-          snapshotHash: snapshot.hash,
+          snapshot: snapshot,
+          initialVersion: acceptedVersion,
           bearerToken: bearerToken,
         );
       } catch (error, stackTrace) {
@@ -131,9 +126,51 @@ class PushAccessPolicySyncService {
       return;
     }
     await _settings.put(_lastSnapshotHashKey, snapshot.hash);
-    await _settings.put(_policyVersionKey, version);
+    await _settings.put(_policyVersionKey, acceptedVersion);
     await _settings.put(_pendingSyncKey, false);
-    _log('done reason=$reason version=$version endpoints=${endpoints.length}');
+    _log(
+      'done reason=$reason version=$acceptedVersion '
+      'endpoints=${endpoints.length}',
+    );
+  }
+
+  Future<int> _syncEndpoint({
+    required Uri baseUri,
+    required _AccessPolicySnapshot snapshot,
+    required int initialVersion,
+    required String? bearerToken,
+  }) async {
+    var version = initialVersion;
+    for (var attempt = 0; attempt < 2; attempt += 1) {
+      final result = await pushApiClient.syncAccessPolicy(
+        baseUri: baseUri,
+        identity: identity,
+        userId: identity.nodeId,
+        allowMessagesOnlyFromContacts: snapshot.allowMessagesOnlyFromContacts,
+        contactPeerIds: snapshot.contactPeerIds,
+        blockedPeerIds: snapshot.blockedPeerIds,
+        policyVersion: version,
+        updatedAt: snapshot.updatedAt,
+        snapshotHash: snapshot.hash,
+        bearerToken: bearerToken,
+      );
+      if (!result.ok) {
+        throw StateError('access policy sync failed');
+      }
+      if (!result.stale) {
+        return version;
+      }
+      final serverVersion = result.policyVersion;
+      if (serverVersion == null || serverVersion < version) {
+        throw StateError('access policy stale response has invalid version');
+      }
+      version = serverVersion + 1;
+      _log(
+        'stale uri=$baseUri serverVersion=$serverVersion '
+        'retryVersion=$version',
+      );
+    }
+    throw StateError('access policy sync stayed stale');
   }
 
   _AccessPolicySnapshot _buildSnapshot() {

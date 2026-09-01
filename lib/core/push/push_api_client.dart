@@ -44,6 +44,30 @@ class PushDeliveryOptions {
   const PushDeliveryOptions({this.standard = true, this.voip = false});
 }
 
+class PushAccessPolicySyncResult {
+  final bool ok;
+  final bool stale;
+  final int? policyVersion;
+
+  const PushAccessPolicySyncResult({
+    required this.ok,
+    required this.stale,
+    required this.policyVersion,
+  });
+
+  factory PushAccessPolicySyncResult.fromJson(Map<String, dynamic> json) {
+    final rawVersion = json['policyVersion'];
+    final version = rawVersion is int
+        ? rawVersion
+        : int.tryParse('$rawVersion');
+    return PushAccessPolicySyncResult(
+      ok: json['ok'] == true,
+      stale: json['stale'] == true,
+      policyVersion: version,
+    );
+  }
+}
+
 class PushApiClient {
   static const _connectTimeout = Duration(seconds: 10);
   static const _requestTimeout = Duration(seconds: 20);
@@ -127,7 +151,7 @@ class PushApiClient {
     }, bearerToken: bearerToken);
   }
 
-  Future<void> syncAccessPolicy({
+  Future<PushAccessPolicySyncResult> syncAccessPolicy({
     required Uri baseUri,
     required IdentityService identity,
     required String userId,
@@ -141,7 +165,11 @@ class PushApiClient {
   }) async {
     final normalizedUserId = userId.trim();
     if (normalizedUserId.isEmpty) {
-      return;
+      return const PushAccessPolicySyncResult(
+        ok: false,
+        stale: false,
+        policyVersion: null,
+      );
     }
     final contacts = _normalizePeerIdList(contactPeerIds);
     final blocked = _normalizePeerIdList(blockedPeerIds);
@@ -156,20 +184,26 @@ class PushApiClient {
         '$normalizedHash|$ts';
     final sig = await _sign(identity, payloadToSign);
     final signingPub = base64Encode(identity.signingPublicKey.bytes);
-    await _postJson(baseUri, '/devices/access-policy', <String, dynamic>{
-      'id': requestId,
-      'from': normalizedUserId,
-      'ts': ts,
-      'sig': sig,
-      'signingPub': signingPub,
-      'userId': normalizedUserId,
-      'allowMessagesOnlyFromContacts': allowMessagesOnlyFromContacts,
-      'contactPeerIds': contacts,
-      'blockedPeerIds': blocked,
-      'policyVersion': policyVersion,
-      'updatedAt': normalizedUpdatedAt,
-      'snapshotHash': normalizedHash,
-    }, bearerToken: bearerToken);
+    final body =
+        await _postJson(baseUri, '/devices/access-policy', <String, dynamic>{
+          'id': requestId,
+          'from': normalizedUserId,
+          'ts': ts,
+          'sig': sig,
+          'signingPub': signingPub,
+          'userId': normalizedUserId,
+          'allowMessagesOnlyFromContacts': allowMessagesOnlyFromContacts,
+          'contactPeerIds': contacts,
+          'blockedPeerIds': blocked,
+          'policyVersion': policyVersion,
+          'updatedAt': normalizedUpdatedAt,
+          'snapshotHash': normalizedHash,
+        }, bearerToken: bearerToken);
+    final decoded = jsonDecode(body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('invalid access policy response');
+    }
+    return PushAccessPolicySyncResult.fromJson(decoded);
   }
 
   Future<void> sendPushEvent({
@@ -265,7 +299,7 @@ class PushApiClient {
         '$notificationPart|${delivery.standard}|${delivery.voip}|$ts';
   }
 
-  Future<void> _postJson(
+  Future<String> _postJson(
     Uri baseUri,
     String path,
     Map<String, dynamic> payload, {
@@ -299,6 +333,7 @@ class PushApiClient {
           uri: uri,
         );
       }
+      return body;
     } finally {
       client.close(force: true);
     }

@@ -3,6 +3,16 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.11.1+2026090102] - 2026-09-01
+
+### Changed
+
+- The `POST /devices/access-policy` client now reads stale push-server
+  responses and retries the snapshot above `effectivePolicyVersion`, so unblock
+  does not leave the old `blockedPeerIds` snapshot active after local policy
+  version rollback.
+
+
 ## [3.11.0+2026090101] - 2026-09-01
 
 ### Changed
