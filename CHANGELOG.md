@@ -3,6 +3,27 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.11.2+2026090501] - 2026-09-05
+
+### Changed
+
+- Updated the app version to `3.11.2+2026090501`.
+- Changed the Apple-platform app category from `Utilities` to
+  `Social Networking`.
+- Updated the official hosted `flutter_webrtc` dependency from `1.5.0` to
+  `1.6.1` and the iOS WebRTC SDK from `144.7559.09` to `150.7871.01` to remove
+  the reference to the App Store-prohibited
+  `RPSystemBroadcastPickerView.buttonPressed:` API. No local fork is used.
+
+### Verified
+
+- `flutter analyze`
+- `flutter test`
+- `flutter build ios --release --no-codesign`
+- The built iOS application does not contain the
+  `RPSystemBroadcastPickerView.buttonPressed:` string.
+
+
 ## [3.11.1+2026090102] - 2026-09-01
 
 ### Changed

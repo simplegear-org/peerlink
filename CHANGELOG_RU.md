@@ -3,6 +3,27 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.11.2+2026090501] - 2026-09-05
+
+### Изменено
+
+- Версия приложения поднята до `3.11.2+2026090501`.
+- Категория приложения для Apple-платформ изменена с `Utilities` на
+  `Social Networking`.
+- Официальная hosted-зависимость `flutter_webrtc` обновлена с `1.5.0` до
+  `1.6.1`, а iOS WebRTC SDK — с `144.7559.09` до `150.7871.01`, чтобы удалить
+  ссылку на запрещенный App Store API
+  `RPSystemBroadcastPickerView.buttonPressed:`. Локальный fork не используется.
+
+### Проверено
+
+- `flutter analyze`
+- `flutter test`
+- `flutter build ios --release --no-codesign`
+- В собранном iOS-приложении отсутствует строка
+  `RPSystemBroadcastPickerView.buttonPressed:`.
+
+
 ## [3.11.1+2026090102] - 2026-09-01
 
 ### Изменено
