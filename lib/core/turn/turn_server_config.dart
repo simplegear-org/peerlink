@@ -18,11 +18,11 @@ class TurnServerConfig {
   });
 
   Map<String, dynamic> toJson() => {
-        'url': url,
-        'username': username,
-        'password': password,
-        'priority': priority,
-      };
+    'url': url,
+    'username': username,
+    'password': password,
+    'priority': priority,
+  };
 
   factory TurnServerConfig.fromJson(Map<String, dynamic> json) {
     return TurnServerConfig(

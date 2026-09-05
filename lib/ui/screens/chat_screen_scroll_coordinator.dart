@@ -11,8 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
 import 'chat_screen_unread_target_resolver.dart';
 import 'chat_screen_viewport_state.dart';

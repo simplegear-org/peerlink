@@ -77,10 +77,11 @@ class SettingsPairingStateRepository {
     AccountPairingPayload payload,
     List<AccountPairingPayload> current,
   ) {
-    final sessions = current
-        .where((item) => item.sessionId != payload.sessionId)
-        .toList(growable: true)
-      ..add(payload);
+    final sessions =
+        current
+            .where((item) => item.sessionId != payload.sessionId)
+            .toList(growable: true)
+          ..add(payload);
     return _write(
       key,
       jsonEncode(sessions.map((item) => item.toJson()).toList(growable: false)),

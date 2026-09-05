@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Last updated: 2026-08-28
+Last updated: 2026-09-06
 
 ## 1. Purpose
 
@@ -12,9 +12,24 @@ PeerLink is a Flutter messenger with a decentralized core. In practice, the proj
 ## 2. AS-IS Snapshot
 
 Working now:
-- DI assembly via `NetworkDependencies.create()`.
+- Explicit top-level application composition lives in
+  `lib/app/composition`: `AppCompositionRoot` owns creation of shared storage,
+  runtime dependencies, and presentation-shell dependencies; `AppDependencies`
+  exposes the top-level lifetime-owned dependencies used by bootstrap/UI.
+- App-level orchestration lives in `lib/app`: `AppUiDependencies` builds
+  UI-facing controllers/services, while `AppPushCoordinator`,
+  `AppDeepLinkCoordinator`, `AppCallCoordinator`, `AppLifecycleCoordinator`, and
+  `AppBadgeCoordinator` own push-open, deep-link, call, lifecycle, and badge
+  orchestration behind injected UI callbacks.
+- DI assembly via `NetworkDependencies.create(storage: ...)`; the app/bootstrap
+  root owns the shared `StorageService` instance and injects it into the
+  runtime graph. `NetworkDependencies.create` builds an owned graph per call and
+  no longer keeps singleton runtime state.
 - App startup orchestration via `AppBootstrapCoordinator`.
-- `NodeFacade` as UI entrypoint to core.
+- `NodeFacade` as the internal aggregate/core entrypoint during migration, with
+  narrow capability contracts in `lib/core/node/node_capability_apis.dart`
+  (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
+  `RuntimeEventsApi`) for consumers that do not need the whole runtime surface.
 - `MeshNode` as runtime orchestrator.
 - `PushApiClient` for signed requests to `push.js` (`/devices/register`, `/devices/unregister`, `/devices/access-policy`, `/events/push`), with higher-level event construction delegated to `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`; moderation HTTP lives separately in `ModerationApiClient`.
 - The FCM runtime module in `lib/core/firebase` is decomposed into:
@@ -50,7 +65,15 @@ Working now:
 - Relay control writes, fetch, and blob fetch are parallelized across selected relays to avoid cumulative timeout delays from dead servers.
 - Blob fetch expands beyond the current live shortlist after all shortlist candidates return `404`, before declaring a blob missing.
 - Call stack is decomposed into bounded controllers/orchestrators for peer bootstrap, connection, negotiation, media readiness, video signaling/transceivers/quality, remote control, terminal lifecycle, runtime tracking, epoch timers, and diagnostics.
+- Calls now own call history persistence and native call bridge adapters under
+  `lib/features/calls`: `infrastructure/call_log_repository.dart` and
+  `platform/*call*_service.dart`. The old `lib/core/runtime/*call*` paths are
+  temporary compatibility exports.
 - The call-control layer uses two channels for critical commands (`call_invite`, `call_accept`, `call_reject`, `call_end`): fast bootstrap signaling with bounded retries and a fallback direct reliable control payload `__peerlink_call_control_v1__`, so lost signaling packets or temporarily divergent bootstrap state do not leave the other side ringing indefinitely. Duplicate delivery of `call_invite` for the already current `peerId/callId` is idempotent in every non-idle phase and is not converted into `call_busy`. Terminal lifecycle also emits a final `call_end` through the same dual path before local runtime reset.
+- Calls no longer depend on concrete Chat fallback wiring inside `MeshNode`:
+  `CallService` consumes the `CallControlTransport` port, and
+  `NetworkDependencies` wires `ReliableCallControlAdapter` over `ChatService`
+  for the reliable fallback path.
 - TURN allocator and TURN server configuration from settings.
 
 Current constraints:
@@ -62,8 +85,17 @@ Current constraints:
 ## 3. Current Dependency Graph
 
 ```text
+main.dart / app bootstrap
+  -> AppCompositionRoot
+    -> AppDependencies
+      -> StorageService
+      -> AppAppearanceController / AppLocaleController
+      -> NetworkDependencies
+      -> AppUiDependencies
+        -> AppPushCoordinator / AppDeepLinkCoordinator
+        -> AppCallCoordinator / AppLifecycleCoordinator / AppBadgeCoordinator
 UI
-  -> NodeFacade
+  -> AppDependencies / NodeFacade
     -> MeshNode
       -> Identity / Session / Signature
       -> TransportManager
@@ -83,18 +115,53 @@ UI
       -> NetworkEventBus
 ```
 
+## 3.1 Application Composition (`lib/app`)
+
+- `AppCompositionRoot` is the top-level composition root for the Flutter
+  application process.
+- It creates the shared `StorageService`, configures storage-backed app services,
+  creates runtime dependencies through `NetworkDependencies`, and creates
+  UI-facing dependencies through `AppUiDependencies`.
+- `AppDependencies` is an owned dependency container, not a global service
+  locator. Bootstrap/UI receive concrete dependencies explicitly from it.
+- `AppPushCoordinator` owns app-level FCM callback registration, opened-push
+  call handling, moderation/group callback dispatch, and relay polling for
+  opened message pushes; UI keeps tab navigation ownership through injected
+  callbacks.
+- `AppDeepLinkCoordinator` owns app deep-link parsing and dispatch for
+  invite/config/pair/call links.
+- `AppCallCoordinator` owns call-state subscriptions, terminal call-log
+  recording, CallKit open-call events, and missed-call badge refresh triggers.
+- `AppLifecycleCoordinator` owns app resume orchestration.
+- `AppBadgeCoordinator` owns app-icon badge sync across unread messages and
+  missed calls.
+- The FCM background handler remains a separate background isolate composition
+  root where platform constraints require an independent lifecycle.
+
 ## 4. Layer Boundaries
 
 ### 4.1 UI (`lib/ui`)
 
 - Screens, widgets, state controllers.
-- Uses `NodeFacade` only.
+- Existing broad consumers may still use `NodeFacade` during migration; new or
+  migrated consumers should depend on narrow node capability contracts. App
+  push/deep-link/call coordinators and the active call screen now use
+  `CallsApi`, `NetworkApi`, and/or `IdentityApi` instead of unrestricted
+  `NodeFacade`.
 - Runtime localization lives in `lib/ui/localization`: `AppLocaleController` persists the selected language in settings storage, `AppStrings` provides the lookup/formatting API and Flutter localization delegates for `MaterialApp`, and per-language dictionaries live in `lib/ui/localization/dictionaries`.
 - Screen composition pattern is standardized:
   - `*_screen.dart` for orchestration/state wiring,
   - `*_view.dart` for layout widgets,
   - `*_styles.dart` for design constants.
 - Chat modules are split into focused units (`chat_screen_view`, `chat_screen_helpers`, `chat_screen_unread_divider`, `chat_screen_media_actions`, `chat_screen_app_bar`, `chat_screen_message_list`, `chat_screen_audio_actions`, `chat_screen_actions`, `chat_screen_mime_type`, `chat_screen_scroll_coordinator`, `chat_screen_unread_target_resolver`, `chat_screen_lifecycle`, `chat_screen_viewport_state`, `chat_screen_presenter`, `chat_screen_back_swipe_coordinator`, `chat_screen_composer_coordinator`, `chat_controller_parts`, `chat_controller_media`).
+- Chat vertical ownership has started in `lib/features/chat`: `domain`
+  owns `Chat`/`Message`, `infrastructure` owns `ChatRepository`, and
+  `application` owns chat payload models, outbound codec, receipt handling,
+  read-state handling, and message mutation. Chat SQLite/Drift storage is now
+  owned by `lib/features/chat/infrastructure/chat_database.dart`, with the old
+  `lib/core/runtime/chat_database.dart` path kept as a temporary compatibility
+  export. The old `lib/ui/models` and selected `lib/ui/state/chat_*` paths are
+  temporary compatibility exports.
 - `ChatScreen` now keeps only orchestration/state wiring; the AppBar, message-list overlays, voice-recording flow, dialog/action flow, lifecycle wiring, viewport state, presentation logic, composer/send/reply flow, and back-swipe gesture are moved into dedicated screen modules.
 - Message forwarding lives in `ChatForwardService`; `ChatScreen` only opens the target sheet and calls the service through `sendMessage`/`sendFile` callbacks.
 - `ChatController` decomposition is extended through dedicated services and bounded coordinators/handlers for repository access, summary, file queue/send/progress/transfer, direct lifecycle, direct/group inbound/outbound, group control/content/crypto, cleanup, history load, message mutation/send, incoming media restore, outgoing relay-media resume, account payloads, reply metadata, contacts, read state, message receipts, and group flow; the controller should stay an orchestration/facade layer.
@@ -106,6 +173,12 @@ UI
 - Top-level Contacts/Chats/Settings pages use compact AppBar-led layouts without descriptive page-copy headers; contact, chat, and call-history rows share the same tight spacing/internal-padding constants via `CompactCardTileStyles`.
 - `MessageBubbleStatusRow` renders outgoing receipt checks as overlapping marks: 1 check for sent, 2 for delivered, 3 for read.
 - PeerLink contacts are internal app contacts keyed by Peer ID; system Contacts/address-book access is not used and should not be requested in platform permissions.
+- Contact domain and persistence ownership now lives under
+  `lib/features/contacts`: `domain/contact.dart` plus
+  `infrastructure/contacts_repository.dart` and
+  `contact_name_resolver.dart`. The old `lib/ui/models/contact.dart` and
+  `lib/core/runtime/contacts_repository.dart` paths are temporary compatibility
+  exports.
 - Contact rows show avatar, one display label (contact name or short peer id), and last-seen text; chat rows show avatar, chat title, last message, and unread badge without last-seen text.
 - Contact rows mark locally blocked Peer IDs with a `block` icon; the long-press contact menu supports rename and block/unblock.
 - Chat rows also show top-right receipt checks for the last outgoing message and the last-message timestamp; timestamp formatting is `HH:MM`, `DD:MM`, or `DD:MM:YY` depending on the date.
@@ -130,10 +203,17 @@ UI
 - The app version is shown in Settings only inside About/Legal, without a separate top footer before the first card.
 - Settings server summary cards subscribe to availability streams, and exported server-config QR payloads refresh when bootstrap/relay/turn/push availability changes.
 - `SettingsController` in `lib/ui/state` is now decomposed: server-status presentation is in `settings_server_status_presenter.dart`, invite encode/parse is in `settings_invite_codec.dart`, and pairing flow logic is in `settings_pairing_flow_service.dart`.
+- `UiApp` owns presentation-shell state, screen composition, tab selection, and
+  Navigator/UI effects. It receives dependencies from `AppDependencies` and
+  delegates non-presentation orchestration to app-level coordinators.
 
 ### 4.2 Core Entry (`lib/core/node`)
 
 - `NodeFacade`: stable API for UI.
+- `node_capability_apis.dart`: narrow public contracts for messaging, calls,
+  identity, network, moderation, and runtime events. `NodeFacade` implements
+  these contracts while the broad facade remains available internally during
+  migration.
 - Unified messaging/blob entrypoints live here: `sendPayload(...)`, `uploadBlob(...)`, `downloadBlob(...)`.
 - `MeshNode`: composition/lifecycle/signaling routing.
 - `MeshSignalRouter`: the extracted routing seam for the signaling -> `CallService` / peer-transport boundary inside `MeshNode`.
@@ -142,7 +222,7 @@ UI
 
 - `NetworkDependencies`: dependency graph builder.
 - `AppBootstrapCoordinator`: post-bootstrap wiring (servers, background tasks).
-- Storage and repositories (`StorageService` as facade, `storage_service_paths`, `storage_service_migrations`, `storage_service_media`, contact/call repositories).
+- Storage runtime (`StorageService` as facade, `storage_service_paths`, `storage_service_migrations`, `storage_service_media`). Production storage ownership is explicit in app/bootstrap entrypoints; the FCM background handler creates its own storage for the background isolate lifecycle. Feature repositories/database implementations should live under their owning feature modules; legacy `core/runtime` import paths remain only as temporary forwarding exports where needed.
 - `PeerAccessControlService` lives in `lib/core/runtime` next to runtime repositories and must not move into UI: UI only calls block/unblock/settings APIs, while runtime/chat/push/call paths use the shared allow/drop contract.
 - `ModerationReportService` creates metadata-only UGC reports: direct reports target the peer, group reports target the selected message author plus `groupId`, and message text/media is not included; after a report the UI hides the selected message locally for the reporter.
 - `ModerationApiClient` isolates the `/moderation/reports`, `/moderation/appeals`, and `/moderation/status` HTTP contract; `PushApiClient` must not contain moderation endpoints.
@@ -162,7 +242,12 @@ UI
 - `IdentityService` provides stable `peerId` (v2) plus legacy id metadata for compatibility.
 - The identity/security layer is decomposed: `IdentityService` should remain an orchestration/facade layer, `identity_key_store.dart` owns the key-store abstraction and secure-storage bridge, `identity_storage_support.dart` owns storage/keypair/install-id helpers, and `identity_membership_crypto.dart` owns membership/update signing and verification payload logic.
 - `SelfHostedDeployService`: SSH deployment orchestration for personal server stack, staged progress (`1/14 ... 14/14`), post-deploy connectivity checks, and fixed self-hosted endpoints `wss://<ip>:443` / `https://<ip>:444`.
-- `AvatarService` now lives in `lib/core/runtime`: it owns local avatar cache, embedded backup/restore, blob download, and best-effort avatar announce/remove/query flow.
+- `AvatarService` now lives in `lib/features/profile/application`: it owns
+  local avatar cache, embedded backup/restore, blob download, and best-effort
+  avatar announce/remove/query flow. The old `lib/core/runtime/avatar_service.dart`
+  path is a temporary compatibility export. Chat consumes avatar inbound
+  handling through the narrow `ProfileAvatarInboundHandler` contract instead of
+  importing the concrete profile service.
 - Server-health services share the `ServerAvailabilityProvider` contract so future runtime orchestration can work with bootstrap/relay/turn probing through one interface.
 - `ServerHealthCoordinator` owns the shared bootstrap/relay/turn health services and starts them after app bootstrap, so runtime and Settings use the same availability state instead of duplicate probe loops.
 - When local server configuration is completely empty, `ServerHealthCoordinator` runs `InitialServerConfigBootstrapper`: it best-effort fetches `https://simplegear.org/config/initial-server-config.json`, validates `ServerConfigPayload`, and merges bootstrap/relay/TURN/push. Site unavailability or malformed responses are logged and do not stop startup.
@@ -216,6 +301,14 @@ UI
 ### 4.5 Calls (`lib/core/calls`)
 
 - `CallService` should remain a thin orchestration/facade layer over call helper modules and peer/runtime callback wiring.
+- `CallControlTransport` is the Calls-owned port for reliable call-control
+  fallback. `ReliableCallControlAdapter` is the current integration adapter over
+  Chat control messages; `MeshNode` must not wire `ChatService` and
+  `CallService` callbacks directly.
+- `MeshNodeRuntimeAdapterFactory` owns construction of MeshNode integration
+  helpers for push, moderation and signal routing. `MeshNode` supplies runtime
+  callbacks/state through `MeshNodeRuntimeAdapterContext` and keeps the returned
+  `MeshNodeRuntimeAdapters`.
 - `CallCommandHelper`, control-signal helpers/routers, connect orchestration, network policy, peer binding/lifecycle, lifecycle reset, media readiness/timeout, state update, and pending remote-end helpers own bounded call-flow responsibilities outside `CallService`.
 - `AudioCallPeer` is now a thin orchestration/facade layer over call controllers and should not grow back into a god object.
 - `CallPeerSessionController` owns peer bootstrap, incoming/outgoing session flow, and cleanup/reset.
@@ -262,8 +355,10 @@ UI
 ## 5. Architectural Rules
 
 - UI must not directly depend on transport/security internals.
-- `NodeFacade` remains the only UI boundary.
-- Runtime composition belongs to `NetworkDependencies`.
+- `NodeFacade` remains the compatibility UI/core aggregate during migration;
+  new and migrated consumers should prefer narrow capability contracts.
+- Top-level app composition belongs to `AppCompositionRoot`; runtime graph
+  composition remains delegated to `NetworkDependencies`.
 - Any new call/media logic should be extracted from `AudioCallPeer` (controller/state style).
 - Inside `lib/core/calls`, prefer extending existing `Call*Controller` modules first; introduce a new controller only when the responsibility is genuinely new.
 - Documentation must track runtime truth (not target-only intent).

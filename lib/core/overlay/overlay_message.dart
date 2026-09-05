@@ -41,9 +41,7 @@ class OverlayMessage {
       messageId: decoded['messageId'] as String,
       from: decoded['from'] as String,
       to: decoded['to'] as String,
-      payload: Uint8List.fromList(
-        base64Decode(decoded['payload'] as String),
-      ),
+      payload: Uint8List.fromList(base64Decode(decoded['payload'] as String)),
       ttl: decoded['ttl'] as int? ?? 8,
     );
   }

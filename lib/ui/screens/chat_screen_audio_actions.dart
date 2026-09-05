@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 
 import '../localization/app_strings.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
 
 class ChatScreenAudioActions {

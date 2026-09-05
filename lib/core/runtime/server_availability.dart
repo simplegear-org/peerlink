@@ -16,15 +16,12 @@ class ServerAvailability {
   });
 
   const ServerAvailability.unknown()
-      : isAvailable = null,
-        error = null,
-        checkedAt = null;
+    : isAvailable = null,
+      error = null,
+      checkedAt = null;
 
   factory ServerAvailability.available({DateTime? checkedAt}) {
-    return ServerAvailability(
-      isAvailable: true,
-      checkedAt: checkedAt,
-    );
+    return ServerAvailability(isAvailable: true, checkedAt: checkedAt);
   }
 
   factory ServerAvailability.unavailable({

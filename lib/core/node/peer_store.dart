@@ -10,10 +10,7 @@ class PeerStore {
   final Map<String, PeerRecord> _peers = {};
 
   void addPeer(NodeInfo node) {
-    final rec = _peers.putIfAbsent(
-      node.nodeId,
-      () => PeerRecord(node.nodeId),
-    );
+    final rec = _peers.putIfAbsent(node.nodeId, () => PeerRecord(node.nodeId));
 
     rec.addresses.add(node.address);
   }
@@ -23,10 +20,7 @@ class PeerStore {
   }
 
   void markProtocol(String peerId, String protocol) {
-    final rec = _peers.putIfAbsent(
-      peerId,
-      () => PeerRecord(peerId),
-    );
+    final rec = _peers.putIfAbsent(peerId, () => PeerRecord(peerId));
 
     rec.protocols.add(protocol);
   }
@@ -35,8 +29,7 @@ class PeerStore {
     return _peers[peerId];
   }
 
-  List<PeerRecord> get allPeers =>
-      _peers.values.toList();
+  List<PeerRecord> get allPeers => _peers.values.toList();
 }
 
 class PeerRecord {

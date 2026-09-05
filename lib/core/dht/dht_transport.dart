@@ -29,9 +29,9 @@ class DhtTransport {
   }
 
   String _randomId() {
-      final r = Random();
-      return List.generate(16, (_) => r.nextInt(255)).join();
-    }
+    final r = Random();
+    return List.generate(16, (_) => r.nextInt(255)).join();
+  }
 
   Future<void> send(String peerId, RpcMessage msg) async {
     final payload = utf8.encode(jsonEncode(msg.toJson()));

@@ -6,9 +6,9 @@
 
 import '../../core/calls/call_log_entry.dart';
 import '../../core/calls/call_models.dart';
-import '../../core/runtime/android_call_log_service.dart';
-import '../../core/runtime/call_log_repository.dart';
-import '../../core/runtime/contacts_repository.dart';
+import '../../features/calls/platform/android_call_log_service.dart';
+import '../../features/calls/infrastructure/call_log_repository.dart';
+import '../../features/contacts/infrastructure/contacts_repository.dart';
 import 'contacts_controller.dart';
 
 class UiAppController {

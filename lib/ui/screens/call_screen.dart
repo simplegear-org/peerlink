@@ -11,19 +11,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/calls/call_models.dart';
-import '../../core/node/node_facade.dart';
+import '../../core/node/node_capability_apis.dart';
 import '../../core/runtime/app_file_logger.dart';
 import 'package:peerlink/ui/screens/call_screen_view.dart';
 
 class CallScreen extends StatefulWidget {
-  final NodeFacade facade;
+  final CallsApi calls;
   final CallState state;
   final String contactName;
   final ValueListenable<int>? dataBytesListenable;
 
   const CallScreen({
     super.key,
-    required this.facade,
+    required this.calls,
     required this.state,
     required this.contactName,
     this.dataBytesListenable,
@@ -79,7 +79,7 @@ class _CallScreenState extends State<CallScreen> {
   Widget build(BuildContext context) {
     final mediaPadding = MediaQuery.paddingOf(context);
     return CallScreenContent(
-      facade: widget.facade,
+      calls: widget.calls,
       state: widget.state,
       contactName: widget.contactName,
       dataBytesListenable: widget.dataBytesListenable,

@@ -214,10 +214,7 @@ class SettingsListItem extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (trailing != null) ...[
-                  const SizedBox(width: 12),
-                  trailing!,
-                ],
+                if (trailing != null) ...[const SizedBox(width: 12), trailing!],
               ],
             ),
           ),

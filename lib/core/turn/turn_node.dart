@@ -13,10 +13,7 @@ class TurnNode {
   int _score = 100;
   bool _healthy = true;
 
-  TurnNode({
-    required this.credentials,
-    required this.priority,
-  });
+  TurnNode({required this.credentials, required this.priority});
 
   int get score => _score + priority;
 

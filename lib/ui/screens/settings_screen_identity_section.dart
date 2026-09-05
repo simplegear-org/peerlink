@@ -9,7 +9,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../state/settings_controller.dart';

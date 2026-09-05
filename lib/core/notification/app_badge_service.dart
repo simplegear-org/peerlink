@@ -11,8 +11,7 @@ import '../runtime/storage_service.dart';
 import 'notification_service.dart';
 
 class AppBadgeService {
-  AppBadgeService({StorageService? storage})
-    : _storage = storage ?? StorageService();
+  AppBadgeService({required StorageService storage}) : _storage = storage;
 
   static const String _missedCallsSeenAtKey = 'peerlink.calls.missed_seen_at';
   static const String _handledPushEventsKey =

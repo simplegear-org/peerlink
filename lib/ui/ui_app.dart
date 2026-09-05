@@ -9,13 +9,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../core/calls/call_log_entry.dart';
+import '../app/calls/app_call_coordinator.dart';
+import '../app/composition/app_dependencies.dart';
+import '../app/deep_links/app_deep_link_coordinator.dart';
+import '../app/lifecycle/app_lifecycle_coordinator.dart';
+import '../app/push/app_push_coordinator.dart';
 import '../core/calls/call_models.dart';
 import '../core/firebase/firebase_push_payload.dart';
-import '../core/notification/app_badge_service.dart';
-import '../core/runtime/android_call_notification_service.dart';
-import '../core/runtime/deep_link_service.dart';
-import '../core/runtime/ios_callkit_service.dart';
+import '../core/node/node_capability_apis.dart';
+import '../features/calls/platform/ios_callkit_service.dart';
 import '../core/runtime/peer_access_control_service.dart';
 import 'screens/account_restricted_screen.dart';
 import 'screens/contacts_screen.dart';
@@ -25,38 +27,25 @@ import 'screens/calls_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/terms_gate_screen.dart';
 import 'localization/app_strings.dart';
-import 'models/contact.dart';
 import 'state/chat_controller.dart';
 import 'state/calls_controller.dart';
 import 'state/contacts_controller.dart';
-import 'state/app_appearance_controller.dart';
-import 'state/app_locale_controller.dart';
 import 'state/app_restriction_controller.dart';
 import 'state/presence_service.dart';
 import 'state/settings_controller.dart';
 import 'state/ui_app_controller.dart';
 
-import '../core/runtime/call_log_repository.dart';
-import '../core/runtime/contacts_repository.dart';
 import '../core/node/node_facade.dart';
-import '../core/runtime/avatar_service.dart';
-import '../core/runtime/storage_service.dart';
+import '../features/profile/application/avatar_service.dart';
 import '../core/runtime/self_hosted_deploy_service.dart';
 import '../core/firebase/firebase_messaging_service.dart';
 
 class UiApp extends StatefulWidget {
-  final NodeFacade facade;
-  final StorageService storage;
-  final AppAppearanceController appearanceController;
-  final AppLocaleController localeController;
+  final AppDependencies dependencies;
 
-  const UiApp({
-    super.key,
-    required this.facade,
-    required this.storage,
-    required this.appearanceController,
-    required this.localeController,
-  });
+  const UiApp({super.key, required this.dependencies});
+
+  NodeFacade get facade => dependencies.nodeFacade;
 
   @override
   State<UiApp> createState() => _UiAppState();
@@ -70,155 +59,161 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   late final SettingsController _settingsController;
   late final SelfHostedDeployService _selfHostedDeployService;
   late final AvatarService _avatarService;
-  late final AppBadgeService _appBadgeService;
-  final AndroidCallNotificationService _androidCallNotifications =
-      const AndroidCallNotificationService();
   late final PresenceService _presenceService;
   late final UiAppController _appController;
+  late final AppCallCoordinator _callCoordinator;
+  late final AppDeepLinkCoordinator _deepLinkCoordinator;
+  late final AppLifecycleCoordinator _lifecycleCoordinator;
+  late final AppPushCoordinator _pushCoordinator;
   late final AppRestrictionController _restrictionController;
-  late final ContactsRepository _contactsRepository;
   late final PeerAccessControlService _accessControl;
-  late final CallLogRepository _callLogRepository;
-  late final StreamSubscription<CallState> _callStateSubscription;
-  StreamSubscription<String>? _deepLinkSubscription;
   StreamSubscription<String>? _chatUpdatesSubscription;
-  StreamSubscription<void>? _openCallScreenSubscription;
   CallState _callState = CallState.idle;
   Route<void>? _callRoute;
-  String? _lastRecordedCallId;
   String? _lastCallUiPresentedAckCallId;
   int _callsRefreshVersion = 0;
   int _missedCallsBadgeCount = 0;
-  final Set<String> _handledDeepLinks = <String>{};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     AppFileLogger.log('[ui] UiApp.initState');
-    _appBadgeService = AppBadgeService(storage: widget.storage);
-    _avatarService = AvatarService(
-      facade: widget.facade,
-      storage: widget.storage,
-    );
-    _chatController = ChatController(
-      widget.facade,
-      storage: widget.storage,
-      avatarService: _avatarService,
-      onUnreadBadgeCountChanged: (unreadCount) {
-        _updateAppIconBadge(unreadMessagesOverride: unreadCount);
-      },
-    );
-    _contactsRepository = ContactsRepository(storage: widget.storage);
-    _accessControl = PeerAccessControlService(
-      settingsBox: widget.storage.getSettings(),
-      contactsRepository: _contactsRepository,
-    );
-    _callLogRepository = CallLogRepository(storage: widget.storage);
-    _callsController = CallsController(repository: _callLogRepository);
-    _contactsController = ContactsController(
-      repository: _contactsRepository,
-      accessControl: _accessControl,
-      onAccessPolicyChanged: (reason) {
-        unawaited(
-          widget.facade.syncPushDeviceState(reason: reason, forcePolicy: true),
-        );
-      },
-      onAccessPolicyChangedNow: (reason) {
-        return widget.facade.syncPushDeviceState(
-          reason: reason,
-          forcePolicy: true,
-        );
-      },
-    );
-    _contactsController.loadIntoMemory();
-    _settingsController = SettingsController(
-      facade: widget.facade,
-      storage: widget.storage,
-    );
-    _restrictionController = AppRestrictionController(
-      facade: widget.facade,
-      settingsController: _settingsController,
-      storage: widget.storage,
-    );
-    _selfHostedDeployService = SelfHostedDeployService();
-    _presenceService = PresenceService(facade: widget.facade);
-    _appController = UiAppController(
-      contactsRepository: _contactsRepository,
-      callLogRepository: _callLogRepository,
-      contactsController: _contactsController,
-    );
-    FirebaseMessagingService.onGroupMembersUpdateFromPush =
-        (payload, {String? sourcePeerId}) {
-          if (_shouldDropExternalInteraction('group_members_push')) {
-            return Future<void>.value();
-          }
-          return _chatController.applyGroupMembersUpdateFromPush(
-            payload,
-            sourcePeerId: sourcePeerId,
-          );
-        };
-    FirebaseMessagingService.onPushOpened = (data, {required source}) async {
+    final ui = widget.dependencies.ui;
+    _chatController = ui.chatController;
+    _callsController = ui.callsController;
+    _contactsController = ui.contactsController;
+    _settingsController = ui.settingsController;
+    _restrictionController = ui.restrictionController;
+    _selfHostedDeployService = ui.selfHostedDeployService;
+    _avatarService = ui.avatarService;
+    _presenceService = ui.presenceService;
+    _appController = ui.appController;
+    _accessControl = ui.accessControl;
+    ui.badgeCoordinator.onMissedCallsBadgeCountChanged = (count) {
       if (!mounted) {
         return;
       }
-      if (_shouldDropExternalInteraction('push_open source=$source')) {
-        return;
-      }
-      final pushPayload = FirebasePushPayload.fromMap(data);
-      if (_shouldDropOpenedPush(pushPayload, source: source)) {
-        return;
-      }
-      if (pushPayload.isCallEnd && pushPayload.hasPeerAndCallId) {
-        await widget.facade.endCallFromRemotePush(
-          peerId: pushPayload.callPeerId,
-          callId: pushPayload.callId,
-        );
-        return;
-      }
-      if (pushPayload.isCallInvite) {
-        if (pushPayload.hasPeerAndCallId) {
-          await widget.facade.presentIncomingCallFromPush(
-            peerId: pushPayload.callPeerId,
-            callId: pushPayload.callId,
-            mediaType: pushPayload.callMediaType,
-          );
-          if (!mounted) {
-            return;
-          }
-          if (!_restrictionController.gate.canHandleExternalInteraction) {
-            return;
-          }
-          setState(() {
-            index = 2;
-          });
-          unawaited(_refreshMissedCallsBadge(markSeen: true));
-          unawaited(_syncCallRoute(widget.facade.callState));
-        }
-        return;
-      }
-      await _pollRelayForOpenedPush(pushPayload, source: source);
-      if (source == 'foreground') {
-        return;
-      }
       setState(() {
-        index = 1;
+        _missedCallsBadgeCount = count;
       });
     };
-    FirebaseMessagingService.onModerationPolicyFromPush =
-        (snapshot, {required source}) async {
-          if (!mounted) {
-            return;
-          }
-          await _restrictionController.applyPolicyFromPush(
-            snapshot,
-            callState: widget.facade.callState,
-          );
-          if (mounted) {
-            setState(() {});
-          }
-        };
+    _pushCoordinator = AppPushCoordinator(
+      calls: widget.facade,
+      network: widget.facade,
+      onGroupMembersUpdate: (payload, {String? sourcePeerId}) {
+        return _chatController.applyGroupMembersUpdateFromPush(
+          payload,
+          sourcePeerId: sourcePeerId,
+        );
+      },
+      onModerationPolicy: (snapshot, {required source}) async {
+        if (!mounted) {
+          return;
+        }
+        await _restrictionController.applyPolicyFromPush(
+          snapshot,
+          callState: widget.facade.callState,
+        );
+        if (mounted) {
+          setState(() {});
+        }
+      },
+      shouldDropExternalInteraction: (label) {
+        return !mounted || _shouldDropExternalInteraction(label);
+      },
+      shouldDropOpenedPush: _shouldDropOpenedPush,
+      refreshMissedCallsBadge: _refreshMissedCallsBadge,
+      syncCallRoute: _syncCallRoute,
+      canHandleExternalInteraction: () {
+        return mounted &&
+            _restrictionController.gate.canHandleExternalInteraction;
+      },
+      showCallsTab: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          index = 2;
+        });
+      },
+      showChatsTab: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          index = 1;
+        });
+      },
+    );
+    _pushCoordinator.register();
     _callState = widget.facade.callState;
+    _callCoordinator = AppCallCoordinator(
+      calls: widget.facade,
+      canHandleExternalInteraction: () {
+        return mounted &&
+            _restrictionController.gate.canHandleExternalInteraction;
+      },
+      recordCall: _appController.recordCall,
+      logStatusFor: _appController.logStatusFor,
+      syncCallRoute: _syncCallRoute,
+      refreshMissedCallsBadge: _refreshMissedCallsBadge,
+      isCallsTabSelected: () => index == 2,
+      showCallsTab: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          index = 2;
+        });
+      },
+      onCallStateChanged: (state) {
+        _callState = state;
+      },
+      onHistoryChanged: () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _callsRefreshVersion++;
+        });
+      },
+      showError: (error) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
+      },
+    );
+    _callCoordinator.start();
+    _lifecycleCoordinator = AppLifecycleCoordinator(
+      refreshRestrictionStatus: _refreshRestrictionStatus,
+    );
+    _deepLinkCoordinator = AppDeepLinkCoordinator(
+      calls: widget.facade,
+      identity: widget.facade,
+      settingsController: _settingsController,
+      contactsController: _contactsController,
+      restrictionController: _restrictionController,
+      syncCallRoute: _syncCallRoute,
+      refreshMissedCallsBadge: _refreshMissedCallsBadge,
+      showContactsTab: () => _selectTab(0),
+      showCallsTab: () => _selectTab(2),
+      showSettingsTab: () => _selectTab(3),
+      onServerSettingsMerged: () {
+        _showSnackBar(context.strings.serverSettingsMerged);
+      },
+      onAccountPairingRequestSent: () {
+        _showSnackBar(context.strings.accountPairingRequestSent);
+      },
+      onContactAdded: (displayName) {
+        _showSnackBar(context.strings.contactAdded(displayName));
+      },
+      onError: _showSnackBar,
+    );
+    _deepLinkCoordinator.start();
     unawaited(_refreshMissedCallsBadge(markSeen: index == 2));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -226,46 +221,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       }
       unawaited(_settingsController.initialize());
       unawaited(_refreshRestrictionStatus(reason: 'startup'));
-      unawaited(_handleInitialDeepLink());
+      unawaited(_deepLinkCoordinator.handleInitial());
       unawaited(_syncCallRoute(_callState));
       unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
-    });
-    _deepLinkSubscription = DeepLinkService.instance.links.listen(
-      (link) => unawaited(_handleDeepLink(link)),
-      onError: (error, stackTrace) {
-        AppFileLogger.log(
-          '[ui] deepLink stream error=$error',
-          name: 'ui',
-          stackTrace: stackTrace is StackTrace ? stackTrace : null,
-        );
-      },
-    );
-    _openCallScreenSubscription = IosCallkitService.instance.onOpenCallScreen
-        .listen((_) {
-          if (!mounted) {
-            return;
-          }
-          if (!_restrictionController.gate.canHandleExternalInteraction) {
-            return;
-          }
-          setState(() {
-            index = 2;
-          });
-          unawaited(_refreshMissedCallsBadge(markSeen: true));
-          unawaited(_syncCallRoute(_callState));
-        });
-    _callStateSubscription = widget.facade.callStateStream.listen((state) {
-      if (!mounted) {
-        return;
-      }
-      _callState = state;
-      unawaited(_syncCallRoute(state));
-      unawaited(_maybeRecordCall(state));
-      if (state.phase == CallPhase.failed && state.error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(state.error!)));
-      }
     });
     _chatUpdatesSubscription = _chatController.messageUpdatesStream.listen((_) {
       if (!mounted) {
@@ -304,33 +262,22 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    FirebaseMessagingService.onGroupMembersUpdateFromPush = null;
-    FirebaseMessagingService.onModerationPolicyFromPush = null;
-    FirebaseMessagingService.onPushOpened = null;
+    _pushCoordinator.dispose();
+    unawaited(_deepLinkCoordinator.dispose());
     final route = _callRoute;
     if (route != null) {
       final navigator = Navigator.of(context, rootNavigator: true);
       navigator.removeRoute(route);
       _callRoute = null;
     }
-    _callStateSubscription.cancel();
+    unawaited(_callCoordinator.dispose());
     unawaited(_chatUpdatesSubscription?.cancel());
-    unawaited(_deepLinkSubscription?.cancel());
-    unawaited(_openCallScreenSubscription?.cancel());
-    unawaited(_avatarService.dispose());
-    unawaited(_presenceService.dispose());
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      unawaited(
-        IosCallkitService.instance.refreshVoipRegistration(reason: 'resume'),
-      );
-      unawaited(_refreshRestrictionStatus(reason: 'resume'));
-      unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
-    }
+    _lifecycleCoordinator.handleLifecycleState(state);
   }
 
   @override
@@ -377,8 +324,8 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         avatarService: _avatarService,
         chatController: _chatController,
         selfHostedDeployService: _selfHostedDeployService,
-        appearanceController: widget.appearanceController,
-        localeController: widget.localeController,
+        appearanceController: widget.dependencies.appearanceController,
+        localeController: widget.dependencies.localeController,
         moderationPolicy: _restrictionController.moderationPolicy,
       ),
     ];
@@ -472,7 +419,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
           return PopScope(
             canPop: false,
             child: _GlobalCallScreen(
-              facade: widget.facade,
+              calls: widget.facade,
               appController: _appController,
               contactsController: _contactsController,
             ),
@@ -533,334 +480,40 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     setState(() {});
   }
 
-  Future<void> _maybeRecordCall(CallState next) async {
-    final callId = next.callId;
-    final isTerminal =
-        next.phase == CallPhase.ended || next.phase == CallPhase.failed;
-    if (!isTerminal || callId == null || callId.isEmpty) {
-      return;
-    }
-    if (_lastRecordedCallId == callId) {
-      return;
-    }
-
-    final peerId = next.peerId;
-    final direction = next.direction;
-    if (peerId == null || peerId.isEmpty || direction == null) {
-      return;
-    }
-
-    _lastRecordedCallId = callId;
-    await _appController.recordCall(next);
-    final status = _appController.logStatusFor(next);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _callsRefreshVersion++;
-    });
-    await _refreshMissedCallsBadge(
-      markSeen: index == 2 && status != CallLogStatus.missed,
-    );
-  }
-
   Future<void> _handleCallsHistoryChanged() async {
     await _refreshMissedCallsBadge(markSeen: index == 2);
   }
 
-  Future<void> _refreshMissedCallsBadge({required bool markSeen}) async {
-    if (markSeen) {
-      await _callsController.markMissedCallsSeenNow();
-      await _androidCallNotifications.cancelAllCallNotifications();
-    }
-    final count = await _callsController.loadMissedCallsBadgeCount();
+  void _selectTab(int nextIndex) {
     if (!mounted) {
       return;
     }
     setState(() {
-      _missedCallsBadgeCount = count;
+      index = nextIndex;
     });
-    _updateAppIconBadge(missedCallsOverride: count);
+  }
+
+  void _showSnackBar(String text) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _refreshMissedCallsBadge({required bool markSeen}) async {
+    await widget.dependencies.ui.badgeCoordinator.refreshMissedCallsBadge(
+      markSeen: markSeen,
+    );
   }
 
   void _updateAppIconBadge({
     int? missedCallsOverride,
     int? unreadMessagesOverride,
   }) {
-    final missedCalls = missedCallsOverride ?? _missedCallsBadgeCount;
-    final unreadMessages =
-        unreadMessagesOverride ?? _chatController.unreadMessagesCount();
-    unawaited(
-      _appBadgeService.syncFromUi(
-        unreadMessages: unreadMessages,
-        missedCalls: missedCalls,
-      ),
+    widget.dependencies.ui.badgeCoordinator.syncAppIconBadge(
+      missedCallsOverride: missedCallsOverride,
+      unreadMessagesOverride: unreadMessagesOverride,
     );
-  }
-
-  Future<void> _pollRelayForOpenedPush(
-    FirebasePushPayload pushPayload, {
-    required String source,
-  }) async {
-    final hintedRelayServers = <String>{
-      ...pushPayload.relayServers,
-      ...pushPayload.availableRelayServers,
-    }.toList(growable: false)..sort();
-    AppFileLogger.log(
-      '[ui] push relay poll start type=${pushPayload.type} '
-      'source=$source group=${pushPayload.groupId} '
-      'relayMessage=${pushPayload.relayMessageId} '
-      'hints=${hintedRelayServers.length} hintServers=$hintedRelayServers',
-      name: 'ui',
-    );
-    var fetchedCount = 0;
-    if (hintedRelayServers.isNotEmpty) {
-      try {
-        fetchedCount += await widget.facade.pollRelay(
-          relayServers: hintedRelayServers,
-        );
-      } catch (error, stackTrace) {
-        AppFileLogger.log(
-          '[ui] push open hinted pollRelay failed type=${pushPayload.type} '
-          'source=$source hints=${hintedRelayServers.length} error=$error',
-          name: 'ui',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      }
-    }
-    try {
-      fetchedCount += await widget.facade.pollRelay();
-    } catch (error, stackTrace) {
-      AppFileLogger.log(
-        '[ui] push open full pollRelay failed type=${pushPayload.type} '
-        'source=$source error=$error',
-        name: 'ui',
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-    if (source == 'foreground') {
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      try {
-        fetchedCount += await widget.facade.pollRelay(
-          relayServers: hintedRelayServers.isEmpty ? null : hintedRelayServers,
-        );
-      } catch (error, stackTrace) {
-        AppFileLogger.log(
-          '[ui] push foreground retry pollRelay failed type=${pushPayload.type} '
-          'hints=${hintedRelayServers.length} error=$error',
-          name: 'ui',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      }
-    }
-    if (pushPayload.relayMessageId.isNotEmpty && fetchedCount == 0) {
-      AppFileLogger.log(
-        '[ui] push relay poll miss type=${pushPayload.type} '
-        'source=$source group=${pushPayload.groupId} '
-        'relayMessage=${pushPayload.relayMessageId} '
-        'hints=${hintedRelayServers.length} hintServers=$hintedRelayServers',
-        name: 'ui',
-      );
-    }
-  }
-
-  Future<void> _handleInitialDeepLink() async {
-    final link = await DeepLinkService.instance.initialLink();
-    if (link == null || link.trim().isEmpty) {
-      AppFileLogger.log('[ui] deepLink warning initial empty', name: 'ui');
-      return;
-    }
-    AppFileLogger.log(
-      '[ui] deepLink warning initial received length=${link.length}',
-      name: 'ui',
-    );
-    await _handleDeepLink(link);
-  }
-
-  Future<void> _handleDeepLink(String rawLink) async {
-    final link = _extractDeepLinkCandidate(rawLink);
-    if (link.isEmpty) {
-      AppFileLogger.log(
-        '[ui] deepLink warning extracted empty rawLength=${rawLink.length}',
-        name: 'ui',
-      );
-      return;
-    }
-
-    try {
-      AppFileLogger.log(
-        '[ui] deepLink warning handle scheme=${Uri.tryParse(link)?.scheme} '
-        'host=${Uri.tryParse(link)?.host} length=${link.length}',
-        name: 'ui',
-      );
-      final uri = Uri.tryParse(link);
-      final isCallDeepLink =
-          uri != null && uri.scheme == 'peerlink' && uri.host == 'call';
-      if (isCallDeepLink) {
-        if (_shouldDropExternalInteraction('deep_link_call')) {
-          return;
-        }
-        final pushPayload = FirebasePushPayload.fromMap(
-          Map<String, dynamic>.from(uri.queryParameters),
-        );
-        if (pushPayload.isCallEnd && pushPayload.hasPeerAndCallId) {
-          await widget.facade.endCallFromRemotePush(
-            peerId: pushPayload.callPeerId,
-            callId: pushPayload.callId,
-          );
-          return;
-        }
-        if (pushPayload.isCallInvite && pushPayload.hasPeerAndCallId) {
-          await widget.facade.presentIncomingCallFromPush(
-            peerId: pushPayload.callPeerId,
-            callId: pushPayload.callId,
-            mediaType: pushPayload.callMediaType,
-          );
-          if (!mounted) {
-            return;
-          }
-          unawaited(_syncCallRoute(widget.facade.callState));
-          return;
-        }
-        setState(() {
-          index = 2;
-        });
-        unawaited(_refreshMissedCallsBadge(markSeen: true));
-        return;
-      }
-      if (!_handledDeepLinks.add(link)) {
-        AppFileLogger.log(
-          '[ui] deepLink warning duplicate ignored length=${link.length}',
-          name: 'ui',
-        );
-        return;
-      }
-
-      final serverConfigFromPayload = _settingsController
-          .tryParseServerConfigFromAnyDeepLinkPayload(link);
-      if (serverConfigFromPayload != null ||
-          _settingsController.isServerConfigDeepLink(link)) {
-        await _settingsController.initialize();
-        if (!mounted) {
-          return;
-        }
-        final payload =
-            serverConfigFromPayload ??
-            _settingsController.parseServerConfigDeepLink(link);
-        AppFileLogger.log(
-          '[ui] deepLink warning config import start '
-          'bootstrap=${payload.bootstrap.length} relay=${payload.relay.length} '
-          'turn=${payload.turn.length} push=${payload.push.length}',
-          name: 'ui',
-        );
-        await _settingsController.importServerConfigPayload(
-          payload,
-          mode: ServerConfigImportMode.merge,
-        );
-        AppFileLogger.log(
-          '[ui] deepLink warning config import done '
-          'bootstrap=${_settingsController.bootstrapPeers.length} '
-          'relay=${_settingsController.relayServers.length} '
-          'turn=${_settingsController.turnServers.length} '
-          'push=${_settingsController.pushServers.length}',
-          name: 'ui',
-        );
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          index = 3;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.strings.serverSettingsMerged)),
-        );
-        return;
-      }
-
-      if (_settingsController.isAccountPairingDeepLink(link)) {
-        if (_shouldDropExternalInteraction('deep_link_pairing')) {
-          return;
-        }
-        await _settingsController.initialize();
-        await _settingsController.requestAccountPairingDeepLink(link);
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          index = 3;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.strings.accountPairingRequestSent)),
-        );
-        return;
-      }
-
-      final invite = _settingsController.parseInviteDeepLink(link);
-      if (_shouldDropExternalInteraction('deep_link_invite')) {
-        return;
-      }
-      await _settingsController.initialize();
-      AppFileLogger.log(
-        '[ui] deepLink warning invite import start '
-        'peer=${invite.peerId} bootstrap=${invite.serverConfig.bootstrap.length} '
-        'relay=${invite.serverConfig.relay.length} '
-        'turn=${invite.serverConfig.turn.length} '
-        'push=${invite.serverConfig.push.length}',
-        name: 'ui',
-      );
-      await _settingsController.importServerConfigPayload(
-        invite.serverConfig,
-        mode: ServerConfigImportMode.merge,
-      );
-      AppFileLogger.log(
-        '[ui] deepLink warning invite import done '
-        'bootstrap=${_settingsController.bootstrapPeers.length} '
-        'relay=${_settingsController.relayServers.length} '
-        'turn=${_settingsController.turnServers.length} '
-        'push=${_settingsController.pushServers.length}',
-        name: 'ui',
-      );
-      if (invite.peerId == widget.facade.peerId) {
-        return;
-      }
-      final identityBundle = invite.identityBundleV3;
-      if (identityBundle != null) {
-        await widget.facade.trustPeerIdentityBundleV3(
-          identityBundle,
-          expectedPeerId: invite.peerId,
-        );
-      }
-      final displayName = invite.displayName?.trim().isNotEmpty == true
-          ? invite.displayName!.trim()
-          : invite.peerId;
-      await _contactsController.addOrUpdateContact(
-        Contact(peerId: invite.peerId, name: displayName),
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        index = 0;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.strings.contactAdded(displayName))),
-      );
-    } catch (error, stackTrace) {
-      AppFileLogger.log(
-        '[ui] deepLink ignored link=$link error=$error',
-        name: 'ui',
-        stackTrace: stackTrace,
-      );
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
   }
 
   bool _shouldDropExternalInteraction(String label) {
@@ -876,38 +529,19 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(context.strings.termsAccepted)));
-    unawaited(_handleInitialDeepLink());
+    unawaited(_deepLinkCoordinator.handleInitial());
     unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
     unawaited(_syncCallRoute(_callState));
-  }
-
-  String _extractDeepLinkCandidate(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) {
-      return '';
-    }
-    final directUri = Uri.tryParse(trimmed);
-    if (directUri != null && directUri.hasScheme) {
-      return trimmed;
-    }
-    final match = RegExp(
-      r'(peerlink:\/\/\S+|https?:\/\/\S+)',
-    ).firstMatch(trimmed);
-    if (match == null) {
-      return trimmed;
-    }
-    final candidate = match.group(0)?.trim() ?? '';
-    return candidate.replaceFirst(RegExp(r'[)\].,;!?]+$'), '');
   }
 }
 
 class _GlobalCallScreen extends StatefulWidget {
-  final NodeFacade facade;
+  final CallsApi calls;
   final UiAppController appController;
   final ContactsController contactsController;
 
   const _GlobalCallScreen({
-    required this.facade,
+    required this.calls,
     required this.appController,
     required this.contactsController,
   });
@@ -925,14 +559,14 @@ class _GlobalCallScreenState extends State<_GlobalCallScreen> {
   @override
   void initState() {
     super.initState();
-    _state = widget.facade.callState;
+    _state = widget.calls.callState;
     widget.contactsController.loadIntoMemory();
     _lastRenderedContactName = _resolveContactName(_state.peerId);
     _dataBytesNotifier = ValueNotifier<int>(
       _state.bytesSent + _state.bytesReceived,
     );
     widget.contactsController.addListener(_handleContactsChanged);
-    _callStateSubscription = widget.facade.callStateStream.listen((next) {
+    _callStateSubscription = widget.calls.callStateStream.listen((next) {
       _dataBytesNotifier.value = next.bytesSent + next.bytesReceived;
       final previousPeerId = _state.peerId;
       if (!_shouldRebuild(_state, next)) {
@@ -964,7 +598,7 @@ class _GlobalCallScreenState extends State<_GlobalCallScreen> {
   @override
   Widget build(BuildContext context) {
     return CallScreen(
-      facade: widget.facade,
+      calls: widget.calls,
       state: _state,
       contactName: _lastRenderedContactName!,
       dataBytesListenable: _dataBytesNotifier,

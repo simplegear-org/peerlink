@@ -4,8 +4,8 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import '../../core/runtime/contacts_repository.dart';
-import '../models/chat.dart';
+import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
 import '../models/contact.dart';
 
 class ChatContactsService {

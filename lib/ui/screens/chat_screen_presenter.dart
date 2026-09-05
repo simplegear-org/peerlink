@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
-import '../state/chat_controller_models.dart';
+import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import '../state/presence_service.dart';
 import 'chat_screen_helpers.dart';
 

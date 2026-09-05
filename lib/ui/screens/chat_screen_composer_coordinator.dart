@@ -10,8 +10,8 @@ import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 import 'package:flutter/material.dart';
 
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
 import 'chat_screen_audio_actions.dart';
 import 'chat_screen_media_actions.dart';

@@ -4,6 +4,8 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
+// ignore_for_file: annotate_overrides
+
 import 'dart:typed_data';
 
 import '../calls/call_models.dart';
@@ -20,6 +22,7 @@ import '../signaling/signaling_service.dart';
 import '../turn/turn_allocator.dart';
 import '../turn/turn_server_config.dart';
 import 'mesh_node.dart';
+import 'node_capability_apis.dart';
 import 'node_facade_calls_delegate.dart';
 import 'node_facade_events_delegate.dart';
 import 'node_facade_identity_delegate.dart';
@@ -29,7 +32,14 @@ import 'peer_presence.dart';
 
 /// Публичный фасад ядра для UI-слоя.
 /// Здесь UI получает унифицированные entrypoints для messaging/blob операций.
-class NodeFacade {
+class NodeFacade
+    implements
+        IdentityApi,
+        ModerationApi,
+        MessagingApi,
+        NetworkApi,
+        CallsApi,
+        RuntimeEventsApi {
   final MeshNode _node;
   final NodeFacadeIdentityDelegate _identity;
   final NodeFacadeMessagingDelegate _messaging;

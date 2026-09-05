@@ -13,7 +13,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/runtime/app_file_logger.dart';
 import '../localization/app_strings.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../theme/app_theme.dart';
 import 'media_viewer_styles.dart';
 

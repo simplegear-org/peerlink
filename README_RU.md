@@ -280,11 +280,17 @@ APNS_USE_SANDBOX=true
 
 ## Что реализовано
 
-- DI-сборка через `NetworkDependencies`.
+- Top-level app composition через `AppCompositionRoot` / `AppDependencies`,
+  runtime graph сборка делегируется в `NetworkDependencies`.
+- App-level UI orchestration разделена на `AppUiDependencies` и focused
+  push/deep-link/call/lifecycle/badge coordinators; `UiApp` остается
+  presentation/navigation shell.
 - Деривация identity:
   - стабильный `peerId` (v2) = hash(signing public key + installation id).
 - Пост-инициализация через `AppBootstrapCoordinator`.
-- Публичный API ядра через `NodeFacade`.
+- Публичный API ядра через `NodeFacade`, с узкими capability contracts
+  (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
+  `RuntimeEventsApi`) для уже мигрированных app/call surfaces.
 - Завершена декомпозиция chat-flow UI/логики (`ChatScreen*` и `ChatController*` разнесены по отдельным файлам).
 - Для экранов стандартизован шаблон: `*_screen.dart` + `*_view.dart` + `*_styles.dart`.
 - Chat UI для одного чата дополнительно разнесен на отдельные screen-модули: `chat_screen_app_bar`, `chat_screen_message_list`, `chat_screen_audio_actions`, `chat_screen_actions`, `chat_screen_scroll_coordinator`, `chat_screen_lifecycle`, `chat_screen_viewport_state`, `chat_screen_presenter`, `chat_screen_back_swipe_coordinator`, `chat_screen_composer_coordinator`.
@@ -355,6 +361,8 @@ APNS_USE_SANDBOX=true
 ```text
 lib/
   main.dart
+  app/
+    composition/
   core/
     calls/
     dht/

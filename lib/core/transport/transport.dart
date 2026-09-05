@@ -7,7 +7,6 @@
 import 'transport_mode.dart';
 import 'dart:typed_data';
 
-
 abstract class Transport {
   TransportMode get mode;
 

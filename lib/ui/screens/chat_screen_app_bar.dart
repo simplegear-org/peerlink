@@ -8,9 +8,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
 import '../theme/app_theme.dart';
 import '../widgets/peer_avatar.dart';
 import 'chat_screen_actions.dart';

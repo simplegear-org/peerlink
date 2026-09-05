@@ -15,7 +15,11 @@ class QrPayloadEncoder {
   }
 
   /// Build a simple deep link with payload query parameter.
-  static String buildDeepLink({required String scheme, required String host, required String payload}) {
+  static String buildDeepLink({
+    required String scheme,
+    required String host,
+    required String payload,
+  }) {
     return Uri(
       scheme: scheme,
       host: host,

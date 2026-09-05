@@ -4,7 +4,4 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-enum TransportMode {
-  direct,
-  turn,
-}
+enum TransportMode { direct, turn }

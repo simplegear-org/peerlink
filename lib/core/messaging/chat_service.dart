@@ -130,18 +130,20 @@ class ChatSendReceipt {
 enum ChatPayloadTargetKind { direct, group }
 
 class ChatService {
-  static const RuntimeServersMergeOrchestrator _serversMergeOrchestrator =
-      RuntimeServersMergeOrchestrator();
-
   final ReliableMessagingService _messaging;
   final NetworkEventBus _eventBus;
+  final RuntimeServersMergeOrchestrator _serversMergeOrchestrator;
   late final StreamSubscription<ReliableSendStatus> _sendStatusSubscription;
   int _logSeq = 0;
   Map<String, dynamic>? Function()? _serverMetadataProvider;
   ChatServiceControlHandler? _controlHandler;
 
   /// Подписывает chat-сервис на входящий поток надежного messaging-слоя.
-  ChatService(this._messaging, this._eventBus) {
+  ChatService(
+    this._messaging,
+    this._eventBus, {
+    required RuntimeServersMergeOrchestrator serversMergeOrchestrator,
+  }) : _serversMergeOrchestrator = serversMergeOrchestrator {
     _messaging.setIncomingHandler(_handleIncoming);
     _messaging.setInboundReadyProvider(() => _eventBus.hasAwaitableHandlers);
     _sendStatusSubscription = _messaging.onSendStatus.listen(_handleSendStatus);

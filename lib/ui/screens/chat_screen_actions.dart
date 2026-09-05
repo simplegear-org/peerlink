@@ -11,8 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
 import '../state/chat_forward_service.dart';
 import '../theme/app_theme.dart';

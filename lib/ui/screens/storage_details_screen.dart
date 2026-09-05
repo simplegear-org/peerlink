@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/app_storage_stats.dart';
 import '../localization/app_strings.dart';
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../state/chat_controller.dart';
 import '../state/settings_controller.dart';
 import '../theme/app_theme.dart';

@@ -6,7 +6,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../theme/app_theme.dart';
 import 'message_bubble_file_preview.dart';
 import 'message_bubble_progress.dart';

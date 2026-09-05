@@ -10,7 +10,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../localization/app_strings.dart';
 import 'avatar_capture_screen.dart';
 import 'avatar_crop_screen.dart';

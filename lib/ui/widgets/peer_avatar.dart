@@ -8,7 +8,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../theme/app_theme.dart';
 
 class PeerAvatar extends StatelessWidget {

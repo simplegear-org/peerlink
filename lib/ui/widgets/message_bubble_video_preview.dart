@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/runtime/diagnostic_log.dart' as diag;
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 
 class MessageVideoPreview extends StatelessWidget {
   static final Set<String> _loggedFrames = <String>{};

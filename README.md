@@ -268,11 +268,17 @@ APNS_USE_SANDBOX=true
 
 ## What Is Implemented
 
-- Dependency composition via `NetworkDependencies`.
+- Top-level app composition via `AppCompositionRoot` / `AppDependencies`,
+  with runtime graph assembly delegated to `NetworkDependencies`.
+- App-level UI orchestration is split into `AppUiDependencies` and focused
+  push/deep-link/call/lifecycle/badge coordinators; `UiApp` remains the
+  presentation/navigation shell.
 - Identity derivation:
   - stable `peerId` (v2) = hash(signing public key + installation id).
 - Post-start coordination via `AppBootstrapCoordinator`.
-- Public core API via `NodeFacade`.
+- Public core API via `NodeFacade`, with narrow capability contracts
+  (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
+  `RuntimeEventsApi`) used by migrated app/call surfaces.
 - UI decomposition completed for chat flow (`ChatScreen*` and `ChatController*` split into focused files).
 - Screen layout template standardized to `*_screen.dart` + `*_view.dart` + `*_styles.dart`.
 - Chat UI helpers extracted to dedicated modules (`chat_screen_helpers`, `chat_screen_unread_divider`).
@@ -341,6 +347,8 @@ APNS_USE_SANDBOX=true
 ```text
 lib/
   main.dart
+  app/
+    composition/
   core/
     calls/
     dht/

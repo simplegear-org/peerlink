@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'package:flutter/material.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../localization/app_strings.dart';
 import '../theme/app_theme.dart';
 import 'compact_card_tile_styles.dart';

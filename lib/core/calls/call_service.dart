@@ -17,6 +17,7 @@ import '../runtime/peer_access_control_service.dart';
 import '../turn/turn_allocator.dart';
 import 'call_audio_mute_sender.dart';
 import 'audio_call_peer.dart';
+import 'call_control_transport.dart';
 import 'call_control_signal_helper.dart';
 import 'call_control_reliable_payload.dart';
 import 'call_command_helper.dart';
@@ -75,9 +76,9 @@ class CallService {
   FutureOr<Map<String, dynamic>> Function(String peerId)
   _buildCallInviteMetadata = (_) => const <String, dynamic>{};
   CallControlReliableSender? _reliableControlSender;
+  final CallControlTransport? _callControlTransport;
   static const Duration _pendingRemoteEndTtl = Duration(minutes: 2);
-  static const RuntimeServersMergeOrchestrator _serversMergeOrchestrator =
-      RuntimeServersMergeOrchestrator();
+  final RuntimeServersMergeOrchestrator? _serversMergeOrchestrator;
   static const Duration _heartbeatMediaActiveGrace = Duration(seconds: 6);
   late final CallPendingRemoteEndRegistry _pendingRemoteEndedCalls;
   late final CallControlSignalHelper _controlSignalHelper;
@@ -108,9 +109,12 @@ class CallService {
     required this.selfPeerId,
     required this.signaling,
     required this.turnAllocator,
+    RuntimeServersMergeOrchestrator? serversMergeOrchestrator,
+    CallControlTransport? callControlTransport,
     this.incomingCallAccessDecision,
     this.outgoingCallAccessDecision,
-  }) {
+  }) : _serversMergeOrchestrator = serversMergeOrchestrator,
+       _callControlTransport = callControlTransport {
     _logger = CallRuntimeLogger(
       channel: 'call',
       getOwnerId: () => selfPeerId,
@@ -270,6 +274,7 @@ class CallService {
       onRemoteVideoStateAck: _remoteControlHandler.handleRemoteVideoStateAck,
       onRemoteVideoFlowAck: _remoteControlHandler.handleRemoteVideoFlowAck,
     );
+    callControlTransport?.setIncomingHandler(_handleIncomingReliableControl);
   }
 
   Stream<CallState> get stateStream => _stateController.stream;
@@ -341,7 +346,7 @@ class CallService {
   Future<void> _applyIncomingInviteRuntimeMetadata(
     Map<String, dynamic> data,
   ) async {
-    await _serversMergeOrchestrator.applyIfPresent(
+    await _serversMergeOrchestrator?.applyIfPresent(
       data,
       source: 'bootstrap-call-invite',
       logName: 'call',
@@ -621,6 +626,13 @@ class CallService {
     return true;
   }
 
+  Future<bool> _handleIncomingReliableControl(CallControlPayload payload) {
+    return handleReliableControlPayload(
+      fromPeerId: payload.fromPeerId,
+      text: payload.text,
+    );
+  }
+
   Future<void> handleMediaSignal(SignalingMessage message) async {
     await _signalTransitionSerializer.serialize(
       label: 'media:${message.type}',
@@ -673,6 +685,7 @@ class CallService {
     _cancelIncomingAcceptRetry();
     _cancelTerminalControlRetry();
     _connectionOrchestrator.dispose();
+    _callControlTransport?.setIncomingHandler(null);
     await _peer?.dispose();
     _peer = null;
     await _stateController.close();
@@ -1015,9 +1028,10 @@ class CallService {
     required Map<String, dynamic> data,
     required String purpose,
   }) {
+    final transport = _callControlTransport;
     final sender = _reliableControlSender;
-    if (sender == null ||
-        !CallControlReliablePayload.criticalTypes.contains(type)) {
+    if (!CallControlReliablePayload.criticalTypes.contains(type) ||
+        (transport == null && sender == null)) {
       return;
     }
     final text = _reliablePayload.encode(
@@ -1026,7 +1040,7 @@ class CallService {
       data: data,
     );
     unawaited(
-      sender(peerId, text)
+      (transport?.send(peerId, text) ?? sender!(peerId, text))
           .then((_) {
             _log(
               '$type:reliable sent peerId=$peerId callId=$callId purpose=$purpose',

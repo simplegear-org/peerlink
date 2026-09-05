@@ -23,6 +23,11 @@ class NotificationService {
   bool _permissionGranted = false;
   int _badgeCount = 0;
   bool? _isBadgeSupported;
+  StorageService? _storage;
+
+  void configureStorage(StorageService storage) {
+    _storage = storage;
+  }
 
   Future<bool> init() async {
     if (_initialized) return _permissionGranted;
@@ -38,8 +43,8 @@ class NotificationService {
 
   Future<void> _updateAppBadge() async {
     try {
-      final supported =
-          _isBadgeSupported ??= await FlutterAppBadger.isAppBadgeSupported();
+      final supported = _isBadgeSupported ??=
+          await FlutterAppBadger.isAppBadgeSupported();
       if (!supported) {
         return;
       }
@@ -82,7 +87,10 @@ class NotificationService {
 
   Future<int> readStoredBadgeCount() async {
     try {
-      final storage = StorageService();
+      final storage = _storage;
+      if (storage == null) {
+        return _badgeCount < 0 ? 0 : _badgeCount;
+      }
       await storage.init();
       final raw = storage.getSettings().get(_badgeCountStorageKey);
       if (raw is int) {
@@ -109,7 +117,10 @@ class NotificationService {
 
   Future<void> _persistBadgeCount() async {
     try {
-      final storage = StorageService();
+      final storage = _storage;
+      if (storage == null) {
+        return;
+      }
       await storage.init();
       await storage.getSettings().put(_badgeCountStorageKey, _badgeCount);
     } catch (_) {

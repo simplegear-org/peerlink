@@ -50,9 +50,7 @@ class SettingsAccountDevicesSection extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             strings.accountDevicesDescription,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppTheme.muted,
-            ),
+            style: theme.textTheme.bodyMedium?.copyWith(color: AppTheme.muted),
           ),
           const SizedBox(height: 12),
           if (isPrimaryAccountDevice)
@@ -61,7 +59,9 @@ class SettingsAccountDevicesSection extends StatelessWidget {
                 Expanded(
                   child: SettingsAccountInfoPill(
                     label: strings.accountId,
-                    value: SettingsScreenFormatters.shortId(controller.accountId),
+                    value: SettingsScreenFormatters.shortId(
+                      controller.accountId,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

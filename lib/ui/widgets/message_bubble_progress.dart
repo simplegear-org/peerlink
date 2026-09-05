@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../localization/app_strings.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../theme/app_theme.dart';
 
 class MessageFileProgress extends StatelessWidget {

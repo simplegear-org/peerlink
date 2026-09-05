@@ -4,8 +4,4 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-enum ConnectionState {
-  disconnected,
-  connecting,
-  connected,
-}
+enum ConnectionState { disconnected, connecting, connected }

@@ -6,12 +6,7 @@
 
 import 'signaling_message.dart';
 
-enum SignalingConnectionStatus {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
+enum SignalingConnectionStatus { disconnected, connecting, connected, error }
 
 /// Контракт signaling-слоя для обмена SDP/ICE между peer.
 abstract class SignalingService {
@@ -29,22 +24,13 @@ abstract class SignalingService {
   );
 
   /// Отправляет offer удаленному peer.
-  Future<void> sendOffer(
-    String peerId,
-    Map<String, dynamic> offer,
-  );
+  Future<void> sendOffer(String peerId, Map<String, dynamic> offer);
 
   /// Отправляет answer удаленному peer.
-  Future<void> sendAnswer(
-    String peerId,
-    Map<String, dynamic> answer,
-  );
+  Future<void> sendAnswer(String peerId, Map<String, dynamic> answer);
 
   /// Отправляет ICE candidate удаленному peer.
-  Future<void> sendIce(
-    String peerId,
-    Map<String, dynamic> candidate,
-  );
+  Future<void> sendIce(String peerId, Map<String, dynamic> candidate);
 
   /// Поток входящих signaling сообщений.
   Stream<SignalingMessage> get messages;

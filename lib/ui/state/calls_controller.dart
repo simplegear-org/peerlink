@@ -6,7 +6,7 @@
 
 import '../../core/calls/call_log_entry.dart';
 import '../../core/calls/call_models.dart';
-import '../../core/runtime/call_log_repository.dart';
+import '../../features/calls/infrastructure/call_log_repository.dart';
 
 class CallsController {
   final CallLogRepository repository;
@@ -36,9 +36,10 @@ class CallsController {
   }
 
   Future<void> markMissedCallsSeenNow() async {
-    await repository.storage
-        .getSettings()
-        .put(_missedCallsSeenAtKey, DateTime.now().toIso8601String());
+    await repository.storage.getSettings().put(
+      _missedCallsSeenAtKey,
+      DateTime.now().toIso8601String(),
+    );
   }
 
   Future<void> deleteEntries(Iterable<CallLogEntry> entries) async {

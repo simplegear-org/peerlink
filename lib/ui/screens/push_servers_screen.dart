@@ -237,10 +237,7 @@ class _EditPushServerDialog extends StatefulWidget {
   final String endpoint;
   final bool paused;
 
-  const _EditPushServerDialog({
-    required this.endpoint,
-    required this.paused,
-  });
+  const _EditPushServerDialog({required this.endpoint, required this.paused});
 
   @override
   State<_EditPushServerDialog> createState() => _EditPushServerDialogState();
@@ -255,7 +252,9 @@ class _EditPushServerDialogState extends State<_EditPushServerDialog> {
   void initState() {
     super.initState();
     final currentUri = Uri.tryParse(widget.endpoint);
-    _hostCtrl = TextEditingController(text: currentUri?.host ?? widget.endpoint);
+    _hostCtrl = TextEditingController(
+      text: currentUri?.host ?? widget.endpoint,
+    );
     _portCtrl = TextEditingController(
       text: (currentUri?.hasPort ?? false) ? '${currentUri!.port}' : '',
     );
@@ -327,9 +326,7 @@ class _EditPushServerDialogState extends State<_EditPushServerDialog> {
             ),
           ),
           icon: Icon(
-            widget.paused
-                ? Icons.play_arrow_rounded
-                : Icons.pause_rounded,
+            widget.paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
           ),
         ),
         TextButton(

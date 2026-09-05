@@ -20,22 +20,26 @@ import 'firebase_push_payload.dart';
 import 'firebase_push_payload_parsers.dart';
 
 class FirebasePushPayloadProcessor {
-  const FirebasePushPayloadProcessor({
-    RuntimeServersMergeOrchestrator serversMergeOrchestrator =
-        const RuntimeServersMergeOrchestrator(),
+  FirebasePushPayloadProcessor({
+    required StorageService storage,
+    RuntimeServersMergeOrchestrator? serversMergeOrchestrator,
     FirebasePushAccountMembershipPayloadParser accountMembershipParser =
         const FirebasePushAccountMembershipPayloadParser(),
     FirebasePushGroupMembersPayloadParser groupMembersParser =
         const FirebasePushGroupMembersPayloadParser(),
     FirebasePushLogFormatter logFormatter = const FirebasePushLogFormatter(),
     ModerationPolicyService? moderationPolicyService,
-  }) : _serversMergeOrchestrator = serversMergeOrchestrator,
+  }) : _storage = storage,
+       _serversMergeOrchestrator =
+           serversMergeOrchestrator ??
+           RuntimeServersMergeOrchestrator(settings: storage.getSettings()),
        _accountMembershipParser = accountMembershipParser,
        _groupMembersParser = groupMembersParser,
        _logFormatter = logFormatter,
        _moderationPolicyService = moderationPolicyService;
 
   final RuntimeServersMergeOrchestrator _serversMergeOrchestrator;
+  final StorageService _storage;
   final FirebasePushAccountMembershipPayloadParser _accountMembershipParser;
   final FirebasePushGroupMembersPayloadParser _groupMembersParser;
   final FirebasePushLogFormatter _logFormatter;
@@ -206,8 +210,7 @@ class FirebasePushPayloadProcessor {
   Future<void> _appendIncomingAccountMembershipUpdate(
     AccountMembershipUpdatePayload payload,
   ) async {
-    final storage = StorageService();
-    final settings = storage.getSettings();
+    final settings = _storage.getSettings();
     final existingRaw = settings.get(accountMembershipUpdatesStorageKey);
     final current = <Map<String, dynamic>>[];
     if (existingRaw is String && existingRaw.trim().isNotEmpty) {

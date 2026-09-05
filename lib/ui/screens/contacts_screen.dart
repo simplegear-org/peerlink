@@ -14,7 +14,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/contact.dart';
 import '../state/chat_controller.dart';
 import '../state/contacts_controller.dart';
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../state/presence_service.dart';
 import '../state/settings_controller.dart';
 import '../localization/app_strings.dart';

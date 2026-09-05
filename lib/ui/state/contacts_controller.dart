@@ -9,7 +9,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
-import '../../core/runtime/contacts_repository.dart';
+import '../../features/contacts/infrastructure/contacts_repository.dart';
 import '../../core/runtime/peer_access_control_service.dart';
 import '../models/contact.dart';
 

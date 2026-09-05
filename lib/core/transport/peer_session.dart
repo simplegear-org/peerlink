@@ -22,10 +22,7 @@ class PeerSession {
   Timer? _healthTimer;
   int _logSeq = 0;
 
-  PeerSession({
-    required this.peerId,
-    required this.direct,
-  });
+  PeerSession({required this.peerId, required this.direct});
 
   /// Текущий активный режим транспорта.
   TransportMode? get currentMode => _mode;

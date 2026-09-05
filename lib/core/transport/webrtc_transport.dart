@@ -61,10 +61,10 @@ class WebRtcTransport implements Transport {
     void Function(String peerId, TransportMode mode)? onConnected,
     bool Function()? canSignal,
     bool subscribeToSignaling = true,
-  })  : _signaling = signaling,
-        _onIncomingMessage = onIncomingMessage,
-        _onConnected = onConnected,
-        _canSignal = canSignal {
+  }) : _signaling = signaling,
+       _onIncomingMessage = onIncomingMessage,
+       _onConnected = onConnected,
+       _canSignal = canSignal {
     if (subscribeToSignaling) {
       _signalSubscription = _signaling.messages.listen(handleSignal);
     }
@@ -110,10 +110,7 @@ class WebRtcTransport implements Transport {
     _log('connect:localOffer set transportMode=${mode.name}');
 
     _lastOfferPeerId = peerId;
-    _lastOfferPayload = {
-      ...offer.toMap(),
-      'transportMode': mode.name,
-    };
+    _lastOfferPayload = {...offer.toMap(), 'transportMode': mode.name};
 
     if (!_canSendSignaling('offer', peerId)) {
       throw Exception('Transport signaling is suspended');
@@ -148,7 +145,8 @@ class WebRtcTransport implements Transport {
 
     if (mode == TransportMode.turn) {
       await turnAllocator?.refreshSelectionIfNeeded();
-      final turnCredentials = turnAllocator?.allocateAll() ?? const <TurnCredentials>[];
+      final turnCredentials =
+          turnAllocator?.allocateAll() ?? const <TurnCredentials>[];
 
       if (turnCredentials.isEmpty) {
         throw Exception('TURN mode selected but no TURN available');
@@ -177,7 +175,9 @@ class WebRtcTransport implements Transport {
       );
     } else {
       // Direct mode: use STUN only
-      iceServers.add({'urls': ['stun:stun.l.google.com:19302']});
+      iceServers.add({
+        'urls': ['stun:stun.l.google.com:19302'],
+      });
     }
 
     final config = <String, dynamic>{
@@ -376,10 +376,7 @@ class WebRtcTransport implements Transport {
     _peer = await createPeerConnection(config);
     _bindPeerEvents();
 
-    final offer = RTCSessionDescription(
-      msg.data['sdp'],
-      msg.data['type'],
-    );
+    final offer = RTCSessionDescription(msg.data['sdp'], msg.data['type']);
 
     await _peer!.setRemoteDescription(offer);
     _remoteDescriptionSet = true;
@@ -392,18 +389,12 @@ class WebRtcTransport implements Transport {
     _log('handleOffer:localAnswer set');
 
     _lastAnswerPeerId = msg.fromPeerId;
-    _lastAnswerPayload = {
-      ...answer.toMap(),
-      'transportMode': mode.name,
-    };
+    _lastAnswerPayload = {...answer.toMap(), 'transportMode': mode.name};
 
     if (!_canSendSignaling('answer', msg.fromPeerId)) {
       return;
     }
-    await _signaling.sendAnswer(
-      msg.fromPeerId,
-      _lastAnswerPayload!,
-    );
+    await _signaling.sendAnswer(msg.fromPeerId, _lastAnswerPayload!);
     _log('handleOffer:answer sent');
     _scheduleAnswerRetry();
     _flushLocalIceBuffer();
@@ -423,10 +414,7 @@ class WebRtcTransport implements Transport {
       _stopOfferRetry();
       return;
     }
-    final answer = RTCSessionDescription(
-      msg.data['sdp'],
-      msg.data['type'],
-    );
+    final answer = RTCSessionDescription(msg.data['sdp'], msg.data['type']);
 
     try {
       await _peer!.setRemoteDescription(answer);
@@ -461,7 +449,9 @@ class WebRtcTransport implements Transport {
       _log('handleIce:remote added ${candidate.candidate}');
     } catch (e) {
       _pendingIce.add(candidate);
-      _log('handleIce:queue after addCandidate error=$e ${candidate.candidate}');
+      _log(
+        'handleIce:queue after addCandidate error=$e ${candidate.candidate}',
+      );
     }
   }
 

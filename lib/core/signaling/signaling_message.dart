@@ -18,11 +18,11 @@ class SignalingMessage {
   });
 
   Map<String, dynamic> toJson() => {
-        "type": type,
-        "from": fromPeerId,
-        "to": toPeerId,
-        "data": data,
-      };
+    "type": type,
+    "from": fromPeerId,
+    "to": toPeerId,
+    "data": data,
+  };
 
   factory SignalingMessage.fromJson(Map<String, dynamic> json) {
     return SignalingMessage(

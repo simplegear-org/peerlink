@@ -3,6 +3,130 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.12.3+2026090601] - 2026-09-06
+
+### Changed
+
+- Completed local PR1/PR2 refactor plan status: added a safety-net manifest
+  test for CI/architecture/capability/critical-flow coverage and removed
+  singleton runtime state from `NetworkDependencies.create`.
+- Completed PR7 runtime cleanup first slice: call log/native call bridges moved
+  to `features/calls`, contacts moved to `features/contacts`, avatar/profile
+  service moved to `features/profile`, and chat Drift database moved to
+  `features/chat/infrastructure`.
+- Kept old runtime/UI paths as temporary compatibility exports.
+- Added architecture guardrails for explicit `core/runtime` inventory,
+  migrated forwarding exports, and cross-feature concrete import prevention.
+- Updated architecture, refactor-plan, backlog, project-structure, service-map,
+  service-API-map, and provenance documentation for PR7.
+- Completed PR8 MeshNode integration boundaries: introduced
+  `CallControlTransport`, added `ReliableCallControlAdapter`, and moved
+  Calls ↔ Chat reliable-control wiring out of `MeshNode` into
+  `NetworkDependencies`.
+- Added `MeshNodeRuntimeAdapterFactory` / `MeshNodeRuntimeAdapters` so push,
+  moderation, device sync, policy sync and signal-router helper construction is
+  no longer hidden inside the `MeshNode` constructor.
+- Added tests for the call-control adapter, injected call-control transport,
+  MeshNode callback-wiring guardrail, and MeshNode `StorageService`
+  / integration-helper construction guardrails.
+
+### Verified
+
+- `dart format --output=none --set-exit-if-changed .`
+- `flutter analyze`
+- `flutter test`
+- `flutter test test/core/node/reliable_call_control_adapter_test.dart test/core/node/mesh_node_smoke_test.dart test/core/calls/call_service_test.dart test/architecture/feature_boundary_test.dart`
+
+
+## [3.12.2+2026090504] - 2026-09-05
+
+### Changed
+
+- Added narrow node capability contracts: `MessagingApi`, `CallsApi`,
+  `IdentityApi`, `NetworkApi`, `ModerationApi`, and `RuntimeEventsApi`.
+- Kept `NodeFacade` as the compatibility aggregate while making it implement
+  the new narrow contracts.
+- Migrated app push/deep-link/call coordinators and the active call screen from
+  unrestricted `NodeFacade` dependencies to the minimum required capability
+  APIs.
+- Added contract and architecture tests to keep migrated app/call surfaces from
+  regressing back to broad `NodeFacade` imports.
+- Updated architecture, backlog, README, network-flow, project-structure, and
+  service-map documentation for PR5.
+- Started PR6 Chat vertical ownership under `lib/features/chat`.
+- Moved `Chat` and `Message` into `features/chat/domain`.
+- Moved `ChatRepository` into `features/chat/infrastructure` and relocated its
+  repository tests to `test/features/chat/infrastructure`.
+- Moved non-presentation chat application services/coordinators/helpers into
+  `features/chat/application`, leaving `ChatController` and contact/forward
+  UI-adjacent services in `lib/ui/state`.
+- Kept temporary compatibility exports for old `lib/ui/models` and selected
+  `lib/ui/state/chat_*` paths.
+- Added an architecture boundary test preventing `features/chat` from importing
+  UI implementation code.
+- Updated architecture, refactor-plan, backlog, and project-structure
+  documentation for PR6.
+
+### Verified
+
+- `dart format --output=none --set-exit-if-changed .`
+- `flutter analyze`
+- `flutter test`
+
+
+## [3.12.1+2026090503] - 2026-09-05
+
+### Changed
+
+- Added `AppCompositionRoot` / `AppDependencies` as the top-level application
+  composition layer, with runtime graph creation still delegated to
+  `NetworkDependencies`.
+- Added `AppUiDependencies` so UI-facing controllers, repositories, and
+  presentation services are constructed outside `UiApp`.
+- Moved main app storage/runtime dependency creation out of `main.dart` and
+  updated architecture guardrails to allow that construction only in
+  `lib/app/composition`.
+- Updated architecture, backlog, network-flow, README, project-structure, and
+  service-map documentation for the AppCompositionRoot refactor step.
+- Extracted initial FCM push callback registration from `UiApp.initState` into
+  `AppPushCoordinator`, keeping UI navigation as injected callbacks.
+- Completed PR4 by moving push-open relay polling, deep-link dispatch,
+  call-state/CallKit orchestration, lifecycle resume handling, and app badge
+  synchronization into app-level coordinators.
+
+### Verified
+
+- `dart format lib/app test/app lib/ui/ui_app.dart lib/main.dart`
+- `flutter analyze`
+- `flutter test test/app/push/app_push_coordinator_test.dart test/app/deep_links/app_deep_link_coordinator_test.dart test/app/calls/app_call_coordinator_test.dart test/app/lifecycle/app_lifecycle_coordinator_test.dart`
+- `flutter test`
+
+
+## [3.12.0+2026090502] - 2026-09-05
+
+### Changed
+
+- Added CI validation for format, analyzer, and tests.
+- Added architecture/import-boundary tests covering presentation dependency
+  construction, composition ownership, feature boundaries, and platform bridge
+  imports.
+- Made production storage ownership explicit: `main.dart` now creates the shared
+  `StorageService` and passes it into `NetworkDependencies.create(...)`.
+- Removed hidden `StorageService()` construction from the main runtime graph
+  across network, push, notification, CallKit, and server-merge wiring.
+- Kept the FCM background handler as an explicit background-isolate composition
+  root with its own storage lifecycle.
+- Added `test/` to the public source mirror manifest.
+- Updated architecture/service-map/backlog documentation for the completed
+  architecture safety net and explicit storage DI steps.
+
+### Verified
+
+- `dart format --output=none --set-exit-if-changed .`
+- `flutter analyze`
+- `flutter test`
+
+
 ## [3.11.2+2026090501] - 2026-09-05
 
 ### Changed

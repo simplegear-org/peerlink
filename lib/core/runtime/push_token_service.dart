@@ -13,8 +13,7 @@ class PushTokenService {
 
   final StorageService _storage;
 
-  PushTokenService({StorageService? storage})
-    : _storage = storage ?? StorageService();
+  PushTokenService({required StorageService storage}) : _storage = storage;
 
   Future<void> saveFcmToken(String token) async {
     final normalized = token.trim();
@@ -44,4 +43,3 @@ class PushTokenService {
   String? get apnsToken => _storage.getSettings().get(_apnsTokenKey) as String?;
   String? get voipToken => _storage.getSettings().get(_voipTokenKey) as String?;
 }
-

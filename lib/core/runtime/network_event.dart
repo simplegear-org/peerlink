@@ -18,10 +18,7 @@ class NetworkEvent {
   final NetworkEventType type;
   final dynamic payload;
 
-  NetworkEvent({
-    required this.type,
-    this.payload,
-  });
+  NetworkEvent({required this.type, this.payload});
 }
 
 class PeerConnected extends NetworkEvent {

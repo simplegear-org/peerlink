@@ -10,7 +10,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../localization/app_strings.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../theme/app_theme.dart';
 import 'message_file_availability_cache.dart';
 

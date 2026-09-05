@@ -29,14 +29,10 @@ import '../push/push_event_service.dart';
 import '../push/push_runtime_metadata_builder.dart';
 import '../runtime/network_event_bus.dart';
 import '../runtime/network_event.dart';
-import '../runtime/push_token_service.dart';
 import '../runtime/push_servers_service.dart';
-import '../runtime/push_server_sharing_preferences.dart';
 import '../runtime/push_access_policy_sync_service.dart';
 import '../runtime/push_device_registration_service.dart';
-import '../runtime/moderation_api_client.dart';
 import '../runtime/moderation_delivery_service.dart';
-import '../runtime/moderation_policy_service.dart';
 import '../runtime/storage_service.dart';
 import '../runtime/account_membership_update_payload.dart';
 import '../dht/rpc/kademlia_protocol.dart';
@@ -49,6 +45,7 @@ import '../turn/turn_server_config.dart';
 import 'peer_presence.dart';
 import 'mesh_call_push_helper.dart';
 import 'mesh_peer_transports.dart';
+import 'mesh_node_runtime_adapters.dart';
 import 'mesh_signal_router.dart';
 
 /// Оркестратор сетевого ядра: lifecycle, bootstrap, сессии и маршрутизация signaling.
@@ -77,8 +74,8 @@ class MeshNode {
   final KademliaProtocol kademlia;
   final SignalingService signaling;
   final PushApiClient pushApiClient;
-  final PushTokenService _pushTokens = PushTokenService();
   final SecureStorageBox settingsBox;
+  final StorageService storage;
 
   final Map<String, PeerSession> _peerSessions = {};
   final Map<String, MeshPeerTransports> _peerTransports = {};
@@ -121,90 +118,42 @@ class MeshNode {
     required this.signaling,
     required this.pushApiClient,
     required this.settingsBox,
+    required this.storage,
+    required MeshNodeRuntimeAdapterFactory runtimeAdapterFactory,
   }) {
-    _pushEventFactory = const PushEventFactory();
-    _pushEventService = PushEventService(
-      identity: identity,
-      pushApiClient: pushApiClient,
-      resolvePushBaseUris: _resolvePushBaseUris,
-      pushBearerToken: _pushBearerToken,
-      log: _log,
-    );
-    _pushAccessPolicySync = PushAccessPolicySyncService(
-      identity: identity,
-      storage: StorageService(),
-      pushApiClient: pushApiClient,
-      resolvePushBaseUris: _resolvePushBaseUris,
-    );
-    _moderationDelivery = ModerationDeliveryService(
-      identity: identity,
-      apiClient: const ModerationApiClient(),
-      policyService: ModerationPolicyService(settingsBox: settingsBox),
-      resolvePushBaseUris: _resolvePushBaseUris,
-      log: _log,
-    );
-    _pushRuntimeMetadataBuilder = PushRuntimeMetadataBuilder(
-      configuredBootstrapServers: () => bootstrapServers,
-      connectedBootstrapServers: () => connectedBootstrapServers,
-      activeBootstrapServer: () => activeBootstrapServer,
-      relayServerStatuses: () => relayServerStatuses,
-      activePushBaseUris: _resolvePushBaseUris,
-      turnServers: () => turnServers,
-      isTurnServerHealthy: turnAllocator.isHealthy,
-      connectedTargetBootstrapServersForPeer:
-          _connectedTargetBootstrapServersForPeer,
-      healthyOrderedTurnServerConfigs: () =>
-          turnAllocator.healthyOrderedServerConfigs,
-      shareServersInPush: () =>
-          PushServerSharingPreferences.shareOutgoingServers(settingsBox),
-      log: _log,
-    );
-    _callPush = MeshCallPushHelper(
-      identity: identity,
-      pushApiClient: pushApiClient,
-      pushTokens: _pushTokens,
-      resolvePushBaseUris: _resolvePushBaseUris,
-      pushBearerToken: _pushBearerToken,
-      pushEventFactory: _pushEventFactory,
-      pushEventService: _pushEventService,
-      pushRuntimeMetadataBuilder: _pushRuntimeMetadataBuilder,
-      platformName: _platformName,
-      log: _log,
-    );
-    _pushDeviceSync = PushDeviceRegistrationService(
-      storage: StorageService(),
-      registerPushDeviceToken: _callPush.registerPushDeviceToken,
-      syncAccessPolicy: _pushAccessPolicySync.syncNow,
-      retryPendingAccessPolicySync: ({required reason, force = false}) =>
-          _pushAccessPolicySync.retryPending(reason: reason),
-    );
-    calls.setCallInviteMetadataBuilder(
-      _pushRuntimeMetadataBuilder.buildCallInviteRuntimeMetadata,
-    );
-    calls.setReliableControlSender(
-      (peerId, text) => chat.sendControlMessage(
-        peerId,
-        kind: 'callControl',
-        text: text,
-        forcePlain: true,
+    final runtimeAdapters = runtimeAdapterFactory.create(
+      MeshNodeRuntimeAdapterContext(
+        identity: identity,
+        calls: calls,
+        storage: storage,
+        settingsBox: settingsBox,
+        pushApiClient: pushApiClient,
+        turnAllocator: turnAllocator,
+        resolvePushBaseUris: _resolvePushBaseUris,
+        pushBearerToken: _pushBearerToken,
+        platformName: _platformName,
+        log: _log,
+        configuredBootstrapServers: () => bootstrapServers,
+        connectedBootstrapServers: () => connectedBootstrapServers,
+        activeBootstrapServer: () => activeBootstrapServer,
+        relayServerStatuses: () => relayServerStatuses,
+        turnServers: () => turnServers,
+        connectedTargetBootstrapServersForPeer:
+            _connectedTargetBootstrapServersForPeer,
+        ensurePeerSession: _ensurePeerSession,
+        getPeerTransports: (peerId) => _peerTransports[peerId],
       ),
     );
-    chat.setControlHandler((message) {
-      final sourcePeerId = (message.senderPeerId ?? message.peerId).trim();
-      if (sourcePeerId.isEmpty) {
-        return false;
-      }
-      return calls.handleReliableControlPayload(
-        fromPeerId: sourcePeerId,
-        text: message.text,
-      );
-    });
-    _signalRouter = MeshSignalRouter(
-      selfPeerId: identity.nodeId,
-      calls: calls,
-      ensurePeerSession: _ensurePeerSession,
-      getPeerTransports: (peerId) => _peerTransports[peerId],
-      log: _log,
+    _callPush = runtimeAdapters.callPush;
+    _signalRouter = runtimeAdapters.signalRouter;
+    _pushEventFactory = runtimeAdapters.pushEventFactory;
+    _pushEventService = runtimeAdapters.pushEventService;
+    _pushRuntimeMetadataBuilder = runtimeAdapters.pushRuntimeMetadataBuilder;
+    _pushAccessPolicySync = runtimeAdapters.pushAccessPolicySync;
+    _pushDeviceSync = runtimeAdapters.pushDeviceSync;
+    _moderationDelivery = runtimeAdapters.moderationDelivery;
+    calls.setCallInviteMetadataBuilder(
+      _pushRuntimeMetadataBuilder.buildCallInviteRuntimeMetadata,
     );
     _log('construct instance=$instanceId');
   }

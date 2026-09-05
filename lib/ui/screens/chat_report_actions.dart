@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/moderation_report_models.dart';
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
 import 'moderation_report_reason_presenter.dart';
 

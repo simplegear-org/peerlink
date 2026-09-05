@@ -4,30 +4,30 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import '../../core/messaging/chat_service.dart';
-import '../../core/node/node_facade.dart';
-import '../../core/relay/relay_media_transfer_service.dart';
-import '../../core/runtime/account_membership_update_payload.dart';
-import '../../core/runtime/account_pairing_payload.dart';
-import '../../core/runtime/avatar_service.dart';
-import '../../core/runtime/contacts_repository.dart';
-import '../../core/runtime/peer_access_control_service.dart';
-import '../../core/runtime/storage_service.dart';
-import '../../core/security/group_key_service.dart';
-import '../../core/security/group_message_crypto_service.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
-import 'chat_contacts_service.dart';
-import 'chat_file_queue_service.dart';
-import 'chat_group_flow_service.dart';
-import 'chat_group_service.dart';
-import 'chat_inbound_classifier.dart';
-import 'chat_inbound_service.dart';
-import 'chat_outbound_codec.dart';
-import 'chat_outbound_service.dart';
-import 'chat_read_state_service.dart';
-import 'chat_repository.dart';
-import 'chat_summary_service.dart';
+import 'package:peerlink/core/messaging/chat_service.dart';
+import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
+import 'package:peerlink/core/runtime/account_membership_update_payload.dart';
+import 'package:peerlink/core/runtime/account_pairing_payload.dart';
+import 'package:peerlink/features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
+import 'package:peerlink/core/runtime/peer_access_control_service.dart';
+import 'package:peerlink/core/runtime/storage_service.dart';
+import 'package:peerlink/core/security/group_key_service.dart';
+import 'package:peerlink/core/security/group_message_crypto_service.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
+import 'package:peerlink/ui/state/chat_contacts_service.dart';
+import 'package:peerlink/features/chat/application/chat_file_queue_service.dart';
+import 'package:peerlink/features/chat/application/chat_group_flow_service.dart';
+import 'package:peerlink/features/chat/application/chat_group_service.dart';
+import 'package:peerlink/features/chat/application/chat_inbound_classifier.dart';
+import 'package:peerlink/features/chat/application/chat_inbound_service.dart';
+import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
+import 'package:peerlink/features/chat/application/chat_outbound_service.dart';
+import 'package:peerlink/features/chat/application/chat_read_state_service.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
+import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 
 class ChatControllerDependencies {
   ChatControllerDependencies._({

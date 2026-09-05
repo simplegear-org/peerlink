@@ -11,16 +11,17 @@ import 'package:background_fetch/background_fetch.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'app/composition/app_composition_root.dart';
+import 'app/composition/app_dependencies.dart';
 import 'core/firebase/firebase_service.dart';
 import 'core/firebase/firebase_messaging_service.dart';
 import 'core/messaging/chat_service.dart';
 import 'core/node/node_facade.dart';
-import 'core/notification/app_badge_service.dart';
 import 'core/notification/notification_service.dart';
 import 'core/runtime/app_bootstrap_coordinator.dart';
 import 'core/runtime/app_file_logger.dart';
 import 'core/runtime/network_dependencies.dart';
-import 'core/runtime/ios_callkit_service.dart';
+import 'features/calls/platform/ios_callkit_service.dart';
 import 'core/runtime/storage_service.dart';
 import 'core/runtime/server_health_coordinator.dart';
 import 'core/runtime/bootstrap_servers_service.dart';
@@ -39,20 +40,17 @@ import 'ui/theme/app_scroll_behavior.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/ui_app.dart';
 
-NodeFacade? _globalNodeFacade;
+AppDependencies? _globalAppDependencies;
 
 Future<NodeFacade> _ensureGlobalNodeFacade() async {
-  if (_globalNodeFacade != null) {
-    return _globalNodeFacade!;
+  final existing = _globalAppDependencies;
+  if (existing != null) {
+    return existing.nodeFacade;
   }
 
-  final storage = StorageService();
-  await storage.init();
-  await AppFileLogger.configureFromStorage(storage);
-
-  final deps = await NetworkDependencies.create();
-  _globalNodeFacade = deps.nodeFacade;
-  return _globalNodeFacade!;
+  final appDependencies = await AppCompositionRoot().create();
+  _globalAppDependencies = appDependencies;
+  return appDependencies.nodeFacade;
 }
 
 Future<void> _pollRelayAndNotify() async {
@@ -151,10 +149,9 @@ class _BootstrapApp extends StatefulWidget {
 class _BootstrapAppState extends State<_BootstrapApp>
     with WidgetsBindingObserver {
   static const _fcmInitTimeout = Duration(seconds: 12);
-  NetworkDependencies? _deps;
-  StorageService? _storage;
-  AppAppearanceController? _appearanceController;
-  AppLocaleController? _localeController;
+  final AppCompositionRoot _compositionRoot = AppCompositionRoot();
+  AppBaseDependencies? _baseDependencies;
+  AppDependencies? _appDependencies;
   FirebaseMessagingService? _firebaseMessagingService;
   IosCallkitService? _iosCallkitService;
   StreamSubscription<String>? _fcmTokenSubscription;
@@ -188,20 +185,10 @@ class _BootstrapAppState extends State<_BootstrapApp>
           _bootstrapStage = const AppStrings(AppLanguage.ru).launchStorage;
         });
       }
-      AppFileLogger.log('[main] creating StorageService');
-      final storage = StorageService();
-      AppFileLogger.log('[main] initializing StorageService');
-      await storage.init();
-      await AppFileLogger.configureFromStorage(storage);
-      await AppBadgeService(storage: storage).syncFromStorage();
-      AppFileLogger.log('[main] StorageService initialized');
-      _storage = storage;
-      final appearanceController = AppAppearanceController(storage: storage);
-      await appearanceController.initialize();
-      _appearanceController = appearanceController;
-      final localeController = AppLocaleController(storage: storage);
-      await localeController.initialize();
-      _localeController = localeController;
+      final baseDependencies = await _compositionRoot.createBaseDependencies();
+      final storage = baseDependencies.storage;
+      final localeController = baseDependencies.localeController;
+      _baseDependencies = baseDependencies;
 
       if (mounted) {
         setState(() {
@@ -236,7 +223,9 @@ class _BootstrapAppState extends State<_BootstrapApp>
           _fcmTokenSubscription = firebaseMessagingService.tokenStream.listen((
             token,
           ) {
-            final facade = _deps?.nodeFacade ?? _globalNodeFacade;
+            final facade =
+                _appDependencies?.nodeFacade ??
+                _globalAppDependencies?.nodeFacade;
             if (facade == null) {
               return;
             }
@@ -274,17 +263,12 @@ class _BootstrapAppState extends State<_BootstrapApp>
           _bootstrapStage = AppStrings(localeController.current).launchNetwork;
         });
       }
-      AppFileLogger.log('[main] creating NetworkDependencies');
-      final deps = await NetworkDependencies.create().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-            'NetworkDependencies.create timed out after 30s',
-          );
-        },
+      final appDependencies = await _compositionRoot.createRuntimeDependencies(
+        base: baseDependencies,
+        timeout: const Duration(seconds: 30),
       );
-      AppFileLogger.log('[main] NetworkDependencies created');
-      _globalNodeFacade = deps.nodeFacade;
+      final deps = appDependencies.network;
+      _globalAppDependencies = appDependencies;
       ServerUpdateCallbackRegistry.onServersUpdate = (update) async {
         await _applyPushServersToRuntime(
           facade: deps.nodeFacade,
@@ -318,8 +302,11 @@ class _BootstrapAppState extends State<_BootstrapApp>
       unawaited(
         iosCallkitService.initialize(
           deps.nodeFacade,
+          storage: storage,
           onPushPayload: (payload, {required source}) async {
-            const RuntimeServersMergeOrchestrator().scheduleIfPresent(
+            RuntimeServersMergeOrchestrator(
+              settings: storage.getSettings(),
+            ).scheduleIfPresent(
               payload,
               source: source,
               logName: 'callkit',
@@ -341,8 +328,7 @@ class _BootstrapAppState extends State<_BootstrapApp>
       }
       AppFileLogger.log('[main] bootstrap ui ready');
       setState(() {
-        _storage = storage;
-        _deps = deps;
+        _appDependencies = appDependencies;
         _bootstrapStage = AppStrings(localeController.current).launchUi;
       });
 
@@ -423,7 +409,7 @@ class _BootstrapAppState extends State<_BootstrapApp>
     }
     setState(() {
       _bootstrapError = null;
-      _deps = null;
+      _appDependencies = null;
     });
     await _bootstrap();
   }
@@ -442,6 +428,13 @@ class _BootstrapAppState extends State<_BootstrapApp>
     final messaging = _firebaseMessagingService;
     if (messaging != null) {
       unawaited(messaging.dispose());
+    }
+    final appDependencies = _appDependencies;
+    final baseDependencies = _baseDependencies;
+    if (appDependencies != null) {
+      unawaited(appDependencies.dispose());
+    } else if (baseDependencies != null) {
+      unawaited(baseDependencies.dispose());
     }
     super.dispose();
   }
@@ -462,7 +455,7 @@ class _BootstrapAppState extends State<_BootstrapApp>
       }
       setState(() {
         _bootstrapStage = AppStrings(
-          _localeController?.current ?? AppLanguage.ru,
+          _baseDependencies?.localeController.current ?? AppLanguage.ru,
         ).launchDone;
       });
     } catch (error, stackTrace) {
@@ -475,10 +468,12 @@ class _BootstrapAppState extends State<_BootstrapApp>
 
   @override
   Widget build(BuildContext context) {
-    final deps = _deps;
-    final storage = _storage;
-    final appearanceController = _appearanceController;
-    final localeController = _localeController;
+    final appDependencies = _appDependencies;
+    final baseDependencies = appDependencies?.base ?? _baseDependencies;
+    final deps = appDependencies?.network;
+    final storage = baseDependencies?.storage;
+    final appearanceController = baseDependencies?.appearanceController;
+    final localeController = baseDependencies?.localeController;
     AppFileLogger.log(
       '[main] build depsReady=${deps != null} storageReady=${storage != null} stage=$_bootstrapStage',
     );
@@ -553,12 +548,7 @@ class _BootstrapAppState extends State<_BootstrapApp>
         storage != null &&
         appearanceController != null &&
         localeController != null) {
-      return UiApp(
-        facade: deps.nodeFacade,
-        storage: storage,
-        appearanceController: appearanceController,
-        localeController: localeController,
-      );
+      return UiApp(dependencies: _appDependencies!);
     }
     return Scaffold(
       body: SafeArea(

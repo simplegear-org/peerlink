@@ -220,7 +220,9 @@ class GroupKeyService {
       }
 
       if (storageKey.startsWith(_groupKeyVersionStoragePrefix)) {
-        final groupId = storageKey.substring(_groupKeyVersionStoragePrefix.length);
+        final groupId = storageKey.substring(
+          _groupKeyVersionStoragePrefix.length,
+        );
         if (groupId.isEmpty) {
           continue;
         }
@@ -290,7 +292,9 @@ class GroupKeyService {
       migratedSomething = true;
     }
 
-    if (migratedSomething || legacyKeysRaw != null || legacyVersionsRaw != null) {
+    if (migratedSomething ||
+        legacyKeysRaw != null ||
+        legacyVersionsRaw != null) {
       await _store.delete(legacyGroupKeysStorageKey);
       await _store.delete(legacyGroupKeyVersionsStorageKey);
     }

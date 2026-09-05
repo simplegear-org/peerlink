@@ -54,7 +54,10 @@ class ServerConfigPayload {
           .toList(growable: false),
       turn: (json['turn'] as List? ?? const <dynamic>[])
           .whereType<Map>()
-          .map((item) => TurnServerConfig.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                TurnServerConfig.fromJson(Map<String, dynamic>.from(item)),
+          )
           .where((item) => item.url.trim().isNotEmpty)
           .toList(growable: false),
       push: (json['push'] as List? ?? const <dynamic>[])

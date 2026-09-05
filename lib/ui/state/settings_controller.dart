@@ -25,7 +25,7 @@ import '../../core/runtime/app_data_cleaner_service.dart';
 import '../../core/runtime/app_storage_stats.dart';
 import '../../core/node/node_facade.dart';
 import '../../core/runtime/account_pairing_payload.dart';
-import '../../core/runtime/contacts_repository.dart';
+import '../../features/contacts/infrastructure/contacts_repository.dart';
 import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/server_config_payload.dart';
 import '../../core/runtime/server_availability.dart';

@@ -8,10 +8,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../models/chat.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
 import '../models/contact.dart';
-import '../models/message.dart';
-import 'chat_media_file_reader.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
+import 'package:peerlink/features/chat/application/chat_media_file_reader.dart';
 
 class ChatForwardTarget {
   final String peerId;

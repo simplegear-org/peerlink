@@ -12,12 +12,12 @@ import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../localization/app_strings.dart';
-import '../models/chat.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../state/chat_controller.dart';
-import '../state/chat_controller_models.dart';
+import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import '../state/chat_forward_service.dart';
 import '../state/presence_service.dart';
 import 'chat_screen_actions.dart';

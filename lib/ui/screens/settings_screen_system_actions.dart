@@ -9,7 +9,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../../core/runtime/self_hosted_deploy_service.dart';
 import '../../core/turn/turn_server_config.dart';
 import '../localization/app_strings.dart';

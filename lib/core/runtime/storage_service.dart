@@ -10,7 +10,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'app_storage_stats.dart';
-import 'chat_database.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_database.dart';
 import 'secure_storage_wrapper.dart';
 import 'storage_service_media.dart';
 import 'storage_service_migrations.dart';

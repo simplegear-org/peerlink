@@ -24,7 +24,12 @@ import 'firebase_push_servers_merge_orchestrator.dart';
 class FirebasePushPresentationHandler {
   FirebasePushPresentationHandler({
     required FirebasePushPayloadProcessor payloadProcessor,
-  }) : _payloadProcessor = payloadProcessor {
+    required StorageService storage,
+  }) : _payloadProcessor = payloadProcessor,
+       _accessControl = PeerAccessControlService.forStorage(storage),
+       _serversMergeOrchestrator = FirebasePushServersMergeOrchestrator(
+         settings: storage.getSettings(),
+       ) {
     _configureIosPushPayloadCallbacks();
   }
 
@@ -38,10 +43,8 @@ class FirebasePushPresentationHandler {
       <String, DateTime>{};
 
   final FirebasePushPayloadProcessor _payloadProcessor;
-  final PeerAccessControlService _accessControl =
-      PeerAccessControlService.forStorage(StorageService());
-  static const FirebasePushServersMergeOrchestrator _serversMergeOrchestrator =
-      FirebasePushServersMergeOrchestrator();
+  final PeerAccessControlService _accessControl;
+  final FirebasePushServersMergeOrchestrator _serversMergeOrchestrator;
 
   void _configureIosPushPayloadCallbacks() {
     _iosPushPayloadHandler = this;

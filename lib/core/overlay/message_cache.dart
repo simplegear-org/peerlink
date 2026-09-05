@@ -22,8 +22,6 @@ class MessageCache {
   void _cleanup() {
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    _cache.removeWhere(
-      (key, value) => now - value > 60000,
-    );
+    _cache.removeWhere((key, value) => now - value > 60000);
   }
 }

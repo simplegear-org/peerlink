@@ -7,20 +7,23 @@
 import 'dart:async';
 
 import 'app_file_logger.dart';
+import 'storage_service.dart';
 import 'server_update_callback_registry.dart';
 import 'server_update_parser.dart';
 import 'server_update_storage_merger.dart';
 import 'push_server_sharing_preferences.dart';
-import 'storage_service.dart';
 
 class RuntimeServersMergeOrchestrator {
-  const RuntimeServersMergeOrchestrator({
+  RuntimeServersMergeOrchestrator({
+    required SecureStorageBox settings,
     ServerUpdateParser serverUpdateParser = const ServerUpdateParser(),
     ServerUpdateStorageMerger serverStorageMerger =
         const ServerUpdateStorageMerger(),
-  }) : _serverUpdateParser = serverUpdateParser,
+  }) : _settings = settings,
+       _serverUpdateParser = serverUpdateParser,
        _serverStorageMerger = serverStorageMerger;
 
+  final SecureStorageBox _settings;
   final ServerUpdateParser _serverUpdateParser;
   final ServerUpdateStorageMerger _serverStorageMerger;
 
@@ -50,9 +53,7 @@ class RuntimeServersMergeOrchestrator {
         'priorityTurn=${update.priorityTurn.length}',
         name: logName,
       );
-      final storage = StorageService();
-      final settings = storage.getSettings();
-      if (!PushServerSharingPreferences.receiveIncomingServers(settings)) {
+      if (!PushServerSharingPreferences.receiveIncomingServers(_settings)) {
         AppFileLogger.log(
           '$logPrefix apply skipped source=$source reason=disabled',
           name: logName,
@@ -60,7 +61,7 @@ class RuntimeServersMergeOrchestrator {
         return;
       }
       final mergeResult = await _serverStorageMerger.merge(
-        settings: settings,
+        settings: _settings,
         update: update,
       );
       AppFileLogger.log(

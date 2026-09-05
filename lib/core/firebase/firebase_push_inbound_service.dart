@@ -15,24 +15,25 @@ import 'firebase_push_presentation_handler.dart';
 class FirebasePushInboundService {
   FirebasePushInboundService({
     FirebasePushPayloadProcessor? payloadProcessor,
-    StorageService? storage,
+    required StorageService storage,
   }) {
     final processor =
         payloadProcessor ??
         FirebasePushPayloadProcessor(
-          moderationPolicyService: ModerationPolicyService.forStorage(
-            storage ?? StorageService(),
-          ),
+          storage: storage,
+          moderationPolicyService: ModerationPolicyService.forStorage(storage),
         );
     _payloadProcessor = processor;
     _presentationHandler = FirebasePushPresentationHandler(
       payloadProcessor: processor,
+      storage: storage,
     );
+    _appBadgeService = AppBadgeService(storage: storage);
   }
 
   late final FirebasePushPayloadProcessor _payloadProcessor;
   late final FirebasePushPresentationHandler _presentationHandler;
-  final AppBadgeService _appBadgeService = AppBadgeService();
+  late final AppBadgeService _appBadgeService;
 
   Future<void> configureForegroundPresentation(FirebaseMessaging messaging) {
     return _presentationHandler.configureForegroundPresentation(messaging);

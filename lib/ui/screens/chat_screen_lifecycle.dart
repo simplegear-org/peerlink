@@ -9,10 +9,10 @@ import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:flutter/material.dart';
 
-import '../../core/runtime/avatar_service.dart';
-import '../models/chat.dart';
+import '../../features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
 import '../state/chat_controller.dart';
-import '../state/chat_controller_models.dart';
+import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import '../state/presence_service.dart';
 import 'chat_screen_scroll_coordinator.dart';
 

@@ -24,7 +24,9 @@ import '../dht/record_store.dart';
 import '../dht/rpc/kademlia_protocol.dart';
 import '../dht/dht_transport.dart';
 import '../node/mesh_node.dart';
+import '../node/mesh_node_runtime_adapters.dart';
 import '../node/node_facade.dart';
+import '../node/reliable_call_control_adapter.dart';
 import '../push/push_api_client.dart';
 import '../relay/http_relay_client.dart';
 import '../signaling/bootstrap_signaling_models.dart';
@@ -35,48 +37,27 @@ import 'network_event_bus.dart';
 import 'push_token_service.dart';
 import 'contacts_repository.dart';
 import 'peer_access_control_service.dart';
+import 'runtime_servers_merge_orchestrator.dart';
 
 /// Сборка и wiring всех сетевых зависимостей приложения.
 class NetworkDependencies {
-  static NetworkDependencies? _instance;
-  static Future<NetworkDependencies>? _createFuture;
-
   final int instanceId = identityHashCode(Object());
   late final NetworkEventBus eventBus;
   late final MeshNode node;
   late final NodeFacade nodeFacade;
+  late final StorageService storage;
 
   NetworkDependencies._();
 
   /// Фабричный метод создания и инициализации dependency graph.
-  static Future<NetworkDependencies> create() async {
-    final existing = _instance;
-    if (existing != null) {
-      AppFileLogger.log(
-        '[network] create:reuse instance=${existing.instanceId}',
-      );
-      return existing;
-    }
-    final inFlight = _createFuture;
-    if (inFlight != null) {
-      AppFileLogger.log('[network] create:join in-flight');
-      return inFlight;
-    }
-    final future = _createInternal();
-    _createFuture = future;
-    return future;
-  }
-
-  static Future<NetworkDependencies> _createInternal() async {
+  static Future<NetworkDependencies> create({
+    required StorageService storage,
+  }) async {
     final deps = NetworkDependencies._();
+    deps.storage = storage;
     AppFileLogger.log('[network] create:new instance=${deps.instanceId}');
-    try {
-      await deps._initialize();
-      _instance = deps;
-      return deps;
-    } finally {
-      _createFuture = null;
-    }
+    await deps._initialize();
+    return deps;
   }
 
   /// Инициализирует core-сервисы и связывает их в единый runtime.
@@ -85,7 +66,7 @@ class NetworkDependencies {
       AppFileLogger.log('[network] initialize:start instance=$instanceId');
       eventBus = NetworkEventBus();
       AppFileLogger.log('[network] eventBus:ready');
-      final storage = StorageService();
+      await storage.init();
 
       // ============================
       // CORE SERVICES
@@ -232,16 +213,30 @@ class NetworkDependencies {
       );
       await messaging.initialize();
       AppFileLogger.log('[network] creating ChatService');
-      final chat = ChatService(messaging, eventBus);
+      final chat = ChatService(
+        messaging,
+        eventBus,
+        serversMergeOrchestrator: RuntimeServersMergeOrchestrator(
+          settings: storage.getSettings(),
+        ),
+      );
       final accessControl = PeerAccessControlService(
         settingsBox: storage.getSettings(),
         contactsRepository: ContactsRepository(storage: storage),
+      );
+      final callControlTransport = ReliableCallControlAdapter(
+        selfPeerId: identity.nodeId,
+        chat: chat,
       );
       AppFileLogger.log('[network] creating CallService');
       final calls = CallService(
         selfPeerId: identity.nodeId,
         signaling: signaling,
         turnAllocator: turnAllocator,
+        callControlTransport: callControlTransport,
+        serversMergeOrchestrator: RuntimeServersMergeOrchestrator(
+          settings: storage.getSettings(),
+        ),
         incomingCallAccessDecision: (peerId) => accessControl.evaluateIncoming(
           peerId: peerId,
           type: IncomingInteractionType.call,
@@ -275,6 +270,8 @@ class NetworkDependencies {
         signaling: signaling,
         pushApiClient: pushApiClient,
         settingsBox: storage.getSettings(),
+        storage: storage,
+        runtimeAdapterFactory: const DefaultMeshNodeRuntimeAdapterFactory(),
       );
       AppFileLogger.log('[network] node:constructed');
       chat.setServerMetadataProvider(node.collectRelayMessageServerMetadata);

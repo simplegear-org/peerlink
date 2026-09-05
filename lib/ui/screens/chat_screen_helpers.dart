@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../localization/app_strings.dart';
-import '../state/chat_controller_models.dart';
+import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import '../theme/app_theme.dart';
 
 class ChatScreenHelpers {

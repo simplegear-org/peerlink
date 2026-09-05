@@ -11,17 +11,11 @@ class NodeInfo {
   NodeInfo(this.nodeId, this.address);
 
   factory NodeInfo.fromJson(Map<String, dynamic> json) {
-    return NodeInfo(
-      json['nodeId'],
-      json['address'],
-    );
+    return NodeInfo(json['nodeId'], json['address']);
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      "nodeId": nodeId,
-      "address": address,
-    };
+    return {"nodeId": nodeId, "address": address};
   }
 }
 
@@ -30,18 +24,10 @@ class RpcMessage {
   final String type;
   final Map<String, dynamic> payload;
 
-  RpcMessage({
-    required this.id,
-    required this.type,
-    required this.payload,
-  });
+  RpcMessage({required this.id, required this.type, required this.payload});
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'type': type,
-      'payload': payload,
-    };
+    return {'id': id, 'type': type, 'payload': payload};
   }
 
   factory RpcMessage.fromJson(Map<String, dynamic> json) {

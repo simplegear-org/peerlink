@@ -15,6 +15,7 @@ import '../runtime/app_file_logger.dart';
 import '../runtime/moderation_policy_service.dart';
 import '../runtime/push_token_service.dart';
 import '../runtime/storage_service.dart';
+import '../notification/notification_service.dart';
 import 'firebase_push_callback_registry.dart';
 import 'firebase_push_inbound_service.dart';
 import 'firebase_push_models.dart';
@@ -27,17 +28,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } catch (_) {
     // Firebase may already be initialized in the background isolate.
   }
-  final inbound = FirebasePushInboundService();
+  final storage = StorageService();
+  await storage.init();
+  NotificationService.instance.configureStorage(storage);
+  final inbound = FirebasePushInboundService(storage: storage);
   await inbound.handleBackgroundMessage(message);
 }
 
 class FirebaseMessagingService {
   FirebaseMessagingService({
     FirebaseMessaging? messaging,
-    StorageService? storage,
+    required StorageService storage,
   }) : this._(
          messaging: messaging ?? FirebaseMessaging.instance,
-         storage: storage ?? StorageService(),
+         storage: storage,
        );
 
   FirebaseMessagingService._({

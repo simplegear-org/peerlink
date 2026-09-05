@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/diagnostic_log.dart' as diag;
 import '../localization/app_strings.dart';
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 import '../theme/app_theme.dart';
-import '../state/chat_media_thumbnail_service.dart';
+import 'package:peerlink/features/chat/application/chat_media_thumbnail_service.dart';
 import 'message_bubble_audio_preview.dart';
 import 'message_file_availability_cache.dart';
 import 'message_bubble_video_preview.dart';

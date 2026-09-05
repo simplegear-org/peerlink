@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/runtime/app_file_logger.dart';
-import '../../core/runtime/avatar_service.dart';
+import '../../features/profile/application/avatar_service.dart';
 import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../state/app_appearance_controller.dart';

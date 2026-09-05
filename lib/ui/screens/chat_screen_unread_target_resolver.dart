@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import '../models/message.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 
 class ChatScreenUnreadTargetResolver {
   const ChatScreenUnreadTargetResolver._();

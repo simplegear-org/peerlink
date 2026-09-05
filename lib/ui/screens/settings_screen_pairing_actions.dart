@@ -62,7 +62,8 @@ class SettingsScreenPairingActions {
   }
 
   Future<void> tryApplyApprovedPairing(BuildContext context) async {
-    final expired = await controller.expireStaleOutgoingAccountPairingIfNeeded();
+    final expired = await controller
+        .expireStaleOutgoingAccountPairingIfNeeded();
     if (isMounted() && context.mounted && expired) {
       refreshUi();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -72,7 +73,8 @@ class SettingsScreenPairingActions {
       );
       return;
     }
-    final rejected = await controller.consumeRejectedAccountPairingIfAvailable();
+    final rejected = await controller
+        .consumeRejectedAccountPairingIfAvailable();
     if (isMounted() && context.mounted && rejected) {
       refreshUi();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -542,8 +544,8 @@ class SettingsScreenPairingActions {
       return;
     }
     refreshUi();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(strings.accountPairingRequestSent)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(strings.accountPairingRequestSent)));
   }
 }

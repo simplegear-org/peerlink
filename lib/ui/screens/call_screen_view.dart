@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../core/calls/call_models.dart';
-import '../../core/node/node_facade.dart';
+import '../../core/node/node_capability_apis.dart';
 import '../localization/app_strings.dart';
 import '../theme/app_theme.dart';
 import 'package:peerlink/ui/screens/call_screen_video_view.dart';
@@ -21,7 +21,7 @@ import 'call_screen_styles.dart';
 import 'settings_screen_formatters.dart';
 
 class CallScreenContent extends StatelessWidget {
-  final NodeFacade facade;
+  final CallsApi calls;
   final CallState state;
   final String contactName;
   final ValueListenable<int>? dataBytesListenable;
@@ -32,7 +32,7 @@ class CallScreenContent extends StatelessWidget {
 
   const CallScreenContent({
     super.key,
-    required this.facade,
+    required this.calls,
     required this.state,
     required this.contactName,
     required this.dataBytesListenable,
@@ -268,7 +268,7 @@ class CallScreenContent extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     minimumSize: Size(0, constraints.maxHeight),
                   ),
-                  onPressed: () => unawaited(facade.acceptIncomingCall()),
+                  onPressed: () => unawaited(calls.acceptIncomingCall()),
                   icon: Icon(
                     state.mediaType == CallMediaType.video
                         ? Icons.videocam_rounded
@@ -286,7 +286,7 @@ class CallScreenContent extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     minimumSize: Size(0, constraints.maxHeight),
                   ),
-                  onPressed: () => unawaited(facade.rejectIncomingCall()),
+                  onPressed: () => unawaited(calls.rejectIncomingCall()),
                   icon: const Icon(Icons.call_end),
                   label: Text(context.strings.decline),
                 ),
@@ -302,13 +302,13 @@ class CallScreenContent extends StatelessWidget {
             ActionCircleButton(
               size: size,
               icon: state.isMuted ? Icons.mic_off : Icons.mic,
-              onPressed: () => unawaited(facade.toggleCallMuted()),
+              onPressed: () => unawaited(calls.toggleCallMuted()),
             ),
             ActionCircleButton(
               size: size,
               icon: state.speakerOn ? Icons.volume_up : Icons.hearing,
               onPressed: () =>
-                  unawaited(facade.setCallSpeakerOn(!state.speakerOn)),
+                  unawaited(calls.setCallSpeakerOn(!state.speakerOn)),
             ),
             ActionCircleButton(
               size: size,
@@ -320,7 +320,7 @@ class CallScreenContent extends StatelessWidget {
                   : Colors.white,
               onPressed: () {
                 if (_canToggleVideo && !state.videoToggleInProgress) {
-                  unawaited(facade.toggleCallVideo());
+                  unawaited(calls.toggleCallVideo());
                 }
               },
               backgroundColor: _canToggleVideo
@@ -331,7 +331,7 @@ class CallScreenContent extends StatelessWidget {
               size: size,
               icon: Icons.flip_camera_ios_rounded,
               onPressed: _hasLocalVideo
-                  ? () => unawaited(facade.flipCallCamera())
+                  ? () => unawaited(calls.flipCallCamera())
                   : () {},
               backgroundColor: _hasLocalVideo
                   ? null
@@ -343,7 +343,7 @@ class CallScreenContent extends StatelessWidget {
               icon: Icons.call_end,
               backgroundColor: Colors.red.shade400,
               foregroundColor: Colors.white,
-              onPressed: () => unawaited(facade.endCall()),
+              onPressed: () => unawaited(calls.endCall()),
             ),
           ],
         );
