@@ -6,13 +6,13 @@
 
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
 
 class ChatGroupFlowService {
-  final NodeFacade facade;
+  final ChatRuntimeApi facade;
   final GroupKeyService groupKeyService;
   final ChatOutboundCodec outboundCodec;
   final String Function() nextLocalMessageId;

@@ -47,7 +47,7 @@ class IdentityMembershipCrypto {
     required String signerPublicKeyBase64,
   }) async {
     try {
-      return _algorithm.verify(
+      return await _algorithm.verify(
         membershipPayloadBytes(
           accountId: accountId,
           device: device,
@@ -99,7 +99,7 @@ class IdentityMembershipCrypto {
     required String signerPublicKeyBase64,
   }) async {
     try {
-      return _algorithm.verify(
+      return await _algorithm.verify(
         accountMembershipUpdatePayloadBytes(
           identity: identity,
           actorDeviceId: actorDeviceId,

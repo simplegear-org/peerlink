@@ -76,4 +76,35 @@ void main() {
           'IdentityApi, or other narrow node contracts instead of NodeFacade.',
     );
   });
+
+  test('migrated runtime support services avoid NodeFacade', () {
+    final sources = dartSourcesUnder(const [
+      'lib/core/runtime',
+    ]).where((source) => _migratedRuntimeSupportServices.contains(source.path));
+    final violations = <String>[];
+
+    for (final source in sources) {
+      for (final import in source.imports()) {
+        if (import.resolvePeerlinkPath() == 'lib/core/node/node_facade.dart') {
+          violations.add(import.location);
+        }
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Migrated runtime support services should depend on narrow node '
+          'capability APIs instead of unrestricted NodeFacade.',
+    );
+  });
 }
+
+const _migratedRuntimeSupportServices = {
+  'lib/core/runtime/app_data_cleaner_service.dart',
+  'lib/core/runtime/bootstrap_servers_service.dart',
+  'lib/core/runtime/relay_servers_service.dart',
+  'lib/core/runtime/server_health_coordinator.dart',
+  'lib/core/runtime/turn_servers_service.dart',
+};

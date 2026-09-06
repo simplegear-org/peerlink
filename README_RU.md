@@ -290,16 +290,23 @@ APNS_USE_SANDBOX=true
 - Пост-инициализация через `AppBootstrapCoordinator`.
 - Публичный API ядра через `NodeFacade`, с узкими capability contracts
   (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
-  `RuntimeEventsApi`) для уже мигрированных app/call surfaces.
+  `PresenceApi`, `RuntimeEventsApi`) для уже мигрированных app/call/settings,
+  presence, restriction, chat и runtime support surfaces. Chat использует
+  feature-owned `ChatRuntimeApi` adapter на composition boundary.
+- `StorageService` отвечает за storage runtime init, raw boxes, media helper-ы,
+  cleanup/statistics и migration callbacks с state на lifetime экземпляра;
+  chat messages/summaries и call history принадлежат feature repositories/stores.
+- Chat persistence использует `ChatRepository` плюс `ChatMessageStore` /
+  `ChatSummaryStore`; call history использует `CallLogRepository`.
 - Завершена декомпозиция chat-flow UI/логики (`ChatScreen*` и `ChatController*` разнесены по отдельным файлам).
 - Для экранов стандартизован шаблон: `*_screen.dart` + `*_view.dart` + `*_styles.dart`.
 - Chat UI для одного чата дополнительно разнесен на отдельные screen-модули: `chat_screen_app_bar`, `chat_screen_message_list`, `chat_screen_audio_actions`, `chat_screen_actions`, `chat_screen_scroll_coordinator`, `chat_screen_lifecycle`, `chat_screen_viewport_state`, `chat_screen_presenter`, `chat_screen_back_swipe_coordinator`, `chat_screen_composer_coordinator`.
 - Chat UI helper-компоненты вынесены отдельно (`chat_screen_helpers`, `chat_screen_unread_divider`, `chat_screen_media_actions`).
 - Переход к исходному сообщению по reply теперь использует локальный поиск позиции сообщения и адресную догрузку истории, что улучшает прыжки к очень старым сообщениям.
-- Добавлен `AvatarService` (единый источник аватаров в UI, хранение пути/версии, push/pull синхронизация через relay blob + control announce).
+- Добавлен `AvatarService` (единый источник аватаров в UI, хранение пути/версии, push/pull синхронизация через relay blob + control announce через узкий profile avatar transport).
 - Добавлен `SelfHostedDeployService` (этапный прогресс, валидация endpoint-ов, пост-проверки bootstrap/relay/turn).
 - Добавлен общий контракт `ServerAvailabilityProvider` для сервисов проверки серверов, чтобы probing bootstrap/relay/turn можно было единообразно оркестрировать в runtime.
-- Добавлен общий `ServerHealthCoordinator`, который запускает health layer для bootstrap/relay/turn после app bootstrap и отдает в Settings единый runtime-источник данных о доступности серверов.
+- Добавлен общий `ServerHealthCoordinator`, который запускает health layer для bootstrap/relay/turn после app bootstrap и отдает в Settings единый runtime-источник данных о доступности серверов через `NetworkApi`.
 - `HttpRelayClient` и `TurnAllocator` теперь сначала смотрят на coordinator-backed health snapshot для relay/turn, а при неизвестном общем статусе сохраняют локальный runtime fallback.
 - Общий health layer теперь автоматически делает refresh при возврате приложения в foreground и при смене сетевой связности, поэтому bootstrap/relay/turn быстрее восстанавливают актуальный статус после resume или переключения сети.
 - Перед критичными relay-операциями клиент теперь адресно обновляет только текущий shortlist relay-серверов, если shared health устарел, а не перепроверяет весь список relay целиком.

@@ -278,15 +278,23 @@ APNS_USE_SANDBOX=true
 - Post-start coordination via `AppBootstrapCoordinator`.
 - Public core API via `NodeFacade`, with narrow capability contracts
   (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
-  `RuntimeEventsApi`) used by migrated app/call surfaces.
+  `PresenceApi`, `RuntimeEventsApi`) used by migrated app/call/settings,
+  presence, restriction, chat, and runtime support surfaces. Chat uses a
+  feature-owned `ChatRuntimeApi` adapter at the composition boundary.
+- `StorageService` keeps storage runtime initialization, raw boxes, media
+  helpers, cleanup/statistics, and migration callbacks with instance-scoped
+  state; chat messages/summaries and call history are owned by feature
+  repositories/stores.
+- Chat persistence uses `ChatRepository` plus `ChatMessageStore` /
+  `ChatSummaryStore`; call history uses `CallLogRepository`.
 - UI decomposition completed for chat flow (`ChatScreen*` and `ChatController*` split into focused files).
 - Screen layout template standardized to `*_screen.dart` + `*_view.dart` + `*_styles.dart`.
 - Chat UI helpers extracted to dedicated modules (`chat_screen_helpers`, `chat_screen_unread_divider`).
 - Reply navigation now uses local history-aware message lookup plus targeted page loading, improving jumps to much older referenced messages.
-- Added `AvatarService` as a single avatar source for UI, including local cache and sync via relay blob + control announce.
+- Added `AvatarService` as a single avatar source for UI, including local cache and sync via relay blob + control announce through the narrow profile avatar transport.
 - Added self-hosted deployment runtime service (`SelfHostedDeployService`) with staged progress parsing and endpoint verification.
 - Added shared `ServerAvailabilityProvider` contract for server-health services, so bootstrap/relay/turn probing can be orchestrated uniformly in runtime.
-- Added shared `ServerHealthCoordinator`, which starts the bootstrap/relay/turn health layer after app bootstrap and exposes one runtime source of availability data to Settings.
+- Added shared `ServerHealthCoordinator`, which starts the bootstrap/relay/turn health layer after app bootstrap and exposes one runtime source of availability data to Settings through `NetworkApi`.
 - `HttpRelayClient` and `TurnAllocator` now consult the coordinator-backed relay/turn health snapshots first, while keeping runtime-local fallback behavior when shared health is still unknown.
 - The shared health layer now refreshes on app resume and on connectivity changes, so relay/turn/bootstrap availability recovers faster after foreground return or network switches.
 - Before critical relay operations, the client now selectively refreshes only the current relay shortlist when shared health is stale, instead of reprobeing the whole configured relay set.

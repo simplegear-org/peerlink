@@ -9,7 +9,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 
-import '../node/node_facade.dart';
+import '../node/node_capability_apis.dart';
 import '../turn/turn_server_config.dart';
 import 'app_file_logger.dart';
 import 'bootstrap_servers_service.dart';
@@ -28,7 +28,7 @@ import 'turn_servers_service.dart';
 class ServerHealthCoordinator with WidgetsBindingObserver {
   static ServerHealthCoordinator? _instance;
 
-  final NodeFacade facade;
+  final NetworkApi facade;
   final StorageService storage;
 
   late final BootstrapServersService bootstrap;
@@ -44,7 +44,7 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
   bool _disposed = false;
 
   factory ServerHealthCoordinator({
-    required NodeFacade facade,
+    required NetworkApi facade,
     required StorageService storage,
   }) {
     final existing = _instance;

@@ -10,9 +10,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/profile/application/profile_avatar_inbound_handler.dart';
+import 'package:peerlink/features/profile/application/profile_avatar_transport.dart';
 
 class AvatarService implements ProfileAvatarInboundHandler {
   static const String _settingsKey = 'peer_avatars_v1';
@@ -23,13 +24,18 @@ class AvatarService implements ProfileAvatarInboundHandler {
   static const String _localAvatarMimeTypeKey = 'local_avatar_mime_type_v1';
   static const int _maxAvatarBytes = 1024 * 1024;
 
-  final NodeFacade facade;
+  final ProfileAvatarTransport transport;
   final StorageService storage;
+  final ChatSummaryStore chatSummaryStore;
   final StreamController<String> _updatesController =
       StreamController<String>.broadcast();
   final Map<String, _AvatarRecord> _peerAvatars = <String, _AvatarRecord>{};
 
-  AvatarService({required this.facade, required this.storage}) {
+  AvatarService({
+    required this.transport,
+    required this.storage,
+    required this.chatSummaryStore,
+  }) {
     _loadFromStorage();
     unawaited(_bootstrapSync());
   }
@@ -61,10 +67,10 @@ class AvatarService implements ProfileAvatarInboundHandler {
     await settings.delete(_localAvatarBytesB64Key);
     await settings.delete(_localAvatarMimeTypeKey);
     await settings.delete(_settingsKey);
-    _updatesController.add(facade.peerId);
+    _updatesController.add(transport.peerId);
   }
 
-  String? get localAvatarPath => avatarPathForPeer(facade.peerId);
+  String? get localAvatarPath => avatarPathForPeer(transport.peerId);
 
   Future<void> setLocalAvatar(
     Uint8List bytes, {
@@ -80,7 +86,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     final updatedAtMs = DateTime.now().millisecondsSinceEpoch;
     final path = await storage.saveMediaBytes(
       peerId: '_avatars',
-      messageId: '${facade.peerId}_$updatedAtMs',
+      messageId: '${transport.peerId}_$updatedAtMs',
       fileName: 'avatar_${_safeMimeExt(mimeType)}',
       bytes: bytes,
     );
@@ -88,12 +94,12 @@ class AvatarService implements ProfileAvatarInboundHandler {
       throw StateError('Failed to save avatar image');
     }
 
-    final previous = _peerAvatars[facade.peerId];
+    final previous = _peerAvatars[transport.peerId];
     if (previous != null && previous.path.isNotEmpty && previous.path != path) {
       await storage.deleteMediaFile(previous.path);
     }
 
-    _peerAvatars[facade.peerId] = _AvatarRecord(
+    _peerAvatars[transport.peerId] = _AvatarRecord(
       path: path,
       updatedAtMs: updatedAtMs,
     );
@@ -101,7 +107,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     await settings.put(_localAvatarBytesB64Key, base64Encode(bytes));
     await settings.put(_localAvatarMimeTypeKey, mimeType);
     await _persist();
-    _updatesController.add(facade.peerId);
+    _updatesController.add(transport.peerId);
 
     await broadcastLocalAvatarToKnownPeers(
       mimeType: mimeType,
@@ -111,19 +117,19 @@ class AvatarService implements ProfileAvatarInboundHandler {
   }
 
   Future<void> clearLocalAvatar() async {
-    final current = _peerAvatars[facade.peerId];
+    final current = _peerAvatars[transport.peerId];
     if (current == null) {
       return;
     }
     if (current.path.isNotEmpty) {
       await storage.deleteMediaFile(current.path);
     }
-    _peerAvatars.remove(facade.peerId);
+    _peerAvatars.remove(transport.peerId);
     final settings = storage.getSettings();
     await settings.delete(_localAvatarBytesB64Key);
     await settings.delete(_localAvatarMimeTypeKey);
     await _persist();
-    _updatesController.add(facade.peerId);
+    _updatesController.add(transport.peerId);
     await _broadcastLocalAvatarRemoval();
   }
 
@@ -177,7 +183,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     }
 
     try {
-      final blob = await facade.downloadBlob(blobId);
+      final blob = await transport.downloadBlob(blobId);
       if (blob.isNotFound) {
         return;
       }
@@ -259,7 +265,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     String payloadRaw,
   ) async {
     final sender = senderPeerId.trim();
-    if (sender.isEmpty || sender == facade.peerId) {
+    if (sender.isEmpty || sender == transport.peerId) {
       return;
     }
     try {
@@ -271,7 +277,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
       return;
     }
 
-    final local = _peerAvatars[facade.peerId];
+    final local = _peerAvatars[transport.peerId];
     if (local == null) {
       return;
     }
@@ -314,11 +320,11 @@ class AvatarService implements ProfileAvatarInboundHandler {
       }
     }
 
-    final summaries = await storage.loadAllChatSummaries();
+    final summaries = await chatSummaryStore.loadAll();
     for (final raw in summaries) {
       final peerId = (raw['peerId'] as String? ?? '').trim();
       final isGroup = raw['isGroup'] == true || peerId.startsWith('group:');
-      if (peerId.isNotEmpty && !isGroup && peerId != facade.peerId) {
+      if (peerId.isNotEmpty && !isGroup && peerId != transport.peerId) {
         peers.add(peerId);
       }
       final rawMembers = raw['memberPeerIds'];
@@ -326,14 +332,14 @@ class AvatarService implements ProfileAvatarInboundHandler {
         for (final item in rawMembers) {
           if (item is String &&
               item.trim().isNotEmpty &&
-              item.trim() != facade.peerId) {
+              item.trim() != transport.peerId) {
             peers.add(item.trim());
           }
         }
       }
     }
 
-    peers.remove(facade.peerId);
+    peers.remove(transport.peerId);
     return peers.toList(growable: false);
   }
 
@@ -347,7 +353,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     final recipients = await _knownPeerIds();
     for (final peerId in recipients) {
       try {
-        await facade.sendControlMessage(
+        await transport.sendControlMessage(
           peerId,
           kind: 'profileAvatarRemove',
           text: payload,
@@ -365,7 +371,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
   }
 
   Future<void> _recoverLocalAvatarFromEmbedded() async {
-    final local = _peerAvatars[facade.peerId];
+    final local = _peerAvatars[transport.peerId];
     if (local != null &&
         local.path.isNotEmpty &&
         File(local.path).existsSync()) {
@@ -395,25 +401,25 @@ class AvatarService implements ProfileAvatarInboundHandler {
               DateTime.now().millisecondsSinceEpoch;
     final path = await storage.saveMediaBytes(
       peerId: '_avatars',
-      messageId: '${facade.peerId}_$updatedAtMs',
+      messageId: '${transport.peerId}_$updatedAtMs',
       fileName: 'avatar_${_safeMimeExt(mimeType)}',
       bytes: bytes,
     );
     if (path.isEmpty) {
       return;
     }
-    _peerAvatars[facade.peerId] = _AvatarRecord(
+    _peerAvatars[transport.peerId] = _AvatarRecord(
       path: path,
       updatedAtMs: updatedAtMs,
     );
     await _persist();
-    _updatesController.add(facade.peerId);
+    _updatesController.add(transport.peerId);
   }
 
   Future<void> _recoverPeerAvatarsFromEmbedded() async {
     final peerIds = List<String>.from(_peerAvatars.keys);
     for (final peerId in peerIds) {
-      if (peerId == facade.peerId) {
+      if (peerId == transport.peerId) {
         continue;
       }
       final record = _peerAvatars[peerId];
@@ -469,7 +475,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
         continue;
       }
       try {
-        await facade.sendControlMessage(
+        await transport.sendControlMessage(
           peerId,
           kind: 'profileAvatarQuery',
           text: payload,
@@ -491,14 +497,14 @@ class AvatarService implements ProfileAvatarInboundHandler {
     }
     String blobId;
     try {
-      blobId = await facade.uploadBlob(
+      blobId = await transport.uploadBlob(
         scopeKind: RelayBlobScopeKind.group,
-        targetId: 'profile:${facade.peerId}',
+        targetId: 'profile:${transport.peerId}',
         fileName:
-            'avatar_${facade.peerId}_$updatedAtMs.${_safeMimeExt(mimeType)}',
+            'avatar_${transport.peerId}_$updatedAtMs.${_safeMimeExt(mimeType)}',
         mimeType: mimeType,
         bytes: bytes,
-        blobId: 'avatar:${facade.peerId}:$updatedAtMs',
+        blobId: 'avatar:${transport.peerId}:$updatedAtMs',
       );
     } catch (_) {
       // Avatar announcements are best effort; a relay auth/config problem must
@@ -517,7 +523,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
 
     for (final peerId in recipients) {
       try {
-        await facade.sendControlMessage(
+        await transport.sendControlMessage(
           peerId,
           kind: 'profileAvatar',
           text: payload,
@@ -538,7 +544,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     if (localPath != null &&
         localPath.isNotEmpty &&
         File(localPath).existsSync()) {
-      _peerAvatars[facade.peerId] = _AvatarRecord(
+      _peerAvatars[transport.peerId] = _AvatarRecord(
         path: localPath,
         updatedAtMs: localUpdatedAtMs,
       );
@@ -583,7 +589,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
 
   Future<void> _persist() async {
     final settings = storage.getSettings();
-    final local = _peerAvatars[facade.peerId];
+    final local = _peerAvatars[transport.peerId];
     if (local == null) {
       await settings.delete(_localAvatarPathKey);
       await settings.delete(_localAvatarUpdatedAtKey);
@@ -597,7 +603,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
       _peerAvatars.entries,
     );
     for (final entry in entries) {
-      if (entry.key == facade.peerId) {
+      if (entry.key == transport.peerId) {
         continue;
       }
       map[entry.key] = <String, dynamic>{

@@ -7,11 +7,16 @@
 import 'dart:async';
 
 import 'package:peerlink/app/badges/app_badge_coordinator.dart';
+import 'package:peerlink/app/composition/chat_controller_composition.dart';
+import 'package:peerlink/app/composition/chat_runtime_node_adapter.dart';
+import 'package:peerlink/app/composition/profile_avatar_node_adapter.dart';
+import 'package:peerlink/app/composition/settings_controller_composition.dart';
 import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/notification/app_badge_service.dart';
 import 'package:peerlink/features/calls/platform/android_call_notification_service.dart';
 import 'package:peerlink/features/profile/application/avatar_service.dart';
 import 'package:peerlink/features/calls/infrastructure/call_log_repository.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
 import 'package:peerlink/core/runtime/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/self_hosted_deploy_service.dart';
@@ -47,8 +52,16 @@ class AppUiDependencies {
     required NodeFacade facade,
     required StorageService storage,
   }) {
-    final appBadgeService = AppBadgeService(storage: storage);
-    final avatarService = AvatarService(facade: facade, storage: storage);
+    const chatSummaryStore = ChatDatabaseSummaryStore();
+    final appBadgeService = AppBadgeService(
+      storage: storage,
+      loadUnreadMessagesCount: chatSummaryStore.unreadMessagesCount,
+    );
+    final avatarService = AvatarService(
+      transport: ProfileAvatarNodeAdapter(facade),
+      storage: storage,
+      chatSummaryStore: chatSummaryStore,
+    );
     final contactsRepository = ContactsRepository(storage: storage);
     final accessControl = PeerAccessControlService(
       settingsBox: storage.getSettings(),
@@ -70,24 +83,30 @@ class AppUiDependencies {
     );
     contactsController.loadIntoMemory();
     final settingsController = SettingsController(
-      facade: facade,
+      identity: facade,
+      network: facade,
+      messaging: facade,
       storage: storage,
+      dependenciesFactory: SettingsControllerComposition.create,
     );
     final badgeCoordinator = AppBadgeCoordinator(
       appBadgeService: appBadgeService,
       callsController: callsController,
     );
     final chatController = ChatController(
-      facade,
+      ChatRuntimeNodeAdapter(facade),
       storage: storage,
       avatarService: avatarService,
+      dependenciesFactory: ChatControllerComposition.create,
       onUnreadBadgeCountChanged: (unreadCount) {
         badgeCoordinator.syncAppIconBadge(unreadMessagesOverride: unreadCount);
       },
     );
     badgeCoordinator.unreadMessagesCount = chatController.unreadMessagesCount;
     final restrictionController = AppRestrictionController(
-      facade: facade,
+      identity: facade,
+      moderation: facade,
+      calls: facade,
       settingsController: settingsController,
       storage: storage,
     );
@@ -110,7 +129,7 @@ class AppUiDependencies {
       settingsController: settingsController,
       restrictionController: restrictionController,
       selfHostedDeployService: SelfHostedDeployService(),
-      presenceService: PresenceService(facade: facade),
+      presenceService: PresenceService(presence: facade),
       appController: appController,
     );
   }

@@ -6,6 +6,8 @@
 
 import 'package:flutter/widgets.dart';
 
+import 'package:peerlink/features/settings/application/settings_server_status_presenter.dart';
+
 import '../../core/runtime/self_hosted_deploy_service.dart';
 import 'app_language.dart';
 import 'dictionaries/app_strings_en.dart';
@@ -14,7 +16,7 @@ import 'dictionaries/app_strings_fr.dart';
 import 'dictionaries/app_strings_ru.dart';
 import 'dictionaries/app_strings_zh.dart';
 
-class AppStrings {
+class AppStrings implements SettingsServerStatusStrings {
   final AppLanguage currentLanguage;
 
   const AppStrings(this.currentLanguage);
@@ -406,11 +408,16 @@ class AppStrings {
   String get noPassword => _text('noPassword');
   String maskedPassword(String mask) =>
       _format('maskedPassword', {'mask': mask});
+  @override
   String get serverConnectedStatus => _text('serverConnectedStatus');
+  @override
   String get serverPausedStatus => _text('serverPausedStatus');
+  @override
   String serverAvailable({required bool active}) => _text('serverAvailable');
+  @override
   String serverUnavailable({required bool active}) =>
       _text('serverUnavailable');
+  @override
   String get serverCheckPending => _text('serverCheckPending');
   String serverConnected(String base) =>
       _format('serverConnected', {'base': base});
@@ -429,6 +436,7 @@ class AppStrings {
       _format('serverRuntimeUsed', {'base': base});
   String serverRuntimeError(String base, String error) =>
       _format('serverRuntimeError', {'base': base, 'error': error});
+  @override
   String get invalidAddress => _text('invalidAddress');
   String get dataCategories => _text('dataCategories');
   String get storageDetailsDescription => _text('storageDetailsDescription');

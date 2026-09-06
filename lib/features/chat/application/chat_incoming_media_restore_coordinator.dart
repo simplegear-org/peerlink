@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
 import 'package:peerlink/core/runtime/app_file_logger.dart';
@@ -21,7 +21,7 @@ class ChatIncomingMediaRestoreCoordinator {
   const ChatIncomingMediaRestoreCoordinator({
     required ChatMediaRestoreService mediaRestoreService,
     required ChatOutboundCodec outboundCodec,
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required Future<Uint8List> Function({
       required String groupId,
       required Uint8List encryptedBytes,
@@ -40,7 +40,7 @@ class ChatIncomingMediaRestoreCoordinator {
 
   final ChatMediaRestoreService _mediaRestoreService;
   final ChatOutboundCodec _outboundCodec;
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final Future<Uint8List> Function({
     required String groupId,
     required Uint8List encryptedBytes,

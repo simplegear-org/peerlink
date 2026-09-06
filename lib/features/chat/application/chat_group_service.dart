@@ -8,13 +8,13 @@ import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 import 'dart:typed_data';
 
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/application/chat_group_flow_service.dart';
 
 class ChatGroupService {
-  final NodeFacade facade;
+  final ChatRuntimeApi facade;
   final StorageService storage;
   final ChatGroupFlowService groupFlowService;
   final Map<String, Future<Chat>> _groupCreateInFlight =

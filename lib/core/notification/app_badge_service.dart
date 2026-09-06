@@ -8,17 +8,24 @@ import '../calls/call_log_entry.dart';
 import '../calls/call_models.dart';
 import '../firebase/firebase_push_payload.dart';
 import '../runtime/storage_service.dart';
+import '../runtime/chat_database.dart';
 import 'notification_service.dart';
 
 class AppBadgeService {
-  AppBadgeService({required StorageService storage}) : _storage = storage;
+  AppBadgeService({
+    required StorageService storage,
+    Future<int> Function()? loadUnreadMessagesCount,
+  }) : _storage = storage,
+       _loadUnreadMessagesCountOverride = loadUnreadMessagesCount;
 
   static const String _missedCallsSeenAtKey = 'peerlink.calls.missed_seen_at';
   static const String _handledPushEventsKey =
       'peerlink.app.badge_handled_push_events';
+  static const String _callLogItemsKey = 'items';
   static const int _handledPushEventsLimit = 100;
 
   final StorageService _storage;
+  final Future<int> Function()? _loadUnreadMessagesCountOverride;
 
   int totalForUi({required int unreadMessages, required int missedCalls}) {
     return unreadMessages + missedCalls;
@@ -73,14 +80,21 @@ class AppBadgeService {
   }
 
   Future<int> _loadUnreadMessagesCount() async {
-    final summaries = await _storage.loadAllChatSummaries();
+    final override = _loadUnreadMessagesCountOverride;
+    if (override != null) {
+      return override();
+    }
+    final summaries = await ChatDatabaseService.runWithRecovery(
+      (database) => database.getAllChatSummariesAsJson(),
+      operation: 'loadAllChatSummaries',
+    );
     return summaries.fold<int>(0, (sum, summary) {
       return sum + _asInt(summary['unreadCount']);
     });
   }
 
   Future<int> _loadMissedCallsCount() async {
-    final rawEntries = await _storage.readCallLogs();
+    final rawEntries = _readCallLogEntries();
     final settings = _storage.getSettings();
     final seenAt = _parseDateTime(settings.get(_missedCallsSeenAtKey));
     var count = 0;
@@ -98,6 +112,17 @@ class AppBadgeService {
       count += 1;
     }
     return count;
+  }
+
+  List<Map<String, dynamic>> _readCallLogEntries() {
+    final raw = _storage.getCalls().get(_callLogItemsKey);
+    if (raw is! List) {
+      return <Map<String, dynamic>>[];
+    }
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
   }
 
   String _backgroundEventKey(FirebasePushPayload payload) {

@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import '../node/node_facade.dart';
+import '../node/node_capability_apis.dart';
 import 'account_device_event.dart';
 import 'account_membership_update_payload.dart';
 import 'account_pairing_payload.dart';
@@ -20,15 +20,15 @@ class AppDataCleanerService {
   static const _localAvatarMimeTypeKey = 'local_avatar_mime_type_v1';
   static const _avatarSettingsKey = 'peer_avatars_v1';
 
-  final NodeFacade facade;
+  final IdentityApi identity;
   final StorageService storage;
 
-  const AppDataCleanerService({required this.facade, required this.storage});
+  const AppDataCleanerService({required this.identity, required this.storage});
 
   Future<void> resetLocalAccount() async {
     await storage.init();
     await _clearAccountScopedData();
-    await facade.resetToNewLocalAccount();
+    await identity.resetToNewLocalAccount();
   }
 
   Future<void> resetDeviceCompletely() async {
@@ -36,7 +36,7 @@ class AppDataCleanerService {
     await _clearAccountScopedData();
     await storage.clearSettingsAndServiceData();
     await AppFileLogger.instance.clearAll();
-    await facade.clearPersistedIdentity(preserveDeviceKeys: false);
+    await identity.clearPersistedIdentity(preserveDeviceKeys: false);
   }
 
   Future<void> clearCurrentLog() {
@@ -75,7 +75,7 @@ class AppDataCleanerService {
       await settings.delete(key);
     }
 
-    await facade.clearPersistedIdentity(preserveDeviceKeys: true);
+    await identity.clearPersistedIdentity(preserveDeviceKeys: true);
   }
 
   static const List<String> _accountScopedSettingKeys = <String>[

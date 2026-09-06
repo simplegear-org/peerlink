@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import '../node/node_facade.dart';
+import '../node/node_capability_apis.dart';
 import 'server_availability.dart';
 import 'server_availability_poller.dart';
 import 'server_availability_provider.dart';
@@ -21,7 +21,7 @@ class RelayServersService implements ServerAvailabilityProvider {
   static const _defaultProbeTimeout = Duration(seconds: 4);
   static const _defaultRelayPort = 444;
 
-  final NodeFacade facade;
+  final NetworkApi facade;
   final StorageService storage;
   final Duration _probeTimeout;
   late final ServerAvailabilityPoller _poller;

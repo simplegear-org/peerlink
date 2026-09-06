@@ -7,7 +7,7 @@
 import 'dart:convert';
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/account_membership_update_payload.dart';
 import 'package:peerlink/core/runtime/account_pairing_payload.dart';
 import 'package:peerlink/core/runtime/app_file_logger.dart';
@@ -15,12 +15,12 @@ import 'package:peerlink/core/runtime/storage_service.dart';
 
 class ChatAccountInboundHandler {
   const ChatAccountInboundHandler({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required SecureStorageBox settingsBox,
   }) : _facade = facade,
        _settingsBox = settingsBox;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final SecureStorageBox _settingsBox;
 
   Future<void> handlePairRequest(

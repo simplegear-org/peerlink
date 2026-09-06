@@ -4,7 +4,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
@@ -12,15 +12,17 @@ import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_file_queue_service.dart';
 import 'package:peerlink/features/chat/application/chat_group_outbound_coordinator.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 import 'package:peerlink/features/chat/application/chat_controller_parts.dart';
 
 class ChatCleanupCoordinator {
   const ChatCleanupCoordinator({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required StorageService storage,
     required GroupKeyService groupKeyService,
     required ChatRepository chatRepository,
+    required ChatSummaryStore chatSummaryStore,
     required ChatSummaryService chatSummaryService,
     required ChatFileQueueService chatFileQueueService,
     required ChatGroupOutboundCoordinator groupOutboundCoordinator,
@@ -43,6 +45,7 @@ class ChatCleanupCoordinator {
        _storage = storage,
        _groupKeyService = groupKeyService,
        _chatRepository = chatRepository,
+       _chatSummaryStore = chatSummaryStore,
        _chatSummaryService = chatSummaryService,
        _chatFileQueueService = chatFileQueueService,
        _groupOutboundCoordinator = groupOutboundCoordinator,
@@ -55,10 +58,11 @@ class ChatCleanupCoordinator {
        _syncBadgeCount = syncBadgeCount,
        _notifyMessageUpdated = notifyMessageUpdated;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final StorageService _storage;
   final GroupKeyService _groupKeyService;
   final ChatRepository _chatRepository;
+  final ChatSummaryStore _chatSummaryStore;
   final ChatSummaryService _chatSummaryService;
   final ChatFileQueueService _chatFileQueueService;
   final ChatGroupOutboundCoordinator _groupOutboundCoordinator;
@@ -178,7 +182,7 @@ class ChatCleanupCoordinator {
     }
     await _storage.deletePeerMediaDirectory(peerId);
     await _storage.deleteChatMessages(peerId);
-    await _storage.deleteChatSummaryMap(peerId);
+    await _chatSummaryStore.delete(peerId);
     if (!isGroupChat) {
       await _groupKeyService.deleteGroupKeys(peerId);
     }

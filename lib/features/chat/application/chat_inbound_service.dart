@@ -8,7 +8,7 @@ import 'dart:typed_data';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/runtime/peer_access_control_service.dart';
@@ -23,7 +23,7 @@ import 'package:peerlink/features/chat/application/chat_group_content_inbound_ha
 import 'package:peerlink/features/chat/application/chat_inbound_classifier.dart';
 
 class ChatInboundService {
-  final NodeFacade facade;
+  final ChatRuntimeApi facade;
   final SecureStorageBox settingsBox;
   final ProfileAvatarInboundHandler avatarService;
   final ChatInboundClassifier inboundClassifier;

@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
-import 'package:peerlink/features/chat/domain/chat.dart';
-import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
 import 'package:peerlink/features/chat/application/chat_outgoing_relay_media_resume_service.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 
 class _FakeStorageBox extends Fake implements SecureStorageBox {
   final Map<String, dynamic> _values = <String, dynamic>{};
@@ -20,7 +20,7 @@ class _FakeStorageBox extends Fake implements SecureStorageBox {
   }
 }
 
-class _FakeNodeFacade extends Fake implements NodeFacade {
+class _FakeNodeFacade extends Fake implements ChatRuntimeApi {
   ChatSendReceipt receipt = ChatSendReceipt.empty;
   final List<String> groupPushMessageIds = <String>[];
 

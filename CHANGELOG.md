@@ -3,6 +3,39 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.12.5+2026090603] - 2026-09-06
+
+### Changed
+
+- Optimization and refactoring `StorageService`
+
+
+## [3.12.4+2026090602] - 2026-09-06
+
+### Changed
+
+- Continued PR5 narrow capability migration: added `PresenceApi`, migrated
+  presence/restriction/settings/call-history UI surfaces and settings/runtime
+  support services from broad `NodeFacade` dependencies to narrow APIs or
+  explicit callbacks.
+- Moved settings application services under `features/settings/application`,
+  leaving old `lib/ui/state/settings_*` paths as temporary compatibility
+  exports.
+- Completed the next `ChatController` capability-narrowing slice: introduced
+  `ChatRuntimeApi` for Chat-owned runtime needs and wired production through
+  `ChatRuntimeNodeAdapter` in `lib/app/composition`.
+- Migrated `ChatController`, chat application services, and related chat tests
+  away from direct `NodeFacade` dependencies while preserving runtime behavior.
+- Updated chat screens to read local peer identity from `ChatController`
+  instead of reaching through the controller to the runtime facade.
+- Added architecture guards that prevent `ChatController` and
+  `features/chat/application` from importing unrestricted `NodeFacade`.
+
+### Verified
+
+- `flutter test test/architecture test/ui/state/settings_controller_server_config_test.dart`
+- `flutter test test/ui/state/chat_group_flow_service_test.dart test/ui/state/chat_inbound_service_test.dart test/ui/state/chat_outgoing_relay_media_resume_service_test.dart`
+
 ## [3.12.3+2026090601] - 2026-09-06
 
 ### Changed

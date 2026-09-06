@@ -437,7 +437,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     if (!chat.isGroup) {
       return strings.deleteChatContent(chat.name);
     }
-    final isOwner = chat.ownerPeerId == widget.controller.facade.peerId;
+    final isOwner = chat.ownerPeerId == widget.controller.localPeerId;
     return isOwner
         ? strings.deleteGroupChatContent(chat.name)
         : strings.deleteGroupChatLocalContent(chat.name);

@@ -234,6 +234,10 @@ abstract interface class NetworkApi {
   Future<int> pollRelay({List<String>? relayServers});
 }
 
+abstract interface class PresenceApi {
+  Stream<PeerPresenceUpdate> get peerPresenceStream;
+}
+
 abstract interface class CallsApi {
   CallState get callState;
   Stream<CallState> get callStateStream;

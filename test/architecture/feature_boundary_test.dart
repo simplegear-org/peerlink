@@ -62,9 +62,9 @@ void main() {
     expect(violations, isEmpty);
   });
 
-  test('chat feature module does not import UI implementation code', () {
+  test('feature modules do not import UI implementation code', () {
     final imports = dartSourcesUnder(const [
-      'lib/features/chat',
+      'lib/features',
     ]).expand((source) => source.imports());
 
     final violations =
@@ -81,8 +81,83 @@ void main() {
       violations,
       isEmpty,
       reason:
-          'Chat domain/application/infrastructure code must not depend on UI '
+          'Feature domain/application/infrastructure code must not depend on UI '
           'implementation paths.',
+    );
+  });
+
+  test('settings application does not import NodeFacade', () {
+    final imports = dartSourcesUnder(const [
+      'lib/features/settings/application',
+    ]).expand((source) => source.imports());
+
+    final violations =
+        imports
+            .where(
+              (import) =>
+                  import.resolvePeerlinkPath() ==
+                  'lib/core/node/node_facade.dart',
+            )
+            .map((import) => '${import.location} -> ${import.uri}')
+            .toList()
+          ..sort();
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Settings application services should depend on callbacks or narrow '
+          'capability APIs instead of unrestricted NodeFacade.',
+    );
+  });
+
+  test('chat application does not import NodeFacade', () {
+    final imports = dartSourcesUnder(const [
+      'lib/features/chat/application',
+    ]).expand((source) => source.imports());
+
+    final violations =
+        imports
+            .where(
+              (import) =>
+                  import.resolvePeerlinkPath() ==
+                  'lib/core/node/node_facade.dart',
+            )
+            .map((import) => '${import.location} -> ${import.uri}')
+            .toList()
+          ..sort();
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Chat application services should depend on ChatRuntimeApi or '
+          'narrower ports instead of unrestricted NodeFacade.',
+    );
+  });
+
+  test('profile application does not import NodeFacade', () {
+    final imports = dartSourcesUnder(const [
+      'lib/features/profile/application',
+    ]).expand((source) => source.imports());
+
+    final violations =
+        imports
+            .where(
+              (import) =>
+                  import.resolvePeerlinkPath() ==
+                  'lib/core/node/node_facade.dart',
+            )
+            .map((import) => '${import.location} -> ${import.uri}')
+            .toList()
+          ..sort();
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Profile application services should depend on profile-owned ports '
+          'instead of unrestricted NodeFacade.',
     );
   });
 
@@ -170,6 +245,7 @@ String? _featureName(String? path) {
 }
 
 const _approvedCrossFeatureContracts = {
+  'lib/features/contacts/domain/contact.dart',
   'lib/features/profile/application/profile_avatar_inbound_handler.dart',
 };
 

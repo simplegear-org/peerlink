@@ -6,21 +6,21 @@
 
 import 'package:flutter/material.dart';
 
-import '../../core/node/node_facade.dart';
+import '../../core/node/node_capability_apis.dart';
 import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../theme/app_theme.dart';
 
 class AccountRestrictedScreen extends StatefulWidget {
   final ModerationPolicySnapshot policy;
-  final NodeFacade facade;
+  final ModerationApi moderation;
   final Future<void> Function() onAppealSubmitted;
   final Future<void> Function() onWarningContinued;
 
   const AccountRestrictedScreen({
     super.key,
     required this.policy,
-    required this.facade,
+    required this.moderation,
     required this.onAppealSubmitted,
     required this.onWarningContinued,
   });
@@ -129,7 +129,7 @@ class _AccountRestrictedScreenState extends State<AccountRestrictedScreen> {
       _sending = true;
     });
     try {
-      await widget.facade.submitModerationAppeal(text);
+      await widget.moderation.submitModerationAppeal(text);
       if (!mounted) {
         return;
       }

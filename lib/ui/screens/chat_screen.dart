@@ -82,11 +82,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
   bool get _isGroupChat => widget.chat.isGroup;
   bool get _isGroupOwner =>
-      _isGroupChat &&
-      widget.chat.ownerPeerId == widget.controller.facade.peerId;
+      _isGroupChat && widget.chat.ownerPeerId == widget.controller.localPeerId;
   bool get _isCurrentUserInGroup =>
       !_isGroupChat ||
-      widget.chat.memberPeerIds.contains(widget.controller.facade.peerId);
+      widget.chat.memberPeerIds.contains(widget.controller.localPeerId);
 
   @override
   void initState() {

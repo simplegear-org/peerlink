@@ -11,7 +11,7 @@ import 'dart:typed_data';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -22,7 +22,7 @@ import 'package:peerlink/features/chat/application/chat_outbound_service.dart';
 
 class ChatGroupOutboundCoordinator {
   const ChatGroupOutboundCoordinator({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required ChatOutboundService outboundService,
     required ChatGroupFlowService groupFlowService,
     required ChatOutboundCodec outboundCodec,
@@ -109,7 +109,7 @@ class ChatGroupOutboundCoordinator {
        _updateMessageStatusById = updateMessageStatusById,
        _handleIncomingGroupMembersUpdate = handleIncomingGroupMembersUpdate;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final ChatOutboundService _outboundService;
   final ChatGroupFlowService _groupFlowService;
   final ChatOutboundCodec _outboundCodec;

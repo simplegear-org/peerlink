@@ -29,7 +29,8 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - `NodeFacade` как internal aggregate/core entrypoint на период migration, с
   узкими capability contracts в `lib/core/node/node_capability_apis.dart`
   (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
-  `RuntimeEventsApi`) для consumers, которым не нужен весь runtime surface.
+  `PresenceApi`, `RuntimeEventsApi`) для consumers, которым не нужен весь
+  runtime surface.
 - `MeshNode` как оркестратор runtime.
 - `PushApiClient` для подписанных запросов в `push.js` (`/devices/register`, `/devices/unregister`, `/devices/access-policy`, `/events/push`), при этом высокоуровневая сборка событий вынесена в `PushEventFactory`, `PushRuntimeMetadataBuilder` и `PushEventService`; moderation HTTP живет отдельно в `ModerationApiClient`.
 - Call-push интеграция в `lib/core/node` частично декомпозирована:
@@ -141,9 +142,9 @@ UI
 - Экраны, виджеты, state-контроллеры.
 - Существующие broad consumers могут временно использовать `NodeFacade` во время
   migration; новый и уже мигрированный код должен получать узкие capability
-  contracts. App push/deep-link/call coordinators и active call screen уже
-  используют `CallsApi`, `NetworkApi` и/или `IdentityApi` вместо unrestricted
-  `NodeFacade`.
+  contracts. App push/deep-link/call coordinators, active/call-history call
+  surfaces, presence, restriction, Settings и Chat presentation/application
+  seams уже не импортируют unrestricted `NodeFacade`.
 - Runtime-локализация живет в `lib/ui/localization`: `AppLocaleController` сохраняет выбранный язык в settings storage, `AppStrings` дает lookup/formatting API и Flutter localization delegates для `MaterialApp`, а словари по языкам лежат в `lib/ui/localization/dictionaries`.
 - Для экранов стандартизован шаблон композиции:
   - `*_screen.dart` для orchestration/state wiring,
@@ -156,14 +157,18 @@ UI
   read-state handling и message mutation. SQLite/Drift-хранилище чатов теперь
   принадлежит `lib/features/chat/infrastructure/chat_database.dart`, а старый
   путь `lib/core/runtime/chat_database.dart` временно оставлен как
-  compatibility export. Старые пути `lib/ui/models` и часть
-  `lib/ui/state/chat_*` временно оставлены как compatibility exports.
+  compatibility export. Persistence сообщений находится за
+  `ChatMessageStore` / `ChatDatabaseChatMessageStore`, а persistence summaries —
+  за `ChatSummaryStore` / `ChatDatabaseSummaryStore`, поэтому `StorageService`
+  больше не публикует chat message/summary business API. Старые пути
+  `lib/ui/models` и часть `lib/ui/state/chat_*` временно оставлены как
+  compatibility exports.
 - `ChatScreen` теперь удерживает только orchestration/state wiring; AppBar, message list overlays, voice-recording flow, dialog/action flow, lifecycle wiring, viewport state, presentation-логика, composer/send/reply flow и back-swipe gesture вынесены в отдельные screen-модули.
 - Пересылка сообщений вынесена в `ChatForwardService`; `ChatScreen` только открывает target sheet и вызывает сервис через callbacks `sendMessage`/`sendFile`.
 - Inbound-классификация входящих сообщений вынесена в `chat_inbound_classifier.dart` (`ChatInboundClassifier`) с явными decode-зависимостями через конструктор.
 - Outbound codec/transfer-id логика живет в `features/chat/application/chat_outbound_codec.dart` (`ChatOutboundCodec`) и используется из `ChatController` через явный импорт.
 - Декомпозиция `ChatController` продолжена сервисами `chat_repository.dart`, `chat_summary_service.dart`, `chat_file_queue_service.dart`, `chat_outbound_service.dart`, `chat_inbound_service.dart`, `chat_read_state_service.dart`, `chat_receipt_service.dart`, `chat_contacts_service.dart`, `chat_group_service.dart`, `chat_direct_lifecycle_service.dart` и bounded coordinator-ами для inbound subscription, file send/progress/transfer, group inbound/outbound, group-control inbound, cleanup, history load, message send/retry и incoming media restore; контроллер должен оставаться orchestration/facade слоем.
-- Базовая сборка chat-state зависимостей вынесена в `chat_controller_dependencies.dart`; создание новых controller-adjacent coordinator-ов выносится через `chat_controller_coordinator_factory.dart`, а callback-heavy wiring остается явным.
+- Базовая сборка chat-state зависимостей живёт в `features/chat/application/chat_controller_dependencies.dart` и собирается через `lib/app/composition/chat_controller_composition.dart`. `ChatController` получает Chat-owned `ChatRuntimeApi`; production адаптирует временный `NodeFacade` через `ChatRuntimeNodeAdapter`, а architecture tests запрещают `ChatController` / `features/chat/application` импортировать unrestricted `NodeFacade`.
 - Decode account pairing/membership payload-ов вынесен в `chat_account_payload_decoder.dart`, а формирование reply metadata — в `chat_reply_metadata_resolver.dart`; `ChatController` не должен возвращать эти helper-ответственности в свое тело.
 - `ChatContactsService` использует общий `ContactsRepository` из
   `features/contacts`; отдельное чтение contacts storage в chat-state слое не
@@ -207,7 +212,7 @@ UI
 - Сводные карточки серверов Settings подписаны на availability stream, а QR payload для server config обновляется при изменении доступности bootstrap/relay/turn/push.
 - `SettingsScreen` декомпозирован: `settings_screen.dart` держит только lifecycle/wiring, composition/layout вынесены в `settings_screen_content.dart`, `settings_screen_identity_section.dart`, `settings_screen_account_devices_section.dart`, `settings_screen_server_sections.dart`, `settings_screen_preferences_sections.dart`, общий re-export account-секций идет через `settings_screen_account_sections.dart`, общие section/account widgets живут в `settings_screen_shared_widgets.dart` и `settings_screen_account_widgets.dart`, а dialog/action flow разнесен по `settings_screen_avatar_actions.dart`, `settings_screen_pairing_actions.dart`, `settings_screen_system_actions.dart`.
 - Для bootstrap Settings показывает не legacy-ярлык `Активен`, а раздельные runtime/health статусы: `подключен` для реально открытого signaling channel, `доступен` для успешного probe без текущего channel, `недоступен` для failed probe.
-- В `lib/ui/state` декомпозирован `SettingsController`: presentation статусов серверов вынесен в `settings_server_status_presenter.dart`, invite encode/parse — в `settings_invite_codec.dart`, pairing flow — в `settings_pairing_flow_service.dart`.
+- В `lib/ui/state` декомпозирован `SettingsController`: presentation статусов серверов вынесен в `settings_server_status_presenter.dart`, invite encode/parse — в `settings_invite_codec.dart`, pairing flow — в `settings_pairing_flow_service.dart`. Он получает `IdentityApi`, `NetworkApi` и `MessagingApi` вместо unrestricted `NodeFacade`; settings application services живут в `lib/features/settings/application`, а старые `lib/ui/state/settings_*` пути временно оставлены как compatibility exports.
 - `UiApp` владеет presentation-shell state, screen composition, tab selection и
   Navigator/UI effects. Зависимости получает через `AppDependencies`, а
   non-presentation orchestration делегирует app-level coordinators.
@@ -224,8 +229,9 @@ UI
 
 - `NodeFacade`: compatibility/aggregate facade для UI/core migration.
 - `node_capability_apis.dart`: узкие public contracts для messaging, calls,
-  identity, network, moderation и runtime events. `NodeFacade` реализует эти
-  contracts, пока broad facade остается доступен internally during migration.
+  identity, network, moderation, presence и runtime events. `NodeFacade`
+  реализует эти contracts, пока broad facade остается доступен internally
+  during migration.
 - Здесь находятся унифицированные точки входа для messaging/blob: `sendPayload(...)`, `uploadBlob(...)`, `downloadBlob(...)`.
 - `MeshNode`: композиция, lifecycle, маршрутизация signaling и peer session orchestration.
 - `MeshCallPushHelper`: call-oriented push registration и fanout (`/devices/register`, `/devices/unregister`, `/events/push`).
@@ -242,8 +248,10 @@ UI
 - `ModerationApiClient` изолирует HTTP-контракт `/moderation/reports`, `/moderation/appeals`, `/moderation/status`; `PushApiClient` не должен содержать moderation endpoint-ы.
 - `ModerationDeliveryService` координирует отправку report/appeal/status через настроенные push-серверы и оставляет `MeshNode` только runtime wiring/facade-слоем.
 - `ModerationPolicyService` хранит локальный warning/ban snapshot, применяет `moderation_policy` push/status, проверяет `signedStatus` при заданном pinned public key, помнит подтвержденный warning и отправленную appeal, чтобы fullscreen warning/ban не показывался повторно после перезапуска.
-- `StorageService` теперь выступает как orchestration/facade-слой над storage helper-модулями и не должен обратно разрастаться.
+- `StorageService` теперь выступает как orchestration/facade-слой над storage helper-модулями, держит runtime state на instance lifetime и не должен обратно разрастаться.
 - SQLite chat storage хранит уникальность сообщений в пределах конкретного чата: ключ `(peerId, messageId)` не допускает вытеснения сообщения из одного чата записью с таким же `messageId` в другом чате.
+- Real SQLite coverage для chat persistence идет через `ChatDatabaseChatMessageStore` в `test/core/runtime/storage_service_chat_messages_test.dart`.
+- История звонков принадлежит `lib/features/calls/infrastructure/call_log_repository.dart`; `StorageService` оставляет только raw calls box для repository и cross-cutting badge logic.
 - Storage runtime декомпозирован на:
   - `storage_service_paths.dart` — root/media path resolve и path helper-ы,
   - `storage_service_migrations.dart` — secure-storage load, legacy migrations, summary repair и embedded-media prune,
@@ -261,7 +269,9 @@ UI
   avatar announce/remove/query flow. Старый путь
   `lib/core/runtime/avatar_service.dart` временно оставлен как compatibility
   export. Chat использует avatar inbound handling через узкий contract
-  `ProfileAvatarInboundHandler`, а не через concrete profile service.
+  `ProfileAvatarInboundHandler`, а profile sync использует
+  `ProfileAvatarTransport` / `ProfileAvatarNodeAdapter` вместо зависимости от
+  unrestricted `NodeFacade`.
 - Сервисы проверки серверов теперь разделяют общий контракт `ServerAvailabilityProvider`, чтобы будущая runtime-оркестрация могла единообразно работать с probing для bootstrap/relay/turn.
 - `ServerHealthCoordinator` владеет общими health-сервисами bootstrap/relay/turn и запускает их после app bootstrap, поэтому runtime и Settings используют одно и то же состояние доступности без дублирующихся probe loop.
 - При полностью пустой локальной серверной конфигурации `ServerHealthCoordinator` запускает `InitialServerConfigBootstrapper`: он best-effort скачивает `https://simplegear.org/config/initial-server-config.json`, проверяет `ServerConfigPayload` и merge-ит bootstrap/relay/TURN/push. Недоступность сайта или некорректный ответ только логируются и не останавливают startup.

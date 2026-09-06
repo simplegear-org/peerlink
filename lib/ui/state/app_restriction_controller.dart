@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import '../../core/calls/call_models.dart';
-import '../../core/node/node_facade.dart';
+import '../../core/node/node_capability_apis.dart';
 import '../../core/runtime/app_file_logger.dart';
 import '../../core/runtime/app_interaction_gate.dart';
 import '../../core/runtime/moderation_policy_service.dart';
@@ -13,7 +13,9 @@ import '../../core/runtime/storage_service.dart';
 import 'settings_controller.dart';
 
 class AppRestrictionController {
-  final NodeFacade facade;
+  final IdentityApi identity;
+  final ModerationApi moderation;
+  final CallsApi calls;
   final SettingsController settingsController;
   final ModerationPolicyService _moderationPolicyService;
 
@@ -21,7 +23,9 @@ class AppRestrictionController {
   late ModerationPolicySnapshot _moderationPolicy;
 
   AppRestrictionController({
-    required this.facade,
+    required this.identity,
+    required this.moderation,
+    required this.calls,
     required this.settingsController,
     required StorageService storage,
   }) : _moderationPolicyService = ModerationPolicyService.forStorage(storage) {
@@ -51,7 +55,7 @@ class AppRestrictionController {
 
   Future<bool> refreshModerationStatus({required String reason}) async {
     try {
-      final status = await facade.fetchModerationStatus();
+      final status = await moderation.fetchModerationStatus();
       final score = status?['score'];
       if (score is! Map) {
         return false;
@@ -71,13 +75,13 @@ class AppRestrictionController {
       };
       final snapshot = await _moderationPolicyService.applyPushPayload(
         payload,
-        expectedPeerId: facade.peerId,
+        expectedPeerId: identity.peerId,
       );
       if (snapshot == null) {
         return false;
       }
       _moderationPolicy = snapshot;
-      await _endCallIfBanned(snapshot, callState: facade.callState);
+      await _endCallIfBanned(snapshot, callState: calls.callState);
       return true;
     } catch (error, stackTrace) {
       AppFileLogger.log(
@@ -116,7 +120,7 @@ class AppRestrictionController {
     required CallState callState,
   }) async {
     if (snapshot.isBanned && callState.isBusy) {
-      await facade.endCall();
+      await calls.endCall();
     }
   }
 }

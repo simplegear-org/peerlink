@@ -3,6 +3,42 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.12.5+2026090603] - 2026-09-06
+
+### Изменено
+
+- Оптимизация и рефактор `StorageService`
+
+
+## [3.12.4+2026090602] - 2026-09-06
+
+### Изменено
+
+- Продолжена миграция PR5 на узкие capability API: добавлен `PresenceApi`,
+  presence/restriction/settings/call-history UI surfaces и settings/runtime
+  support services переведены с broad `NodeFacade` на узкие API или явные
+  callbacks.
+- Settings application services перенесены в `features/settings/application`,
+  старые пути `lib/ui/state/settings_*` оставлены как временные compatibility
+  exports.
+- Завершён следующий срез сужения capabilities для `ChatController`: введён
+  `ChatRuntimeApi` для runtime-нужд Chat, а production wiring идёт через
+  `ChatRuntimeNodeAdapter` в `lib/app/composition`.
+- `ChatController`, chat application services и связанные chat-тесты переведены
+  с прямого `NodeFacade` на `ChatRuntimeApi` без изменения runtime behavior.
+- Chat screens теперь читают local peer identity через `ChatController`, не
+  проваливаясь через controller к runtime facade.
+- Добавлены architecture guards, запрещающие `ChatController` и
+  `features/chat/application` импортировать unrestricted `NodeFacade`.
+
+### Проверено
+
+- `dart format --output=none --set-exit-if-changed .`
+- `flutter analyze`
+- `flutter test`
+- `flutter test test/core/node/reliable_call_control_adapter_test.dart test/core/node/mesh_node_smoke_test.dart test/core/calls/call_service_test.dart test/architecture/feature_boundary_test.dart`
+
+
 ## [3.12.3+2026090601] - 2026-09-06
 
 ### Изменено

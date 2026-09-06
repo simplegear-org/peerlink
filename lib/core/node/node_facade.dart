@@ -38,6 +38,7 @@ class NodeFacade
         ModerationApi,
         MessagingApi,
         NetworkApi,
+        PresenceApi,
         CallsApi,
         RuntimeEventsApi {
   final MeshNode _node;

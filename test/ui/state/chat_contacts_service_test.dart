@@ -1,13 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
-import 'package:peerlink/core/runtime/storage_service.dart';
+import 'package:peerlink/features/chat/application/chat_contacts_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
-import 'package:peerlink/ui/models/contact.dart';
-import 'package:peerlink/ui/state/chat_contacts_service.dart';
+import 'package:peerlink/features/contacts/domain/contact.dart';
 
-class _FakeContactsRepository extends ContactsRepository {
-  _FakeContactsRepository() : super(storage: StorageService());
-
+class _FakeContactsRepository implements ChatContactsRepository {
   final Map<String, Contact> contacts = <String, Contact>{};
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:peerlink/app/composition/settings_controller_composition.dart';
 import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/runtime/account_pairing_payload.dart';
 import 'package:peerlink/core/runtime/server_config_payload.dart';
@@ -668,7 +669,13 @@ class _TestSettingsController extends SettingsController {
                ),
              ],
            ),
-       super(facade: _FakeNodeFacade(), storage: StorageService());
+       super(
+         identity: _FakeNodeFacade(),
+         network: _FakeNodeFacade(),
+         messaging: _FakeNodeFacade(),
+         storage: StorageService(),
+         dependenciesFactory: SettingsControllerComposition.create,
+       );
 
   @override
   String get peerId => _peerId;

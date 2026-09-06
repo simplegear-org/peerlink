@@ -10,7 +10,7 @@ import 'dart:typed_data';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -22,7 +22,7 @@ import 'package:peerlink/features/chat/application/chat_outbound_notification_ty
 
 class ChatDirectOutboundHandler {
   const ChatDirectOutboundHandler({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required ChatOutboundCodec outboundCodec,
     required ChatMediaOutboundService mediaOutboundService,
     required ChatDirectMediaCryptoService directMediaCryptoService,
@@ -31,7 +31,7 @@ class ChatDirectOutboundHandler {
        _mediaOutboundService = mediaOutboundService,
        _directMediaCryptoService = directMediaCryptoService;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final ChatOutboundCodec _outboundCodec;
   final ChatMediaOutboundService _mediaOutboundService;
   final ChatDirectMediaCryptoService _directMediaCryptoService;

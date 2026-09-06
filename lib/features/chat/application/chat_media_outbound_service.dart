@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -58,12 +58,12 @@ class ChatMediaLocalSaveResult {
 
 class ChatMediaOutboundService {
   const ChatMediaOutboundService({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required RelayMediaTransferService relayMediaTransfer,
   }) : _facade = facade,
        _relayMediaTransfer = relayMediaTransfer;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final RelayMediaTransferService _relayMediaTransfer;
 
   Future<ChatMediaOutboundUploadResult> prepareAndUpload({

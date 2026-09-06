@@ -4,17 +4,17 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/messaging/chat_service.dart';
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
-import 'package:peerlink/features/chat/domain/chat.dart';
-import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import 'package:peerlink/features/chat/application/chat_group_flow_service.dart';
 import 'package:peerlink/features/chat/application/chat_group_outbound_handler.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_classifier.dart';
 import 'package:peerlink/features/chat/application/chat_media_outbound_service.dart';
 import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
 
 class _MemoryGroupKeyStore implements GroupKeyStore {
   final Map<String, dynamic> data = <String, dynamic>{};
@@ -36,7 +36,7 @@ class _MemoryGroupKeyStore implements GroupKeyStore {
   }
 }
 
-class _FakeNodeFacade extends Fake implements NodeFacade {
+class _FakeNodeFacade extends Fake implements ChatRuntimeApi {
   final List<({String peerId, String kind})> controls = [];
   final List<({String peerId, Map<String, dynamic>? data})> pushes = [];
   final List<String> groupPushMessageIds = [];

@@ -7,7 +7,7 @@
 import 'dart:async';
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -20,14 +20,14 @@ class ChatOutgoingRelayMediaResumeService {
   static const String storageKey = 'outgoing_relay_media_state.v1';
 
   ChatOutgoingRelayMediaResumeService({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required SecureStorageBox settingsBox,
     required ChatOutboundCodec outboundCodec,
   }) : _facade = facade,
        _settingsBox = settingsBox,
        _outboundCodec = outboundCodec;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final SecureStorageBox _settingsBox;
   final ChatOutboundCodec _outboundCodec;
   final Set<String> _resumeInFlight = <String>{};

@@ -12,9 +12,11 @@ import 'package:peerlink/core/runtime/turn_servers_service.dart';
 import 'package:peerlink/core/turn/turn_server_config.dart';
 
 void main() {
+  late Directory root;
+
   setUp(() async {
-    final root = await Directory.systemTemp.createTemp('peerlink-config-test-');
-    await StorageService().initForTesting(rootDirectory: root);
+    root = await Directory.systemTemp.createTemp('peerlink-config-test-');
+    await StorageService.resetForTesting();
     addTearDown(() async {
       await StorageService.resetForTesting();
       await root.delete(recursive: true);
@@ -54,6 +56,7 @@ void main() {
 
       final facade = _FakeNodeFacade();
       final storage = StorageService();
+      await storage.initForTesting(rootDirectory: root);
       final bootstrap = BootstrapServersService(
         facade: facade,
         storage: storage,
@@ -105,6 +108,7 @@ void main() {
 
     final facade = _FakeNodeFacade();
     final storage = StorageService();
+    await storage.initForTesting(rootDirectory: root);
     final bootstrap = BootstrapServersService(facade: facade, storage: storage)
       ..endpoints.add('wss://existing.example');
     final relay = RelayServersService(facade: facade, storage: storage);

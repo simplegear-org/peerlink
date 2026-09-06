@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
 
 void main() {
   late Directory root;
@@ -22,6 +23,7 @@ void main() {
     const peerId = 'peer-a';
     final storage = StorageService();
     await storage.initForTesting(rootDirectory: root);
+    const messageStore = ChatDatabaseChatMessageStore();
 
     final messages = <Message>[
       Message(
@@ -48,7 +50,7 @@ void main() {
       ),
     ];
 
-    await storage.writeChatMessages(
+    await messageStore.write(
       peerId,
       messages.map((message) => message.toPersistentJson()).toList(),
     );
@@ -57,7 +59,7 @@ void main() {
     final reopened = StorageService();
     await reopened.initForTesting(rootDirectory: root);
 
-    final stored = await reopened.readChatMessages(peerId);
+    final stored = await messageStore.read(peerId);
 
     expect(stored.map((json) => json['id']), ['m1', 'm2']);
     expect(stored[0]['text'], 'hello');
@@ -71,8 +73,9 @@ void main() {
   test('keeps equal message ids isolated between different chats', () async {
     final storage = StorageService();
     await storage.initForTesting(rootDirectory: root);
+    const messageStore = ChatDatabaseChatMessageStore();
 
-    await storage.upsertChatMessages('peer-a', [
+    await messageStore.upsert('peer-a', [
       Message(
         id: 'same-message-id',
         peerId: 'peer-a',
@@ -81,7 +84,7 @@ void main() {
         timestamp: DateTime.utc(2026, 1, 1, 10),
       ).toPersistentJson(),
     ]);
-    await storage.upsertChatMessages('peer-b', [
+    await messageStore.upsert('peer-b', [
       Message(
         id: 'same-message-id',
         peerId: 'peer-b',
@@ -91,8 +94,8 @@ void main() {
       ).toPersistentJson(),
     ]);
 
-    final peerA = await storage.readChatMessages('peer-a');
-    final peerB = await storage.readChatMessages('peer-b');
+    final peerA = await messageStore.read('peer-a');
+    final peerB = await messageStore.read('peer-b');
 
     expect(peerA, hasLength(1));
     expect(peerA.single['text'], 'from peer-a');

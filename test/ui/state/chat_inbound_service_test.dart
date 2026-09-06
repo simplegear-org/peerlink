@@ -2,26 +2,25 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
-import 'package:peerlink/features/profile/application/avatar_service.dart';
-import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
 import 'package:peerlink/core/runtime/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
-import 'package:peerlink/features/chat/domain/chat.dart';
-import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import 'package:peerlink/features/chat/application/chat_group_content_inbound_handler.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_classifier.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_service.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
+import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/domain/message.dart';
+import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
+import 'package:peerlink/features/profile/application/avatar_service.dart';
 
-class _FakeNodeFacade extends Fake implements NodeFacade {}
+class _FakeNodeFacade extends Fake implements ChatRuntimeApi {}
 
 class _FakeStorageBox extends Fake implements SecureStorageBox {}
 
 class _FakeAvatarService extends Fake implements AvatarService {}
 
-PeerAccessControlService _allowAllAccessControl() {
-  final storage = StorageService();
+PeerAccessControlService _allowAllAccessControl(StorageService storage) {
   return PeerAccessControlService(
     settingsBox: storage.getSettings(),
     contactsRepository: ContactsRepository(storage: storage),
@@ -49,9 +48,12 @@ ChatInboundClassifier _emptyInboundClassifier() {
 }
 
 void main() {
+  late StorageService storage;
+
   setUp(() async {
     await StorageService.resetForTesting();
-    await StorageService().initForTesting(
+    storage = StorageService();
+    await storage.initForTesting(
       rootDirectory: Directory.systemTemp.createTempSync('peerlink-test-'),
     );
   });
@@ -63,7 +65,7 @@ void main() {
         facade: _FakeNodeFacade(),
         settingsBox: _FakeStorageBox(),
         avatarService: _FakeAvatarService(),
-        accessControl: _allowAllAccessControl(),
+        accessControl: _allowAllAccessControl(storage),
         inboundClassifier: _emptyInboundClassifier(),
       );
       final appended = <Message>[];
@@ -114,7 +116,7 @@ void main() {
   );
 
   test('blocked peer does not append direct message', () async {
-    final accessControl = _allowAllAccessControl();
+    final accessControl = _allowAllAccessControl(storage);
     await accessControl.blockPeer('blocked-peer');
     final service = ChatInboundService(
       facade: _FakeNodeFacade(),
@@ -170,7 +172,7 @@ void main() {
       facade: _FakeNodeFacade(),
       settingsBox: _FakeStorageBox(),
       avatarService: _FakeAvatarService(),
-      accessControl: _allowAllAccessControl(),
+      accessControl: _allowAllAccessControl(storage),
       inboundClassifier: ChatInboundClassifier(
         decodeGroupInvitePayload: (_) => null,
         decodeGroupKeyPayload: (_) => null,
@@ -275,7 +277,7 @@ void main() {
       facade: _FakeNodeFacade(),
       settingsBox: _FakeStorageBox(),
       avatarService: _FakeAvatarService(),
-      accessControl: _allowAllAccessControl(),
+      accessControl: _allowAllAccessControl(storage),
       inboundClassifier: ChatInboundClassifier(
         decodeGroupInvitePayload: (_) => null,
         decodeGroupKeyPayload: (_) => null,
@@ -364,7 +366,7 @@ void main() {
       facade: _FakeNodeFacade(),
       settingsBox: _FakeStorageBox(),
       avatarService: _FakeAvatarService(),
-      accessControl: _allowAllAccessControl(),
+      accessControl: _allowAllAccessControl(storage),
       inboundClassifier: ChatInboundClassifier(
         decodeGroupInvitePayload: (_) => null,
         decodeGroupKeyPayload: (_) => null,

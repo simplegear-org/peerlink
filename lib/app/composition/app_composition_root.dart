@@ -11,6 +11,7 @@ import 'package:peerlink/core/notification/notification_service.dart';
 import 'package:peerlink/core/runtime/app_file_logger.dart';
 import 'package:peerlink/core/runtime/network_dependencies.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/ui/state/app_appearance_controller.dart';
 import 'package:peerlink/ui/state/app_locale_controller.dart';
 
@@ -41,7 +42,11 @@ class AppCompositionRoot {
     await storage.init();
     NotificationService.instance.configureStorage(storage);
     await AppFileLogger.configureFromStorage(storage);
-    await AppBadgeService(storage: storage).syncFromStorage();
+    const chatSummaryStore = ChatDatabaseSummaryStore();
+    await AppBadgeService(
+      storage: storage,
+      loadUnreadMessagesCount: chatSummaryStore.unreadMessagesCount,
+    ).syncFromStorage();
     AppFileLogger.log('[composition] StorageService initialized');
 
     final appearanceController = AppAppearanceController(storage: storage);

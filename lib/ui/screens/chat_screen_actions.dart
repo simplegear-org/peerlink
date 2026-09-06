@@ -424,7 +424,7 @@ class ChatScreenActions {
     final removablePeerIds = chat.memberPeerIds
         .where(
           (peerId) =>
-              peerId != controller.facade.peerId && peerId != chat.ownerPeerId,
+              peerId != controller.localPeerId && peerId != chat.ownerPeerId,
         )
         .toList(growable: false);
     if (removablePeerIds.isEmpty) {

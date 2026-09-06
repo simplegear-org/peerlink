@@ -207,7 +207,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         if (parsedPeerId != null &&
                             parsedPeerId.isNotEmpty &&
                             identityBundle != null) {
-                          await widget.settingsController.facade
+                          await widget.settingsController.identity
                               .trustPeerIdentityBundleV3(
                                 identityBundle,
                                 expectedPeerId: parsedPeerId,
@@ -622,7 +622,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       );
       final identityBundle = invite.identityBundleV3;
       if (identityBundle != null) {
-        await settingsController.facade.trustPeerIdentityBundleV3(
+        await settingsController.identity.trustPeerIdentityBundleV3(
           identityBundle,
           expectedPeerId: invite.peerId,
         );

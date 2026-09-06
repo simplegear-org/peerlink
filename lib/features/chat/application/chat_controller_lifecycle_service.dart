@@ -8,12 +8,12 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 
 class ChatControllerLifecycleService {
   ChatControllerLifecycleService({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required void Function(String peerId, ChatConnectionStatus status)
     setPeerStatus,
     required void Function() syncBadgeCount,
@@ -32,7 +32,7 @@ class ChatControllerLifecycleService {
        _resumeInterruptedIncomingMediaQueue =
            resumeInterruptedIncomingMediaQueue;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final void Function(String peerId, ChatConnectionStatus status)
   _setPeerStatus;
   final void Function() _syncBadgeCount;

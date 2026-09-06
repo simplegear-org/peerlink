@@ -322,7 +322,7 @@ class ModerationPolicyService {
         base64Decode(signingPub),
         type: KeyPairType.ed25519,
       );
-      return _ed25519.verify(
+      return await _ed25519.verify(
         Uint8List.fromList(utf8.encode(payload)),
         signature: Signature(base64Decode(sig), publicKey: publicKey),
       );

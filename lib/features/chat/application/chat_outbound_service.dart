@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_direct_media_crypto_service.dart';
@@ -23,7 +23,7 @@ import 'package:peerlink/features/chat/application/chat_outbound_notification_ty
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 
 class ChatOutboundService {
-  final NodeFacade facade;
+  final ChatRuntimeApi facade;
   final RelayMediaTransferService relayMediaTransfer;
   final ChatOutboundCodec outboundCodec;
   late final ChatMediaOutboundService _mediaOutboundService;

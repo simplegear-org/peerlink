@@ -4,13 +4,13 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 
 class ChatDirectLifecycleService {
   const ChatDirectLifecycleService({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required Map<String, Chat> chats,
     required String Function(String peerId, {String? fallback}) contactNameFor,
     required Future<void> Function(Chat chat) persistChatSummary,
@@ -30,7 +30,7 @@ class ChatDirectLifecycleService {
        _notifyMessageUpdated = notifyMessageUpdated,
        _setStatus = setStatus;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final Map<String, Chat> _chats;
   final String Function(String peerId, {String? fallback}) _contactNameFor;
   final Future<void> Function(Chat chat) _persistChatSummary;

@@ -6,19 +6,20 @@
 
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 
 class ChatSummaryService {
   static const String groupMetaStorageKey = 'state.v1';
   static const String legacyGroupMetaStorageKey = 'peerlink.group_meta.v1';
 
-  final StorageService storage;
+  final ChatSummaryStore summaryStore;
   final SecureStorageBox settingsBox;
   final SecureStorageBox groupMetaBox;
   final Map<String, Map<String, dynamic>> _groupMetaByGroupId =
       <String, Map<String, dynamic>>{};
 
   ChatSummaryService({
-    required this.storage,
+    required this.summaryStore,
     required this.settingsBox,
     required this.groupMetaBox,
   });
@@ -185,7 +186,7 @@ class ChatSummaryService {
     }
     final summaryJson = Map<String, dynamic>.from(chat.toJson())
       ..['messagesLoaded'] = false;
-    await storage.saveChatSummaryMap(chat.peerId, summaryJson);
+    await summaryStore.save(chat.peerId, summaryJson);
     var shouldPersistGroupMeta = false;
     if (chat.isGroup || Chat.isGroupLikePeerId(chat.peerId)) {
       final normalizedMembers = _normalizeMemberPeerIds(chat.memberPeerIds);

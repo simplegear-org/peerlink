@@ -9,7 +9,7 @@ import 'dart:async';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -19,12 +19,12 @@ import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
 
 class ChatReceiptService {
   const ChatReceiptService({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required ChatOutboundCodec outboundCodec,
   }) : _facade = facade,
        _outboundCodec = outboundCodec;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final ChatOutboundCodec _outboundCodec;
 
   Future<void> sendDeliveredForMessage(Message message, Chat chat) async {

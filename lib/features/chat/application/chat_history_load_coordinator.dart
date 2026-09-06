@@ -9,7 +9,7 @@ import 'dart:collection';
 
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
@@ -18,14 +18,16 @@ import 'package:peerlink/features/chat/application/chat_controller_parts.dart';
 import 'package:peerlink/features/chat/application/chat_controller_media.dart';
 import 'package:peerlink/features/chat/application/chat_file_transfer_coordinator.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 
 class ChatHistoryLoadCoordinator {
   ChatHistoryLoadCoordinator({
     required StorageService storage,
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required GroupKeyService groupKeyService,
     required ChatRepository chatRepository,
+    required ChatSummaryStore chatSummaryStore,
     required ChatSummaryService chatSummaryService,
     required ChatFileTransferCoordinator fileTransferCoordinator,
     required Map<String, Chat> chats,
@@ -44,6 +46,7 @@ class ChatHistoryLoadCoordinator {
        _facade = facade,
        _groupKeyService = groupKeyService,
        _chatRepository = chatRepository,
+       _chatSummaryStore = chatSummaryStore,
        _chatSummaryService = chatSummaryService,
        _fileTransferCoordinator = fileTransferCoordinator,
        _chats = chats,
@@ -63,9 +66,10 @@ class ChatHistoryLoadCoordinator {
   static const int _maxConcurrentThumbnailBackfills = 1;
 
   final StorageService _storage;
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final GroupKeyService _groupKeyService;
   final ChatRepository _chatRepository;
+  final ChatSummaryStore _chatSummaryStore;
   final ChatSummaryService _chatSummaryService;
   final ChatFileTransferCoordinator _fileTransferCoordinator;
   final Map<String, Chat> _chats;
@@ -86,13 +90,13 @@ class ChatHistoryLoadCoordinator {
 
   Future<void> loadChats() async {
     _chatSummaryService.loadGroupMetaFromSettings();
-    final summaries = await _storage.loadAllChatSummaries();
+    final summaries = await _chatSummaryStore.loadAll();
     for (final raw in summaries) {
       try {
         final chat = Chat.fromJson(Map<String, dynamic>.from(raw));
         if (_chatSummaryService.isGroupDeleted(chat.peerId)) {
           await _storage.deletePeerMediaDirectory(chat.peerId);
-          await _storage.deleteChatSummaryMap(chat.peerId);
+          await _chatSummaryStore.delete(chat.peerId);
           await _storage.deleteChatMessages(chat.peerId);
           continue;
         }

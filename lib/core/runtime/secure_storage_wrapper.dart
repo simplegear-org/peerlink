@@ -86,10 +86,10 @@ class SecureStorageWrapper {
       if (result != null) {
         return result;
       }
-      return _readFromFile(key);
+      return await _readFromFile(key);
     } catch (e) {
       _useFileStorage = true;
-      return _readFromFile(key);
+      return await _readFromFile(key);
     }
   }
 

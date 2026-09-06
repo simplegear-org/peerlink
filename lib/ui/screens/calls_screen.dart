@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/calls/call_log_entry.dart';
 import '../../core/calls/call_models.dart';
-import '../../core/node/node_facade.dart';
+import '../../core/node/node_capability_apis.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import '../localization/app_strings.dart';
 import '../state/chat_controller.dart';
@@ -23,7 +23,7 @@ import 'calls_screen_styles.dart';
 import 'calls_screen_view.dart';
 
 class CallsScreen extends StatefulWidget {
-  final NodeFacade facade;
+  final CallsApi calls;
   final ChatController controller;
   final CallsController callsController;
   final ContactsController contactsController;
@@ -34,7 +34,7 @@ class CallsScreen extends StatefulWidget {
 
   const CallsScreen({
     super.key,
-    required this.facade,
+    required this.calls,
     required this.controller,
     required this.callsController,
     required this.contactsController,
@@ -179,7 +179,7 @@ class _CallsScreenState extends State<CallsScreen> {
     });
 
     try {
-      await widget.facade.startCall(entry.peerId);
+      await widget.calls.startCall(entry.peerId);
     } catch (error) {
       if (!mounted) {
         return;

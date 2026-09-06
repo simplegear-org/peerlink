@@ -2,11 +2,11 @@
 
 Project: PeerLink X
 
-Version: 3.12.3
+Version: 3.12.5
 
-Build: 2026090601
+Build: 2026090603
 
-Source tag: source-v3.12.3-build-2026090601
+Source tag: source-v3.12.5-build-2026090603
 
 License: MPL-2.0
 

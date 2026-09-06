@@ -14,14 +14,14 @@ import 'package:peerlink/features/chat/application/chat_file_send_coordinator.da
 import 'package:peerlink/features/chat/application/chat_file_transfer_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_incoming_media_restore_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/application/chat_file_queue_service.dart';
 
 class ChatControllerCoordinatorFactory {
   const ChatControllerCoordinatorFactory._();
 
   static ChatDirectLifecycleService directLifecycle({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required Map<String, Chat> chats,
     required String Function(String peerId, {String? fallback}) contactNameFor,
     required Future<void> Function(Chat chat) persistChatSummary,

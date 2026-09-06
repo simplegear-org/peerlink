@@ -9,7 +9,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import '../node/node_facade.dart';
+import '../node/node_capability_apis.dart';
 import '../turn/turn_server_config.dart';
 import 'app_file_logger.dart';
 import 'server_availability.dart';
@@ -24,7 +24,7 @@ class TurnServersService implements ServerAvailabilityProvider {
   static const _defaultProbeTimeout = Duration(seconds: 4);
   static const _defaultTurnPort = 3478;
 
-  final NodeFacade facade;
+  final NetworkApi facade;
   final StorageService storage;
   final Duration _probeTimeout;
   late final ServerAvailabilityPoller _poller;
@@ -688,11 +688,11 @@ class TurnServersService implements ServerAvailabilityProvider {
     try {
       final addresses = await InternetAddress.lookup(host);
       if (timedOut) {
-        return completer.future;
+        return await completer.future;
       }
       if (addresses.isEmpty) {
         complete(false);
-        return completer.future;
+        return await completer.future;
       }
       final target = addresses.first;
       socket = await RawDatagramSocket.bind(
@@ -703,7 +703,7 @@ class TurnServersService implements ServerAvailabilityProvider {
       );
       if (timedOut) {
         cleanup();
-        return completer.future;
+        return await completer.future;
       }
       socket.readEventsEnabled = true;
 

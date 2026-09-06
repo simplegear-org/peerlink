@@ -49,6 +49,73 @@ void main() {
           'implementations.',
     );
   });
+
+  test('StorageService does not keep static mutable application state', () {
+    final content = File(
+      'lib/core/runtime/storage_service.dart',
+    ).readAsStringSync();
+    final violations = RegExp(
+      r'^\s*static\s+(?!const\b)(?:final\s+)?[A-Za-z_<][^=;{]*\s+_\w+',
+      multiLine: true,
+    ).allMatches(content).map((match) => match.group(0)!.trim()).toList();
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'StorageService runtime state must belong to instance lifetime, '
+          'not static mutable application state.',
+    );
+  });
+
+  test('StorageService does not expose call log business API', () {
+    final content = File(
+      'lib/core/runtime/storage_service.dart',
+    ).readAsStringSync();
+    final violations = <String>[
+      'readCallLogs',
+      'prependCallLog',
+      'deleteCallLog',
+    ].where(content.contains).toList();
+
+    expect(
+      violations,
+      isEmpty,
+      reason: 'Call log operations belong to CallLogRepository.',
+    );
+  });
+
+  test('StorageService does not expose chat message paging API', () {
+    final content = File(
+      'lib/core/runtime/storage_service.dart',
+    ).readAsStringSync();
+    final violations =
+        <String>[
+          'loadLatestMessages',
+          'loadMessagesPage',
+          'loadMessagesIndex',
+          'getMessageOffsetFromNewest',
+          'deleteChatMessagesByIds',
+          'readChatMessages',
+          'writeChatMessages',
+          'upsertChatMessages',
+          'loadAllChatSummaries',
+          'getChatSummary',
+          'saveChatSummaryMap',
+          'deleteChatSummaryMap',
+        ].where((method) {
+          return RegExp(
+            r'^\s*Future<[^>]+>\s+' + method + r'\s*\(',
+            multiLine: true,
+          ).hasMatch(content);
+        }).toList();
+
+    expect(
+      violations,
+      isEmpty,
+      reason: 'Chat message paging belongs to ChatRepository.',
+    );
+  });
 }
 
 const _approvedRuntimeFiles = [

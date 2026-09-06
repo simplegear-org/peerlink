@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/notification/notification_service.dart';
 import 'package:peerlink/core/runtime/network_event_bus.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -13,7 +13,7 @@ import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_service.dart';
 
 class ChatInboundSubscriptionCoordinator {
-  final NodeFacade facade;
+  final ChatRuntimeApi facade;
   final ChatInboundService inboundService;
   final bool Function(String text) isGroupDeletePayload;
   final Future<void> Function(

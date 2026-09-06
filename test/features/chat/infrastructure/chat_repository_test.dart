@@ -3,22 +3,59 @@ import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
+import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 
-class _FakeStorageService extends StorageService {
-  final Map<String, List<Map<String, dynamic>>> messages =
-      <String, List<Map<String, dynamic>>>{};
+class _FakeStorageService extends StorageService {}
+
+class _FakeChatSummaryStore implements ChatSummaryStore {
   final Map<String, Map<String, dynamic>> summaries =
       <String, Map<String, dynamic>>{};
 
   @override
-  Future<List<Map<String, dynamic>>> readChatMessages(String peerId) async {
+  Future<List<Map<String, dynamic>>> loadAll() async {
+    return summaries.values
+        .map((summary) => Map<String, dynamic>.from(summary))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> get(String peerId) async {
+    final summary = summaries[peerId];
+    return summary == null ? null : Map<String, dynamic>.from(summary);
+  }
+
+  @override
+  Future<void> save(String peerId, Map<String, dynamic> json) async {
+    summaries[peerId] = Map<String, dynamic>.from(json);
+  }
+
+  @override
+  Future<void> delete(String peerId) async {
+    summaries.remove(peerId);
+  }
+
+  @override
+  Future<int> unreadMessagesCount() async {
+    return summaries.values.fold<int>(
+      0,
+      (sum, summary) => sum + (summary['unreadCount'] as int? ?? 0),
+    );
+  }
+}
+
+class _FakeChatMessageStore implements ChatMessageStore {
+  final Map<String, List<Map<String, dynamic>>> messages =
+      <String, List<Map<String, dynamic>>>{};
+
+  @override
+  Future<List<Map<String, dynamic>>> read(String peerId) async {
     return List<Map<String, dynamic>>.from(
       messages[peerId] ?? const <Map<String, dynamic>>[],
     );
   }
 
   @override
-  Future<void> writeChatMessages(
+  Future<void> write(
     String peerId,
     List<Map<String, dynamic>> nextMessages,
   ) async {
@@ -26,7 +63,7 @@ class _FakeStorageService extends StorageService {
   }
 
   @override
-  Future<void> upsertChatMessages(
+  Future<void> upsert(
     String peerId,
     List<Map<String, dynamic>> nextMessages,
   ) async {
@@ -49,19 +86,34 @@ class _FakeStorageService extends StorageService {
   }
 
   @override
-  Future<void> deleteChatMessagesByIds(
-    String peerId,
-    List<String> messageIds,
-  ) async {
-    messages[peerId]?.removeWhere((item) => messageIds.contains(item['id']));
+  Future<int> count(String peerId) async {
+    return messages[peerId]?.length ?? 0;
   }
 
   @override
-  Future<void> saveChatSummaryMap(
+  Future<List<Map<String, dynamic>>> readPage(
     String peerId,
-    Map<String, dynamic> json,
+    int offset,
+    int limit,
   ) async {
-    summaries[peerId] = Map<String, dynamic>.from(json);
+    final existing = messages[peerId] ?? const <Map<String, dynamic>>[];
+    final start = existing.length - offset - limit;
+    final end = existing.length - offset;
+    return List<Map<String, dynamic>>.from(
+      existing.sublist(start < 0 ? 0 : start, end < 0 ? 0 : end),
+    );
+  }
+
+  @override
+  Future<int?> offsetFromNewest(String peerId, String messageId) async {
+    final existing = messages[peerId] ?? const <Map<String, dynamic>>[];
+    final index = existing.indexWhere((item) => item['id'] == messageId);
+    return index == -1 ? null : existing.length - index - 1;
+  }
+
+  @override
+  Future<void> deleteByIds(String peerId, List<String> messageIds) async {
+    messages[peerId]?.removeWhere((item) => messageIds.contains(item['id']));
   }
 }
 
@@ -71,6 +123,8 @@ void main() {
     () async {
       const peerId = 'peer-a';
       final storage = _FakeStorageService();
+      final messageStore = _FakeChatMessageStore();
+      final summaryStore = _FakeChatSummaryStore();
       final chat = Chat(peerId: peerId, name: peerId, hasMoreMessages: true);
       final allMessages = List<Message>.generate(
         80,
@@ -83,7 +137,7 @@ void main() {
           isRead: index != 10,
         ),
       );
-      storage.messages[peerId] = allMessages
+      messageStore.messages[peerId] = allMessages
           .map((message) => message.toPersistentJson())
           .toList(growable: false);
 
@@ -91,8 +145,10 @@ void main() {
         storage: storage,
         ensureChat: (id, {fallbackName}) => chat,
         persistChatSummary: (chat) =>
-            storage.saveChatSummaryMap(chat.peerId, chat.toJson()),
+            summaryStore.save(chat.peerId, chat.toJson()),
         isInitialUnreadAnchor: (message) => message.incoming && !message.isRead,
+        messageStore: messageStore,
+        summaryStore: summaryStore,
       );
 
       final loaded = await repository.loadInitialMessages(peerId, 50);
@@ -105,6 +161,8 @@ void main() {
   test('firstInitialUnreadMessageId returns persisted unread anchor', () async {
     const peerId = 'peer-a';
     final storage = _FakeStorageService();
+    final messageStore = _FakeChatMessageStore();
+    final summaryStore = _FakeChatSummaryStore();
     final chat = Chat(peerId: peerId, name: peerId, hasMoreMessages: true);
     final allMessages = List<Message>.generate(
       3,
@@ -117,7 +175,7 @@ void main() {
         isRead: index != 1,
       ),
     );
-    storage.messages[peerId] = allMessages
+    messageStore.messages[peerId] = allMessages
         .map((message) => message.toPersistentJson())
         .toList(growable: false);
 
@@ -125,8 +183,10 @@ void main() {
       storage: storage,
       ensureChat: (id, {fallbackName}) => chat,
       persistChatSummary: (chat) =>
-          storage.saveChatSummaryMap(chat.peerId, chat.toJson()),
+          summaryStore.save(chat.peerId, chat.toJson()),
       isInitialUnreadAnchor: (message) => message.incoming && !message.isRead,
+      messageStore: messageStore,
+      summaryStore: summaryStore,
     );
 
     expect(await repository.firstInitialUnreadMessageId(peerId), 'm1');
@@ -137,6 +197,8 @@ void main() {
     () async {
       const peerId = 'peer-a';
       final storage = _FakeStorageService();
+      final messageStore = _FakeChatMessageStore();
+      final summaryStore = _FakeChatSummaryStore();
       final chat = Chat(peerId: peerId, name: peerId, hasMoreMessages: true);
       final allMessages = List<Message>.generate(
         60,
@@ -148,7 +210,7 @@ void main() {
           timestamp: DateTime.utc(2026, 1, 1, 0, index),
         ),
       );
-      storage.messages[peerId] = allMessages
+      messageStore.messages[peerId] = allMessages
           .map((message) => message.toPersistentJson())
           .toList(growable: false);
       chat.messages = allMessages.sublist(10).toList(growable: true);
@@ -158,8 +220,10 @@ void main() {
         storage: storage,
         ensureChat: (id, {fallbackName}) => chat,
         persistChatSummary: (chat) =>
-            storage.saveChatSummaryMap(chat.peerId, chat.toJson()),
+            summaryStore.save(chat.peerId, chat.toJson()),
         isInitialUnreadAnchor: (_) => false,
+        messageStore: messageStore,
+        summaryStore: summaryStore,
       );
 
       await repository.appendMessage(
@@ -173,7 +237,7 @@ void main() {
         ),
       );
 
-      final storedIds = storage.messages[peerId]!
+      final storedIds = messageStore.messages[peerId]!
           .map((item) => item['id'] as String)
           .toList(growable: false);
       expect(storedIds, hasLength(61));
@@ -190,6 +254,8 @@ void main() {
     () async {
       const peerId = 'peer-a';
       final storage = _FakeStorageService();
+      final messageStore = _FakeChatMessageStore();
+      final summaryStore = _FakeChatSummaryStore();
       final chat = Chat(peerId: peerId, name: peerId, hasMoreMessages: true);
       final allMessages = List<Message>.generate(
         60,
@@ -201,7 +267,7 @@ void main() {
           timestamp: DateTime.utc(2026, 1, 1, 0, index),
         ),
       );
-      storage.messages[peerId] = allMessages
+      messageStore.messages[peerId] = allMessages
           .map((message) => message.toPersistentJson())
           .toList(growable: false);
       chat.messages = allMessages.sublist(10).toList(growable: true);
@@ -211,8 +277,10 @@ void main() {
         storage: storage,
         ensureChat: (id, {fallbackName}) => chat,
         persistChatSummary: (chat) =>
-            storage.saveChatSummaryMap(chat.peerId, chat.toJson()),
+            summaryStore.save(chat.peerId, chat.toJson()),
         isInitialUnreadAnchor: (_) => false,
+        messageStore: messageStore,
+        summaryStore: summaryStore,
       );
 
       await repository.replaceMessage(
@@ -227,7 +295,7 @@ void main() {
         ),
       );
 
-      final stored = storage.messages[peerId]!;
+      final stored = messageStore.messages[peerId]!;
       final storedIds = stored
           .map((item) => item['id'] as String)
           .toList(growable: false);

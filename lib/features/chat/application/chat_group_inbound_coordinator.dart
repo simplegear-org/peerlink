@@ -7,7 +7,7 @@
 import 'dart:typed_data';
 
 import 'package:peerlink/core/messaging/chat_service.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/notification/notification_service.dart';
 import 'package:peerlink/core/runtime/app_file_logger.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
@@ -22,7 +22,7 @@ import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 
 class ChatGroupInboundCoordinator {
   const ChatGroupInboundCoordinator({
-    required NodeFacade facade,
+    required ChatRuntimeApi facade,
     required ChatInboundService inboundService,
     required ChatInboundClassifier inboundClassifier,
     required ChatSummaryService chatSummaryService,
@@ -121,7 +121,7 @@ class ChatGroupInboundCoordinator {
        _restoreGroupBlobText = restoreGroupBlobText,
        _restoreMediaInBackground = restoreMediaInBackground;
 
-  final NodeFacade _facade;
+  final ChatRuntimeApi _facade;
   final ChatInboundService _inboundService;
   final ChatInboundClassifier _inboundClassifier;
   final ChatSummaryService _chatSummaryService;

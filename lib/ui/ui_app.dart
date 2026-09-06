@@ -291,7 +291,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     if (_restrictionController.gate.shouldShowModerationGate) {
       return AccountRestrictedScreen(
         policy: _restrictionController.moderationPolicy,
-        facade: widget.facade,
+        moderation: widget.facade,
         onAppealSubmitted: _markModerationAppealSubmitted,
         onWarningContinued: _markModerationWarningAcknowledged,
       );
@@ -310,7 +310,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         avatarService: _avatarService,
       ),
       CallsScreen(
-        facade: widget.facade,
+        calls: widget.facade,
         controller: _chatController,
         callsController: _callsController,
         contactsController: _contactsController,

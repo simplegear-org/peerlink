@@ -29,7 +29,8 @@ Working now:
 - `NodeFacade` as the internal aggregate/core entrypoint during migration, with
   narrow capability contracts in `lib/core/node/node_capability_apis.dart`
   (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
-  `RuntimeEventsApi`) for consumers that do not need the whole runtime surface.
+  `PresenceApi`, `RuntimeEventsApi`) for consumers that do not need the whole
+  runtime surface.
 - `MeshNode` as runtime orchestrator.
 - `PushApiClient` for signed requests to `push.js` (`/devices/register`, `/devices/unregister`, `/devices/access-policy`, `/events/push`), with higher-level event construction delegated to `PushEventFactory`, `PushRuntimeMetadataBuilder`, and `PushEventService`; moderation HTTP lives separately in `ModerationApiClient`.
 - The FCM runtime module in `lib/core/firebase` is decomposed into:
@@ -145,9 +146,9 @@ UI
 - Screens, widgets, state controllers.
 - Existing broad consumers may still use `NodeFacade` during migration; new or
   migrated consumers should depend on narrow node capability contracts. App
-  push/deep-link/call coordinators and the active call screen now use
-  `CallsApi`, `NetworkApi`, and/or `IdentityApi` instead of unrestricted
-  `NodeFacade`.
+  push/deep-link/call coordinators, active/call-history call surfaces,
+  presence, restriction, Settings, and Chat presentation/application seams now
+  avoid unrestricted `NodeFacade` imports.
 - Runtime localization lives in `lib/ui/localization`: `AppLocaleController` persists the selected language in settings storage, `AppStrings` provides the lookup/formatting API and Flutter localization delegates for `MaterialApp`, and per-language dictionaries live in `lib/ui/localization/dictionaries`.
 - Screen composition pattern is standardized:
   - `*_screen.dart` for orchestration/state wiring,
@@ -160,12 +161,16 @@ UI
   read-state handling, and message mutation. Chat SQLite/Drift storage is now
   owned by `lib/features/chat/infrastructure/chat_database.dart`, with the old
   `lib/core/runtime/chat_database.dart` path kept as a temporary compatibility
-  export. The old `lib/ui/models` and selected `lib/ui/state/chat_*` paths are
-  temporary compatibility exports.
+  export. Chat message persistence is behind `ChatMessageStore` /
+  `ChatDatabaseChatMessageStore`, and summary persistence is behind
+  `ChatSummaryStore` / `ChatDatabaseSummaryStore`, so `StorageService` no
+  longer exposes public chat message/summary business APIs. The old
+  `lib/ui/models` and selected `lib/ui/state/chat_*` paths are temporary
+  compatibility exports.
 - `ChatScreen` now keeps only orchestration/state wiring; the AppBar, message-list overlays, voice-recording flow, dialog/action flow, lifecycle wiring, viewport state, presentation logic, composer/send/reply flow, and back-swipe gesture are moved into dedicated screen modules.
 - Message forwarding lives in `ChatForwardService`; `ChatScreen` only opens the target sheet and calls the service through `sendMessage`/`sendFile` callbacks.
 - `ChatController` decomposition is extended through dedicated services and bounded coordinators/handlers for repository access, summary, file queue/send/progress/transfer, direct lifecycle, direct/group inbound/outbound, group control/content/crypto, cleanup, history load, message mutation/send, incoming media restore, outgoing relay-media resume, account payloads, reply metadata, contacts, read state, message receipts, and group flow; the controller should stay an orchestration/facade layer.
-- Base chat-state dependency assembly lives in `chat_controller_dependencies.dart`; new controller-adjacent coordinators should be created through `chat_controller_coordinator_factory.dart`, while callback-heavy wiring remains explicit.
+- Base chat-state dependency assembly lives in `features/chat/application/chat_controller_dependencies.dart` and is built by `lib/app/composition/chat_controller_composition.dart`. `ChatController` receives the Chat-owned `ChatRuntimeApi`; production adapts the temporary `NodeFacade` through `ChatRuntimeNodeAdapter`, and architecture tests prevent `ChatController` / `features/chat/application` from importing unrestricted `NodeFacade`.
 - Account pairing/membership payload decoding lives in `chat_account_payload_decoder.dart`, and reply metadata creation lives in `chat_reply_metadata_resolver.dart`; `ChatController` must not absorb these responsibilities back into its body.
 - Group crypto is moved out of `ChatController` into `lib/core/security/group_message_crypto_service.dart` next to `group_key_service.dart`; UI/state code must not keep its own pack/unpack or encrypt/decrypt implementation for group payloads.
 - Group `memberPeerIds` must be kept in canonical form (`trim + unique + sort`) in both runtime state and persisted group meta, so equivalent membership sets do not create fake persistence churn due only to ordering.
@@ -202,18 +207,18 @@ UI
 - Settings contains `Privacy & Safety` above self-hosted/server sections: contacts-only switch, user-facing safety policy summary, and a dedicated blocked Peer ID screen with contact-name resolution.
 - The app version is shown in Settings only inside About/Legal, without a separate top footer before the first card.
 - Settings server summary cards subscribe to availability streams, and exported server-config QR payloads refresh when bootstrap/relay/turn/push availability changes.
-- `SettingsController` in `lib/ui/state` is now decomposed: server-status presentation is in `settings_server_status_presenter.dart`, invite encode/parse is in `settings_invite_codec.dart`, and pairing flow logic is in `settings_pairing_flow_service.dart`.
+- `SettingsController` in `lib/ui/state` is now decomposed: server-status presentation is in `settings_server_status_presenter.dart`, invite encode/parse is in `settings_invite_codec.dart`, and pairing flow logic is in `settings_pairing_flow_service.dart`. It receives `IdentityApi`, `NetworkApi`, and `MessagingApi` instead of unrestricted `NodeFacade`; settings application services live under `lib/features/settings/application`, and the old `lib/ui/state/settings_*` paths are temporary compatibility exports.
 - `UiApp` owns presentation-shell state, screen composition, tab selection, and
   Navigator/UI effects. It receives dependencies from `AppDependencies` and
   delegates non-presentation orchestration to app-level coordinators.
 
 ### 4.2 Core Entry (`lib/core/node`)
 
-- `NodeFacade`: stable API for UI.
+- `NodeFacade`: compatibility aggregate during migration.
 - `node_capability_apis.dart`: narrow public contracts for messaging, calls,
-  identity, network, moderation, and runtime events. `NodeFacade` implements
-  these contracts while the broad facade remains available internally during
-  migration.
+  identity, network, moderation, presence, and runtime events. `NodeFacade`
+  implements these contracts while the broad facade remains available
+  internally during migration.
 - Unified messaging/blob entrypoints live here: `sendPayload(...)`, `uploadBlob(...)`, `downloadBlob(...)`.
 - `MeshNode`: composition/lifecycle/signaling routing.
 - `MeshSignalRouter`: the extracted routing seam for the signaling -> `CallService` / peer-transport boundary inside `MeshNode`.
@@ -229,8 +234,9 @@ UI
 - `ModerationDeliveryService` coordinates report/appeal/status delivery through configured push servers and keeps `MeshNode` as runtime wiring/facade.
 - `ModerationPolicyService` stores the local warning/ban snapshot, applies `moderation_policy` push/status events, verifies `signedStatus` when a pinned public key is configured, and persists warning acknowledgement / appeal submission so fullscreen warning/ban screens do not reappear after restart.
 - SQLite chat storage keeps message uniqueness scoped to a chat through `(peerId, messageId)`, so the same message id in different chats cannot overwrite another chat's row.
-- Real SQLite `StorageService` write/read coverage exists in `test/core/runtime/storage_service_chat_messages_test.dart` and should be kept for chat-message persistence changes.
-- `StorageService` now acts as an orchestration/facade layer over storage helper modules and should not grow back into a monolith.
+- Real SQLite chat persistence coverage exists in `test/core/runtime/storage_service_chat_messages_test.dart` through `ChatDatabaseChatMessageStore` and should be kept for chat-message persistence changes.
+- `StorageService` now acts as an orchestration/facade layer over storage helper modules, owns instance-scoped runtime state, and should not grow back into a monolith.
+- Calls history persistence is owned by `lib/features/calls/infrastructure/call_log_repository.dart`; `StorageService` only exposes the raw calls box needed by that repository and cross-cutting badge logic.
 - Storage runtime is decomposed into:
   - `storage_service_paths.dart` for root/media path resolution and shared path helpers,
   - `storage_service_migrations.dart` for secure-storage load, legacy migrations, summary repair, and embedded-media pruning,
@@ -246,10 +252,11 @@ UI
   local avatar cache, embedded backup/restore, blob download, and best-effort
   avatar announce/remove/query flow. The old `lib/core/runtime/avatar_service.dart`
   path is a temporary compatibility export. Chat consumes avatar inbound
-  handling through the narrow `ProfileAvatarInboundHandler` contract instead of
-  importing the concrete profile service.
+  handling through the narrow `ProfileAvatarInboundHandler` contract, and
+  profile sync uses `ProfileAvatarTransport` / `ProfileAvatarNodeAdapter`
+  instead of depending on unrestricted `NodeFacade`.
 - Server-health services share the `ServerAvailabilityProvider` contract so future runtime orchestration can work with bootstrap/relay/turn probing through one interface.
-- `ServerHealthCoordinator` owns the shared bootstrap/relay/turn health services and starts them after app bootstrap, so runtime and Settings use the same availability state instead of duplicate probe loops.
+- `ServerHealthCoordinator` owns the shared bootstrap/relay/turn health services and starts them after app bootstrap, so runtime and Settings use the same availability state instead of duplicate probe loops. The coordinator and bootstrap/relay/TURN support services depend on `NetworkApi`, not unrestricted `NodeFacade`.
 - When local server configuration is completely empty, `ServerHealthCoordinator` runs `InitialServerConfigBootstrapper`: it best-effort fetches `https://simplegear.org/config/initial-server-config.json`, validates `ServerConfigPayload`, and merges bootstrap/relay/TURN/push. Site unavailability or malformed responses are logged and do not stop startup.
 - Those health services also share a common polling/backoff engine, so retry cadence is unified across bootstrap/relay/turn and repeated failures automatically widen the probe interval.
 - Bootstrap health refresh is single-flight and converts WebSocket connect timeouts into `unavailable` availability snapshots instead of bubbling timeout exceptions from periodic probes.

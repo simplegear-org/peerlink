@@ -7,25 +7,25 @@
 import 'dart:convert';
 
 import 'qr_payload_encoder.dart';
-import 'settings_account_membership_service.dart';
-import 'settings_controller_models.dart';
+import 'package:peerlink/features/settings/application/settings_account_membership_service.dart';
+import 'package:peerlink/features/settings/application/settings_controller_dependencies.dart';
+import 'package:peerlink/features/settings/application/settings_controller_models.dart';
+import 'package:peerlink/features/settings/application/settings_pairing_flow_service.dart';
+import 'package:peerlink/features/settings/application/settings_pairing_state_service.dart';
+import 'package:peerlink/features/settings/application/settings_read_model_service.dart';
+import 'package:peerlink/features/settings/application/settings_server_config_service.dart';
+import 'package:peerlink/features/settings/application/settings_storage_maintenance_service.dart';
+
 import 'settings_deep_link_codec.dart';
 import 'settings_invite_codec.dart';
-import 'settings_pairing_flow_service.dart';
-import 'settings_pairing_state_repository.dart';
-import 'settings_pairing_state_service.dart';
-import 'settings_read_model_service.dart';
-import 'settings_server_config_service.dart';
-import 'settings_storage_maintenance_service.dart';
-export 'settings_controller_models.dart';
+export 'package:peerlink/features/settings/application/settings_controller_models.dart';
 
 import '../../core/runtime/account_device_event.dart';
 import '../../core/runtime/app_file_logger.dart';
 import '../../core/runtime/app_data_cleaner_service.dart';
 import '../../core/runtime/app_storage_stats.dart';
-import '../../core/node/node_facade.dart';
+import '../../core/node/node_capability_apis.dart';
 import '../../core/runtime/account_pairing_payload.dart';
-import '../../features/contacts/infrastructure/contacts_repository.dart';
 import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/server_config_payload.dart';
 import '../../core/runtime/server_availability.dart';
@@ -53,15 +53,15 @@ class SettingsController {
     'PEERLINK_PAIR_WEB_BASE_URL',
     defaultValue: 'https://simplegear.org/pair',
   );
-  static const Duration _outgoingAccountPairingTimeout = Duration(minutes: 5);
   static const Duration _accountPairingSessionTtl = Duration(minutes: 5);
 
-  final NodeFacade facade;
+  final IdentityApi identity;
+  final NetworkApi network;
+  final MessagingApi messaging;
   final StorageService storage;
   late final ServerHealthCoordinator _health;
   late final AppDataCleanerService _dataCleaner;
   late final PushTokenService _pushTokens;
-  late final SettingsPairingStateRepository _pairingStateRepository;
   late final SettingsPairingStateService _pairingStateService;
   late final SettingsPairingFlowService _pairingFlow;
   late final SettingsReadModelService _readModelService;
@@ -70,105 +70,54 @@ class SettingsController {
   late final SettingsAccountMembershipService _accountMembershipService;
   late final PeerAccessControlService _accessControl;
   late final TermsAcceptanceService _termsAcceptance;
+  late final String Function(String peerId, {String? fallback})
+  _contactDisplayName;
 
-  SettingsController({required this.facade, required this.storage}) {
-    _health = ServerHealthCoordinator(facade: facade, storage: storage);
-    _dataCleaner = AppDataCleanerService(facade: facade, storage: storage);
-    _pushTokens = PushTokenService(storage: storage);
-    _accessControl = PeerAccessControlService(
-      settingsBox: storage.getSettings(),
-      contactsRepository: ContactsRepository(storage: storage),
-    );
-    _termsAcceptance = TermsAcceptanceService(
-      settingsBox: storage.getSettings(),
-    );
-    _readModelService = SettingsReadModelService(
-      health: _health,
+  SettingsController({
+    required this.identity,
+    required this.network,
+    required this.messaging,
+    required this.storage,
+    required SettingsControllerDependenciesFactory dependenciesFactory,
+  }) {
+    final dependencies = dependenciesFactory(
+      identity: identity,
+      network: network,
+      storage: storage,
       connectedBootstrapServers: () => connectedBootstrapServers,
-    );
-    _serverConfigService = SettingsServerConfigService(health: _health);
-    _storageMaintenanceService = SettingsStorageMaintenanceService(
-      dataCleaner: _dataCleaner,
-      serverConfigService: _serverConfigService,
-      loadStorageBreakdownImpl: storage.computeAppStorageBreakdown,
-    );
-    _pairingStateRepository = SettingsPairingStateRepository(
-      read: readSettingValue,
-      write: writeSettingValue,
-      delete: deleteSettingValue,
-    );
-    _pairingStateService = SettingsPairingStateService(
-      repository: _pairingStateRepository,
+      readSettingValue: readSettingValue,
       writeSettingValue: writeSettingValue,
       deleteSettingValue: deleteSettingValue,
       currentConfiguredServerConfigPayload:
           currentConfiguredServerConfigPayload,
       importServerConfigPayload: importServerConfigPayload,
-      accountId: () => accountId,
-      deviceId: () => deviceId,
-    );
-    _pairingFlow = SettingsPairingFlowService(
       peerId: () => peerId,
       accountId: () => accountId,
       deviceId: () => deviceId,
       endpointId: () => endpointId,
       fcmTokenHash: () => fcmTokenHash,
       accountIdentity: () => accountIdentity,
-      loadOutgoingRequest: () =>
-          _pairingStateService.outgoingAccountPairingRequest,
-      loadApprovedPayload: () =>
-          _pairingStateService.approvedAccountPairingPayload,
-      loadRejectedPayload: () =>
-          _pairingStateService.rejectedAccountPairingPayload,
-      loadPendingRequest: () =>
-          _pairingStateService.pendingAccountPairingRequest,
-      stageTemporaryPairingServers:
-          _pairingStateService.stageTemporaryPairingServers,
-      rollbackTemporaryPairingServers:
-          _pairingStateService.rollbackTemporaryPairingServers,
-      saveOutgoingRequest: _pairingStateService.saveOutgoingRequest,
-      deleteOutgoingRequest: _pairingStateService.deleteOutgoingRequest,
-      deleteApprovedPayload: _pairingStateService.deleteApprovedPayload,
-      deleteRejectedPayload: _pairingStateService.deleteRejectedPayload,
-      deleteStagedServerConfig: _pairingStateService.deleteStagedServerConfig,
+      ensurePrimaryAccountDeviceForManagement:
+          _ensurePrimaryAccountDeviceForManagement,
       issueApprovedPairingAccountIdentity: issueApprovedPairingAccountIdentity,
       applyApprovedPairingAccountIdentity: applyApprovedPairingAccountIdentity,
       sendAccountPairingControlMessage: sendAccountPairingControlMessage,
-      appendAccountDeviceEvent: _pairingStateService.appendAccountDeviceEvent,
-      signAccountMembershipUpdate: signAccountMembershipUpdate,
-      findActiveSession: _pairingStateService.activeAccountPairingSession,
-      removeActiveSession:
-          _pairingStateService.removeActiveAccountPairingSession,
-      removeIncomingRequest:
-          _pairingStateService.removeIncomingAccountPairingRequest,
-      savePendingRequest: _pairingStateService.savePendingRequest,
-      clearPendingRequest: _pairingStateService.clearPendingRequest,
-      onMembershipUpdateSendFailed: (peerId, error, stackTrace) {
-        AppFileLogger.log(
-          'account membership update send failed peerId=$peerId error=$error',
-          name: 'account_membership',
-          stackTrace: stackTrace,
-        );
-      },
-      pairingTimeout: _outgoingAccountPairingTimeout,
-    );
-    _accountMembershipService = SettingsAccountMembershipService(
-      facade: facade,
-      deviceId: () => deviceId,
-      accountId: () => accountId,
-      accountIdentity: () => accountIdentity,
-      ensurePrimaryAccountDeviceForManagement:
-          _ensurePrimaryAccountDeviceForManagement,
       issueRevokedAccountIdentity: issueRevokedAccountIdentity,
       signAccountMembershipUpdate: signAccountMembershipUpdate,
       applyAccountMembershipUpdate: applyAccountMembershipUpdate,
-      sendAccountPairingControlMessage: sendAccountPairingControlMessage,
-      appendAccountDeviceEvent: _pairingStateService.appendAccountDeviceEvent,
-      loadIncomingAccountMembershipUpdates: () =>
-          _pairingStateService.incomingAccountMembershipUpdates,
-      removeIncomingAccountMembershipUpdate:
-          _pairingStateService.removeIncomingAccountMembershipUpdate,
     );
+    _health = dependencies.health;
+    _dataCleaner = dependencies.dataCleaner;
+    _pushTokens = dependencies.pushTokens;
+    _accessControl = dependencies.accessControl;
+    _termsAcceptance = dependencies.termsAcceptance;
+    _readModelService = dependencies.readModelService;
+    _serverConfigService = dependencies.serverConfigService;
+    _storageMaintenanceService = dependencies.storageMaintenanceService;
+    _pairingStateService = dependencies.pairingStateService;
+    _pairingFlow = dependencies.pairingFlow;
+    _accountMembershipService = dependencies.accountMembershipService;
+    _contactDisplayName = dependencies.contactDisplayName;
   }
 
   SecureStorageBox get _settings => storage.getSettings();
@@ -183,7 +132,7 @@ class SettingsController {
 
   Future<void> setAllowMessagesOnlyFromContacts(bool enabled) async {
     await _accessControl.setAllowMessagesOnlyFromContacts(enabled);
-    await facade.syncPushDeviceState(
+    await network.syncPushDeviceState(
       reason: 'allow_contacts_toggle',
       forcePolicy: true,
     );
@@ -191,7 +140,10 @@ class SettingsController {
 
   Future<void> unblockPeer(String peerId) async {
     await _accessControl.unblockPeer(peerId);
-    await facade.syncPushDeviceState(reason: 'unblock_peer', forcePolicy: true);
+    await network.syncPushDeviceState(
+      reason: 'unblock_peer',
+      forcePolicy: true,
+    );
   }
 
   Future<void> acceptCurrentTerms() {
@@ -199,18 +151,16 @@ class SettingsController {
   }
 
   String blockedPeerDisplayName(String peerId) {
-    return ContactsRepository(
-      storage: storage,
-    ).displayName(peerId, fallback: peerId);
+    return _contactDisplayName(peerId, fallback: peerId);
   }
 
   /// Текущий peerId локального узла.
-  String get peerId => facade.peerId;
-  String get accountId => facade.accountId;
-  String get activeAccountId => facade.activeAccountId;
-  String get homeAccountId => facade.homeAccountId;
-  String get deviceId => facade.deviceId;
-  AccountIdentity get accountIdentity => facade.accountIdentity;
+  String get peerId => identity.peerId;
+  String get accountId => identity.accountId;
+  String get activeAccountId => identity.activeAccountId;
+  String get homeAccountId => identity.homeAccountId;
+  String get deviceId => identity.deviceId;
+  AccountIdentity get accountIdentity => identity.accountIdentity;
   bool get isPrimaryAccountDevice => activeAccountId == homeAccountId;
   bool get hasChildAccountDevices =>
       accountIdentity.devices.any((device) => device.deviceId != deviceId);
@@ -231,8 +181,8 @@ class SettingsController {
       _pairingStateService.rejectedAccountPairingPayload;
   List<AccountDeviceEvent> get accountDeviceEvents =>
       _pairingStateService.accountDeviceEvents;
-  String? get endpointId => facade.endpointId;
-  String? get fcmTokenHash => facade.fcmTokenHash;
+  String? get endpointId => identity.endpointId;
+  String? get fcmTokenHash => identity.fcmTokenHash;
   String? get fcmToken => _pushTokens.fcmToken;
   String? get apnsToken => _pushTokens.apnsToken;
   String? get voipToken => _pushTokens.voipToken;
@@ -245,7 +195,7 @@ class SettingsController {
       'peerId': peerId,
       'endpointId': endpointId,
       'fcmTokenHash': fcmTokenHash,
-      'identityBundleV3': facade.identityBundleV3Json,
+      'identityBundleV3': identity.identityBundleV3Json,
     });
   }
 
@@ -254,7 +204,7 @@ class SettingsController {
       peerId: peerId,
       endpointId: endpointId,
       fcmTokenHash: fcmTokenHash,
-      identityBundleV3: facade.identityBundleV3Json,
+      identityBundleV3: identity.identityBundleV3Json,
       serverConfig: ServerConfigPayload.fromJson(
         jsonDecode(exportServerConfigQrPayload()) as Map<String, dynamic>,
       ),
@@ -623,7 +573,7 @@ class SettingsController {
 
   Future<void> addPushServer(String endpoint) async {
     await _serverConfigService.addPushServer(endpoint);
-    await facade.syncPushDeviceState(
+    await network.syncPushDeviceState(
       reason: 'push_server_add',
       forceRegister: true,
       forcePolicy: true,
@@ -632,7 +582,7 @@ class SettingsController {
 
   Future<void> removePushServer(String endpoint) async {
     await _serverConfigService.removePushServer(endpoint);
-    await facade.syncPushDeviceState(
+    await network.syncPushDeviceState(
       reason: 'push_server_remove',
       forcePolicy: true,
     );
@@ -648,7 +598,7 @@ class SettingsController {
       host: host,
       port: port,
     );
-    await facade.syncPushDeviceState(
+    await network.syncPushDeviceState(
       reason: 'push_server_update',
       forceRegister: true,
       forcePolicy: true,
@@ -657,7 +607,7 @@ class SettingsController {
 
   Future<void> pausePushServer(String endpoint) async {
     await _serverConfigService.pausePushServer(endpoint);
-    await facade.syncPushDeviceState(
+    await network.syncPushDeviceState(
       reason: 'push_server_pause',
       forcePolicy: true,
     );
@@ -665,7 +615,7 @@ class SettingsController {
 
   Future<void> resumePushServer(String endpoint) async {
     await _serverConfigService.resumePushServer(endpoint);
-    await facade.syncPushDeviceState(
+    await network.syncPushDeviceState(
       reason: 'push_server_resume',
       forceRegister: true,
       forcePolicy: true,
@@ -737,14 +687,14 @@ class SettingsController {
   void dispose() {}
 
   Future<AccountIdentity> mergeAccountIdentity(AccountIdentity identity) {
-    return facade.mergeAccountIdentity(identity);
+    return this.identity.mergeAccountIdentity(identity);
   }
 
   Future<AccountIdentity> issueApprovedPairingAccountIdentity({
     required AccountDeviceIdentity requestedDevice,
     required String sessionId,
   }) {
-    return facade.issueApprovedPairingAccountIdentity(
+    return identity.issueApprovedPairingAccountIdentity(
       requestedDevice: requestedDevice,
       sessionId: sessionId,
     );
@@ -755,7 +705,7 @@ class SettingsController {
     required String expectedSessionId,
     required String expectedAccountId,
   }) {
-    return facade.applyApprovedPairingAccountIdentity(
+    return this.identity.applyApprovedPairingAccountIdentity(
       incoming: identity,
       expectedSessionId: expectedSessionId,
       expectedAccountId: expectedAccountId,
@@ -765,7 +715,7 @@ class SettingsController {
   Future<AccountIdentity> issueRevokedAccountIdentity({
     required Iterable<String> revokedDeviceIds,
   }) {
-    return facade.issueRevokedAccountIdentity(
+    return identity.issueRevokedAccountIdentity(
       revokedDeviceIds: revokedDeviceIds,
     );
   }
@@ -776,7 +726,7 @@ class SettingsController {
     required Iterable<String> affectedDeviceIds,
     required int updatedAtMs,
   }) {
-    return facade.signAccountMembershipUpdate(
+    return this.identity.signAccountMembershipUpdate(
       identity: identity,
       action: action,
       affectedDeviceIds: affectedDeviceIds,
@@ -792,7 +742,7 @@ class SettingsController {
     required int updatedAtMs,
     required String signature,
   }) {
-    return facade.applyAccountMembershipUpdate(
+    return this.identity.applyAccountMembershipUpdate(
       incoming: identity,
       actorDeviceId: actorDeviceId,
       action: action,
@@ -807,7 +757,7 @@ class SettingsController {
     required String kind,
     required String text,
   }) {
-    return facade.sendControlMessage(peerId, kind: kind, text: text);
+    return messaging.sendControlMessage(peerId, kind: kind, text: text);
   }
 
   void _ensurePrimaryAccountDeviceForManagement() {
@@ -835,16 +785,16 @@ class SettingsController {
   }
 
   SignalingConnectionStatus get connectionStatus =>
-      facade.bootstrapConnectionStatus;
+      network.bootstrapConnectionStatus;
 
   Stream<SignalingConnectionStatus> get connectionStatusStream =>
-      facade.bootstrapConnectionStatusStream;
-  String? get lastError => facade.bootstrapLastError;
-  Stream<String?> get lastErrorStream => facade.bootstrapLastErrorStream;
+      network.bootstrapConnectionStatusStream;
+  String? get lastError => network.bootstrapLastError;
+  Stream<String?> get lastErrorStream => network.bootstrapLastErrorStream;
 
-  String? get activeBootstrapServer => facade.activeBootstrapServer;
+  String? get activeBootstrapServer => network.activeBootstrapServer;
   List<String> get connectedBootstrapServers =>
-      facade.connectedBootstrapServers;
+      network.connectedBootstrapServers;
 
   Stream<Map<String, ServerAvailability>> get bootstrapAvailabilityStream =>
       _health.bootstrapAvailabilityStream;
@@ -1026,7 +976,7 @@ class SettingsController {
       return;
     }
     try {
-      await facade.syncPushDeviceState(
+      await network.syncPushDeviceState(
         reason: 'server_import',
         forceRegister: true,
         forcePolicy: true,

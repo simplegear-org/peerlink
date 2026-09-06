@@ -13,8 +13,17 @@ void _assertNodeFacadeContracts(NodeFacade facade) {
   final ModerationApi moderation = facade;
   final MessagingApi messaging = facade;
   final NetworkApi network = facade;
+  final PresenceApi presence = facade;
   final CallsApi calls = facade;
   final RuntimeEventsApi events = facade;
 
-  Object.hash(identity, moderation, messaging, network, calls, events);
+  Object.hash(
+    identity,
+    moderation,
+    messaging,
+    network,
+    presence,
+    calls,
+    events,
+  );
 }

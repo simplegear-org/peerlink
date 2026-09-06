@@ -7,7 +7,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../node/node_facade.dart';
+import '../node/node_capability_apis.dart';
 import 'server_availability.dart';
 import 'server_availability_poller.dart';
 import 'server_availability_provider.dart';
@@ -21,7 +21,7 @@ class BootstrapServersService implements ServerAvailabilityProvider {
   static const _storageKey = 'bootstrap_servers';
   static const _healthyProbeInterval = Duration(seconds: 8);
   static const _defaultProbeTimeout = Duration(seconds: 4);
-  final NodeFacade facade;
+  final NetworkApi facade;
   final StorageService storage;
   final BootstrapWebSocketConnector _webSocketConnector;
   final Duration _probeTimeout;

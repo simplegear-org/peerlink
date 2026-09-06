@@ -36,9 +36,9 @@ class StorageService {
   static const _groupKeyVersionStoragePrefix = 'peerlink.group_key_version.v2.';
   static const _groupMetaStateKey = 'state.v1';
 
-  static bool _initialized = false;
-  static Future<void>? _initializationFuture;
-  static final Map<String, Map<String, dynamic>> _boxes = {
+  bool _initialized = false;
+  Future<void>? _initializationFuture;
+  final Map<String, Map<String, dynamic>> _boxes = {
     contactsBox: <String, dynamic>{},
     settingsBox: <String, dynamic>{},
     callsBox: <String, dynamic>{},
@@ -46,10 +46,10 @@ class StorageService {
     groupKeysBox: <String, dynamic>{},
   };
 
-  static Directory? _mediaDirectory;
-  static Directory? _rootDirectory;
-  static Directory? _databaseDirectory;
-  static Directory? _secureDirectory;
+  Directory? _mediaDirectory;
+  Directory? _rootDirectory;
+  Directory? _databaseDirectory;
+  Directory? _secureDirectory;
 
   StorageServiceMigrations get _migrations => StorageServiceMigrations(
     boxes: _boxes,
@@ -67,21 +67,21 @@ class StorageService {
     groupMetaStateKey: _groupMetaStateKey,
     boxKeyFor: _boxKey,
     persistBox: _persist,
-    getChatSummary: getChatSummary,
-    loadAllChatSummaries: loadAllChatSummaries,
-    saveChatSummaryMap: saveChatSummaryMap,
+    getChatSummary: _getChatSummary,
+    loadAllChatSummaries: _loadAllChatSummaries,
+    saveChatSummaryMap: _saveChatSummaryMap,
     loadConversationHeads: () async =>
         ChatDatabaseService.instance.getConversationHeadsAsJson(),
-    readChatMessages: readChatMessages,
-    writeChatMessages: writeChatMessages,
+    readChatMessages: _readChatMessages,
+    writeChatMessages: _writeChatMessages,
   );
 
   StorageServiceMedia get _mediaStore => StorageServiceMedia(
     mediaDirectory: _mediaDirectory,
-    loadAllChatSummaries: loadAllChatSummaries,
-    readChatMessages: readChatMessages,
-    writeChatMessages: writeChatMessages,
-    saveChatSummaryMap: saveChatSummaryMap,
+    loadAllChatSummaries: _loadAllChatSummaries,
+    readChatMessages: _readChatMessages,
+    writeChatMessages: _writeChatMessages,
+    saveChatSummaryMap: _saveChatSummaryMap,
   );
 
   Future<void> init() async {
@@ -156,15 +156,6 @@ class StorageService {
   static Future<void> resetForTesting() async {
     await ChatDatabaseService.resetForTesting();
     SecureStorageWrapper.resetForTesting();
-    _initialized = false;
-    _initializationFuture = null;
-    _mediaDirectory = null;
-    _rootDirectory = null;
-    _databaseDirectory = null;
-    _secureDirectory = null;
-    for (final box in _boxes.values) {
-      box.clear();
-    }
   }
 
   SecureStorageBox getContacts() => SecureStorageBox._(this, contactsBox);
@@ -191,21 +182,21 @@ class StorageService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> loadAllChatSummaries() async {
+  Future<List<Map<String, dynamic>>> _loadAllChatSummaries() async {
     return ChatDatabaseService.runWithRecovery(
       (database) => database.getAllChatSummariesAsJson(),
       operation: 'loadAllChatSummaries',
     );
   }
 
-  Future<Map<String, dynamic>?> getChatSummary(String peerId) async {
+  Future<Map<String, dynamic>?> _getChatSummary(String peerId) async {
     return ChatDatabaseService.runWithRecovery(
       (database) => database.getChatSummaryAsJson(peerId),
       operation: 'getChatSummary($peerId)',
     );
   }
 
-  Future<void> saveChatSummaryMap(
+  Future<void> _saveChatSummaryMap(
     String peerId,
     Map<String, dynamic> json,
   ) async {
@@ -215,14 +206,7 @@ class StorageService {
     );
   }
 
-  Future<void> deleteChatSummaryMap(String peerId) async {
-    await ChatDatabaseService.runWithRecovery(
-      (database) => database.deleteChatSummary(peerId),
-      operation: 'deleteChatSummaryMap($peerId)',
-    );
-  }
-
-  Future<void> writeChatMessages(
+  Future<void> _writeChatMessages(
     String peerId,
     List<Map<String, dynamic>> messages,
   ) async {
@@ -240,74 +224,10 @@ class StorageService {
     );
   }
 
-  Future<void> upsertChatMessages(
-    String peerId,
-    List<Map<String, dynamic>> messages,
-  ) async {
-    if (messages.isEmpty) {
-      return;
-    }
-    final normalized = messages
-        .map(
-          (message) => _normalizeMessageForStorage(
-            peerId,
-            Map<String, dynamic>.from(message),
-          ),
-        )
-        .toList(growable: false);
-    await ChatDatabaseService.runWithRecovery(
-      (database) => database.upsertMessages(normalized),
-      operation: 'upsertChatMessages($peerId)',
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> readChatMessages(String peerId) async {
+  Future<List<Map<String, dynamic>>> _readChatMessages(String peerId) async {
     return ChatDatabaseService.runWithRecovery(
       (database) => database.getMessagesAsJson(peerId),
       operation: 'readChatMessages($peerId)',
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> loadLatestMessages(
-    String peerId,
-    int limit,
-  ) async {
-    return ChatDatabaseService.runWithRecovery(
-      (database) => database.getLatestMessagesAsJson(peerId, limit),
-      operation: 'loadLatestMessages($peerId)',
-    );
-  }
-
-  Future<List<Map<String, dynamic>>> loadMessagesPage(
-    String peerId,
-    int offset,
-    int limit,
-  ) async {
-    final page = await ChatDatabaseService.runWithRecovery(
-      (database) => database.getMessagesPageAsJson(peerId, offset, limit),
-      operation: 'loadMessagesPage($peerId,$offset,$limit)',
-    );
-    return page;
-  }
-
-  Future<Map<String, dynamic>> loadMessagesIndex(String peerId) async {
-    final count = await ChatDatabaseService.runWithRecovery(
-      (database) => database.countMessages(peerId),
-      operation: 'loadMessagesIndex($peerId)',
-    );
-    return <String, dynamic>{
-      'totalMessages': count,
-      'totalGroups': count == 0 ? 0 : ((count - 1) ~/ _chatPageSize) + 1,
-    };
-  }
-
-  Future<int?> getMessageOffsetFromNewest(
-    String peerId,
-    String messageId,
-  ) async {
-    return ChatDatabaseService.runWithRecovery(
-      (database) => database.getMessageOffsetFromNewest(peerId, messageId),
-      operation: 'getMessageOffsetFromNewest($peerId,$messageId)',
     );
   }
 
@@ -315,19 +235,6 @@ class StorageService {
     await ChatDatabaseService.runWithRecovery(
       (database) => database.deleteMessages(peerId),
       operation: 'deleteChatMessages($peerId)',
-    );
-  }
-
-  Future<void> deleteChatMessagesByIds(
-    String peerId,
-    List<String> messageIds,
-  ) async {
-    if (messageIds.isEmpty) {
-      return;
-    }
-    await ChatDatabaseService.runWithRecovery(
-      (database) => database.deleteMessagesByIds(peerId, messageIds),
-      operation: 'deleteChatMessagesByIds($peerId)',
     );
   }
 
@@ -442,61 +349,6 @@ class StorageService {
       fileName: fileName,
       previousPath: previousPath,
     );
-  }
-
-  Future<List<Map<String, dynamic>>> readCallLogs() async {
-    final raw = _boxData(callsBox)['items'];
-    if (raw is! List) {
-      return <Map<String, dynamic>>[];
-    }
-    return raw
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
-  }
-
-  Future<void> prependCallLog(Map<String, dynamic> callLog) async {
-    final box = _boxData(callsBox);
-    final existingRaw = box['items'];
-    final items = existingRaw is List
-        ? existingRaw
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList(growable: true)
-        : <Map<String, dynamic>>[];
-
-    final id = callLog['id'] as String?;
-    if (id != null && id.isNotEmpty) {
-      items.removeWhere((item) => item['id'] == id);
-    }
-
-    items.insert(0, Map<String, dynamic>.from(callLog));
-    if (items.length > 200) {
-      items.removeRange(200, items.length);
-    }
-
-    box['items'] = items;
-    await _persist(callsBox);
-  }
-
-  Future<void> deleteCallLog(String id) async {
-    if (id.trim().isEmpty) {
-      return;
-    }
-
-    final box = _boxData(callsBox);
-    final existingRaw = box['items'];
-    if (existingRaw is! List) {
-      return;
-    }
-
-    final items = existingRaw
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: true);
-    items.removeWhere((item) => item['id'] == id);
-    box['items'] = items;
-    await _persist(callsBox);
   }
 }
 

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/calls/call_models.dart';
-import 'package:peerlink/core/node/node_facade.dart';
+import 'package:peerlink/core/node/node_capability_apis.dart';
 import 'package:peerlink/core/runtime/moderation_policy_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/ui/state/app_restriction_controller.dart';
@@ -23,7 +23,7 @@ class _FakeSettingsController implements SettingsController {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _FakeNodeFacade implements NodeFacade {
+class _FakeRestrictionNode implements IdentityApi, ModerationApi, CallsApi {
   Map<String, dynamic>? status;
   int endCallCount = 0;
   CallState currentCallState = CallState.idle;
@@ -43,6 +43,7 @@ class _FakeNodeFacade implements NodeFacade {
   Future<Map<String, dynamic>?> fetchModerationStatus() async => status;
 
   @override
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -50,7 +51,7 @@ void main() {
   late Directory tempDir;
   late StorageService storage;
   late _FakeSettingsController settings;
-  late _FakeNodeFacade facade;
+  late _FakeRestrictionNode node;
 
   setUp(() async {
     await StorageService.resetForTesting();
@@ -60,7 +61,7 @@ void main() {
     storage = StorageService();
     await storage.initForTesting(rootDirectory: tempDir);
     settings = _FakeSettingsController();
-    facade = _FakeNodeFacade();
+    node = _FakeRestrictionNode();
   });
 
   tearDown(() async {
@@ -72,7 +73,9 @@ void main() {
 
   test('accepts terms through settings controller', () async {
     final controller = AppRestrictionController(
-      facade: facade,
+      identity: node,
+      moderation: node,
+      calls: node,
       settingsController: settings,
       storage: storage,
     );
@@ -87,7 +90,7 @@ void main() {
 
   test('refresh applies ban and ends active call', () async {
     settings.accepted = true;
-    facade
+    node
       ..status = <String, dynamic>{
         'score': <String, dynamic>{
           'policyState': 'banned',
@@ -101,7 +104,9 @@ void main() {
         callId: 'call-1',
       );
     final controller = AppRestrictionController(
-      facade: facade,
+      identity: node,
+      moderation: node,
+      calls: node,
       settingsController: settings,
       storage: storage,
     );
@@ -111,7 +116,7 @@ void main() {
     expect(changed, isTrue);
     expect(controller.moderationPolicy.isBanned, isTrue);
     expect(controller.gate.canHandleExternalInteraction, isFalse);
-    expect(facade.endCallCount, 1);
+    expect(node.endCallCount, 1);
     expect(ModerationPolicyService.forStorage(storage).load().isBanned, isTrue);
   });
 }
