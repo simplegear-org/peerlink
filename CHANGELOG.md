@@ -3,6 +3,56 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.12.7+2026090701] - 2026-09-07
+
+### Changed
+
+- Continued the ChatController architecture refactor: added `ChatMediaApi` /
+  `ChatControllerMediaApi` as the UI-facing media application facade.
+- Moved file send/cancel, queue resume, outgoing relay-media resume, incoming
+  media restore/resume, thumbnails, progress/status helpers, and media
+  lifecycle disposal behind `ChatMediaApi`.
+- Reduced `ChatController` direct coupling to concrete media coordinators and
+  added an architecture guard preventing regression to direct media workflow
+  imports.
+- Updated architecture backlog and service-map documentation for the new media
+  boundary.
+
+### Verified
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test`
+- `flutter test test/architecture`
+- `flutter test test/features/chat`
+- `flutter test test/core/messaging`
+- `flutter test test/core/relay`
+- `flutter test test/ui/state`
+
+
+## [3.12.6+2026090604] - 2026-09-06
+
+### Changed
+
+- Continued the ChatController architecture refactor: replaced the giant
+  `ChatControllerComposition.create()` callback contract with cohesive
+  presentation/application ports.
+- Reduced `ChatControllerDependencies` from a broad top-level dependency bag to
+  grouped persistence, messaging, group, media/lifecycle, and safety bundles.
+- Added `ChatMessagesApi` and `ChatGroupsApi` application facades so
+  ChatController message and group workflows no longer depend on many concrete
+  chat services directly.
+- Added architecture guards for the new composition ports, grouped dependency
+  surface, and ChatController message/group facade usage.
+
+### Verified
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test test/architecture`
+- `flutter test`
+
+
 ## [3.12.5+2026090603] - 2026-09-06
 
 ### Changed

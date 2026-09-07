@@ -171,6 +171,29 @@ UI
 - Message forwarding lives in `ChatForwardService`; `ChatScreen` only opens the target sheet and calls the service through `sendMessage`/`sendFile` callbacks.
 - `ChatController` decomposition is extended through dedicated services and bounded coordinators/handlers for repository access, summary, file queue/send/progress/transfer, direct lifecycle, direct/group inbound/outbound, group control/content/crypto, cleanup, history load, message mutation/send, incoming media restore, outgoing relay-media resume, account payloads, reply metadata, contacts, read state, message receipts, and group flow; the controller should stay an orchestration/facade layer.
 - Base chat-state dependency assembly lives in `features/chat/application/chat_controller_dependencies.dart` and is built by `lib/app/composition/chat_controller_composition.dart`. `ChatController` receives the Chat-owned `ChatRuntimeApi`; production adapts the temporary `NodeFacade` through `ChatRuntimeNodeAdapter`, and architecture tests prevent `ChatController` / `features/chat/application` from importing unrestricted `NodeFacade`.
+- `ChatControllerComposition.create()` receives cohesive presentation/application
+  ports (`ChatMessageStatePort`, `ChatMediaStatePort`, group, lifecycle,
+  notification, inbound, and account-payload ports) instead of a giant list of
+  `ChatController` callbacks. `ChatController` provides private local adapters
+  for those ports, while application/composition code depends only on the port
+  contracts.
+- `ChatControllerDependencies` exposes grouped dependencies for persistence,
+  messaging, groups, media/lifecycle, and safety instead of a flat bag of
+  individual implementation services; architecture tests guard the grouped
+  top-level surface.
+- Message workflow entrypoints used by `ChatController` are behind
+  `ChatMessagesApi`: text send, retry, mark-read, receipt application, delivery
+  status updates, and message mutation helpers are delegated to the chat
+  application layer instead of individual internal services.
+- Group workflow entrypoints used by `ChatController` are behind
+  `ChatGroupsApi`: group creation, participant changes, metadata/avatar
+  updates, membership synchronization, key rotation, deleted-group state, and
+  incoming membership updates are delegated to the chat application layer.
+- Media workflow entrypoints used by `ChatController` are behind
+  `ChatMediaApi`: file send/cancel, queue drain/resume, outgoing relay-media
+  resume, incoming media restore/resume, embedded media restore, thumbnails,
+  transfer progress/status helpers, and media lifecycle disposal are delegated
+  to the chat application layer.
 - Account pairing/membership payload decoding lives in `chat_account_payload_decoder.dart`, and reply metadata creation lives in `chat_reply_metadata_resolver.dart`; `ChatController` must not absorb these responsibilities back into its body.
 - Group crypto is moved out of `ChatController` into `lib/core/security/group_message_crypto_service.dart` next to `group_key_service.dart`; UI/state code must not keep its own pack/unpack or encrypt/decrypt implementation for group payloads.
 - Group `memberPeerIds` must be kept in canonical form (`trim + unique + sort`) in both runtime state and persisted group meta, so equivalent membership sets do not create fake persistence churn due only to ordering.

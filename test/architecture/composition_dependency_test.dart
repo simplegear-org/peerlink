@@ -77,6 +77,68 @@ void main() {
     );
   });
 
+  test('ChatControllerComposition uses narrow ports instead of callbacks', () {
+    final composition = dartSourcesUnder(const ['lib/app/composition'])
+        .singleWhere(
+          (source) =>
+              source.path ==
+              'lib/app/composition/chat_controller_composition.dart',
+        );
+    final dependencies =
+        dartSourcesUnder(const ['lib/features/chat/application']).singleWhere(
+          (source) =>
+              source.path ==
+              'lib/features/chat/application/chat_controller_dependencies.dart',
+        );
+
+    final callbackParameters = RegExp(
+      r'required\s+(?:Future<[^>]+>|void|bool|int|String|Chat|Message)'
+      r'\s+Function\s*\(',
+    );
+
+    expect(
+      callbackParameters.allMatches(composition.content),
+      isEmpty,
+      reason:
+          'ChatControllerComposition.create must receive cohesive chat ports, '
+          'not a giant callback signature from ChatController.',
+    );
+    expect(
+      callbackParameters.allMatches(dependencies.content),
+      isEmpty,
+      reason:
+          'ChatControllerDependenciesFactory must expose cohesive chat ports, '
+          'not a giant callback signature from ChatController.',
+    );
+  });
+
+  test('ChatControllerDependencies exposes grouped dependency surface', () {
+    final source = dartSourcesUnder(const ['lib/features/chat/application'])
+        .singleWhere(
+          (source) =>
+              source.path ==
+              'lib/features/chat/application/chat_controller_dependencies.dart',
+        );
+    final classMatch = RegExp(
+      r'class\s+ChatControllerDependencies\s*\{([\s\S]*?)\n\}',
+    ).firstMatch(source.content);
+
+    expect(classMatch, isNotNull);
+
+    final topLevelFields = RegExp(
+      r'^\s*final\s+Chat[A-Za-z]+Dependencies\s+\w+;',
+      multiLine: true,
+    ).allMatches(classMatch!.group(1)!);
+
+    expect(
+      topLevelFields.length,
+      lessThanOrEqualTo(6),
+      reason:
+          'ChatControllerDependencies must expose grouped application-level '
+          'dependency contracts instead of dozens of individual services.',
+    );
+  });
+
   test('migrated runtime support services avoid NodeFacade', () {
     final sources = dartSourcesUnder(const [
       'lib/core/runtime',

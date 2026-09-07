@@ -162,6 +162,97 @@ void main() {
     );
   });
 
+  test('ChatController uses ChatMessagesApi for message workflows', () {
+    final source = dartSourcesUnder(const ['lib/ui/state']).singleWhere(
+      (source) => source.path == 'lib/ui/state/chat_controller.dart',
+    );
+    final forbiddenImports = source
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .where(
+          (path) => const {
+            'lib/features/chat/application/chat_message_mutation_service.dart',
+            'lib/features/chat/application/chat_message_send_coordinator.dart',
+            'lib/features/chat/application/chat_read_state_service.dart',
+            'lib/features/chat/application/chat_receipt_service.dart',
+            'lib/features/chat/infrastructure/chat_repository.dart',
+          }.contains(path),
+        )
+        .toList(growable: false);
+
+    expect(
+      forbiddenImports,
+      isEmpty,
+      reason:
+          'ChatController should call message workflows through '
+          'ChatMessagesApi instead of internal message services.',
+    );
+    expect(source.content, contains('ChatMessagesApi'));
+  });
+
+  test('ChatController uses ChatGroupsApi for group workflows', () {
+    final source = dartSourcesUnder(const ['lib/ui/state']).singleWhere(
+      (source) => source.path == 'lib/ui/state/chat_controller.dart',
+    );
+    final forbiddenImports = source
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .where(
+          (path) => const {
+            'lib/features/chat/application/chat_group_crypto_coordinator.dart',
+            'lib/features/chat/application/chat_group_flow_service.dart',
+            'lib/features/chat/application/chat_group_inbound_coordinator.dart',
+            'lib/features/chat/application/chat_group_outbound_coordinator.dart',
+            'lib/features/chat/application/chat_group_service.dart',
+          }.contains(path),
+        )
+        .toList(growable: false);
+
+    expect(
+      forbiddenImports,
+      isEmpty,
+      reason:
+          'ChatController should call group workflows through ChatGroupsApi '
+          'instead of group protocol and crypto internals.',
+    );
+    expect(source.content, contains('ChatGroupsApi'));
+  });
+
+  test('ChatController uses ChatMediaApi for media workflows', () {
+    final source = dartSourcesUnder(const ['lib/ui/state']).singleWhere(
+      (source) => source.path == 'lib/ui/state/chat_controller.dart',
+    );
+    final forbiddenImports = source
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .where(
+          (path) => const {
+            'lib/features/chat/application/chat_controller_media.dart',
+            'lib/features/chat/application/chat_direct_media_crypto_service.dart',
+            'lib/features/chat/application/chat_file_progress_coordinator.dart',
+            'lib/features/chat/application/chat_file_send_coordinator.dart',
+            'lib/features/chat/application/chat_file_transfer_coordinator.dart',
+            'lib/features/chat/application/chat_incoming_media_restore_coordinator.dart',
+            'lib/features/chat/application/chat_media_restore_service.dart',
+            'lib/features/chat/application/chat_media_thumbnail_service.dart',
+            'lib/features/chat/application/chat_outgoing_relay_media_resume_service.dart',
+          }.contains(path),
+        )
+        .toList(growable: false);
+
+    expect(
+      forbiddenImports,
+      isEmpty,
+      reason:
+          'ChatController should call media workflows through ChatMediaApi '
+          'instead of relay/media lifecycle internals.',
+    );
+    expect(source.content, contains('ChatMediaApi'));
+  });
+
   test('migrated settings application paths remain forwarding exports', () {
     final violations = <String>[];
 

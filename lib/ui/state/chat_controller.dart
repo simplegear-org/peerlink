@@ -25,83 +25,43 @@ import '../../features/profile/application/avatar_service.dart';
 import 'package:peerlink/features/chat/application/chat_account_payload_decoder.dart';
 import 'package:peerlink/features/chat/application/chat_controller_dependencies.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
+import 'package:peerlink/features/chat/application/chat_controller_ports.dart';
 import 'package:peerlink/features/chat/application/chat_controller_lifecycle_service.dart';
-import 'package:peerlink/features/chat/application/chat_controller_media.dart';
-import 'package:peerlink/features/chat/application/chat_controller_coordinator_factory.dart';
 import 'package:peerlink/features/chat/application/chat_contacts_service.dart';
 import 'package:peerlink/features/chat/application/chat_cleanup_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_direct_lifecycle_service.dart';
-import 'package:peerlink/features/chat/application/chat_file_progress_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_file_send_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_file_transfer_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_group_crypto_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_group_flow_service.dart';
-import 'package:peerlink/features/chat/application/chat_group_inbound_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_group_outbound_coordinator.dart';
+import 'package:peerlink/features/chat/application/chat_groups_api.dart';
 import 'package:peerlink/features/chat/application/chat_history_load_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_service.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_subscription_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_incoming_media_restore_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_direct_media_crypto_service.dart';
-import 'package:peerlink/features/chat/application/chat_media_restore_service.dart';
-import 'package:peerlink/features/chat/application/chat_media_thumbnail_service.dart';
-import 'package:peerlink/features/chat/application/chat_message_send_coordinator.dart';
-import 'package:peerlink/features/chat/application/chat_message_mutation_service.dart';
+import 'package:peerlink/features/chat/application/chat_media_api.dart';
+import 'package:peerlink/features/chat/application/chat_messages_api.dart';
 import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
-import 'package:peerlink/features/chat/application/chat_outgoing_relay_media_resume_service.dart';
 import '../../core/relay/relay_media_transfer_service.dart';
-import 'package:peerlink/features/chat/application/chat_file_queue_service.dart';
-import 'package:peerlink/features/chat/application/chat_group_service.dart';
-import 'package:peerlink/features/chat/application/chat_read_state_service.dart';
-import 'package:peerlink/features/chat/application/chat_receipt_service.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
-import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
-import 'package:peerlink/features/chat/application/chat_reply_metadata_resolver.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 
 class ChatController with WidgetsBindingObserver {
   static int _lastGeneratedMessageId = 0;
-  static const String _groupDeletePrefix = '__peerlink_group_delete_v1__:';
   static const String _incomingRelayFetchStatus =
       RelayMediaTransferService.incomingFetchStatus;
   final ChatRuntimeApi runtime;
-  final StorageService _storage;
   late final GroupKeyService _groupKeyService;
   final RelayMediaTransferService _relayMediaTransfer =
       const RelayMediaTransferService();
-  late final RelayMediaRetryCoordinator _relayMediaRetry;
-  late final ChatGroupFlowService _groupFlowService;
-  late final ChatMediaRestoreService _mediaRestoreService;
-  late final ChatMediaThumbnailService _mediaThumbnailService;
   late final ChatOutboundCodec _outboundCodec;
-  late final ChatRepository _chatRepository;
   late final ChatSummaryService _chatSummaryService;
-  late final ChatFileQueueService _chatFileQueueService;
   late final ChatControllerLifecycleService _lifecycleService;
-  late final ChatOutgoingRelayMediaResumeService
-  _outgoingRelayMediaResumeService;
   late final ChatInboundService _chatInboundService;
-  late final ChatReadStateService _chatReadStateService;
-  late final ChatReceiptService _chatReceiptService;
   late final ChatContactsService _chatContactsService;
-  late final ChatGroupService _chatGroupService;
+  late final ChatGroupsApi _groupsApi;
   late final ChatDirectLifecycleService _directLifecycleService;
-  late final ChatMessageMutationService _messageMutationService;
+  late final ChatMessagesApi _messagesApi;
+  late final ChatMediaApi _mediaApi;
   late final Future<void> _startupReady;
-  late final ChatFileTransferCoordinator _fileTransferCoordinator;
-  late final ChatFileProgressCoordinator _fileProgressCoordinator;
-  late final ChatFileSendCoordinator _fileSendCoordinator;
-  late final ChatIncomingMediaRestoreCoordinator
-  _incomingMediaRestoreCoordinator;
-  late final ChatGroupInboundCoordinator _groupInboundCoordinator;
   late final ChatInboundSubscriptionCoordinator _inboundSubscriptionCoordinator;
-  late final ChatGroupCryptoCoordinator _groupCryptoCoordinator;
-  late final ChatGroupOutboundCoordinator _groupOutboundCoordinator;
-  late final ChatDirectMediaCryptoService _directMediaCryptoService;
   late final ChatHistoryLoadCoordinator _historyLoadCoordinator;
   late final ChatCleanupCoordinator _cleanupCoordinator;
-  late final ChatMessageSendCoordinator _messageSendCoordinator;
-  late final ChatReplyMetadataResolver _replyMetadataResolver;
   late final PeerAccessControlService _accessControl;
   late final ModerationReportService _moderationReports;
 
@@ -120,150 +80,44 @@ class ChatController with WidgetsBindingObserver {
     required AvatarService avatarService,
     required ChatControllerDependenciesFactory dependenciesFactory,
     void Function(int unreadCount)? onUnreadBadgeCountChanged,
-  }) : _storage = storage,
-       _onUnreadBadgeCountChanged = onUnreadBadgeCountChanged {
+  }) : _onUnreadBadgeCountChanged = onUnreadBadgeCountChanged {
     final dependencies = dependenciesFactory(
       runtime: runtime,
       storage: storage,
       avatarService: avatarService,
       relayMediaTransfer: _relayMediaTransfer,
-      chats: chats,
-      nextLocalMessageId: _nextLocalMessageId,
-      contactNameFor: _contactNameFor,
-      setStatus: _setStatus,
-      syncBadgeCount: _syncBadgeCount,
-      logQueue: _logQueue,
-      resumeRecoverableFileQueue: _resumeRecoverableFileQueue,
-      resumePendingOutgoingRelayMedia: _resumePendingOutgoingRelayMedia,
-      resumeInterruptedIncomingMediaQueue: _resumeInterruptedIncomingMediaQueue,
-      schedulePersistChatSummary: _schedulePersistChatSummary,
-      notifyMessageUpdated: _notifyMessageUpdated,
-      isMessageUpdatesClosed: () => _messageUpdatesController.isClosed,
-      findMessage: _findMessage,
-      replaceMessage: _replaceMessage,
-      updateFileProgress: _updateFileProgress,
-      clearProgressUpdate: _clearProgressUpdate,
-      ensureThumbnail: _ensureThumbnail,
-      mediaKeyFor: _incomingMediaKey,
-      decodeGroupBlobBytes: _decodeGroupBlobBytes,
-      decodeDirectBlobBytes: _decryptDirectMediaBytes,
-      rememberOutgoingRelayMediaState: _rememberOutgoingRelayMediaState,
-      forgetOutgoingRelayMediaState: _forgetOutgoingRelayMediaState,
-      transferStatusForError: _transferStatusForError,
-      updateMessageStatusById: _updateMessageStatusById,
-      handleIncomingGroupMembersUpdate: _handleIncomingGroupMembersUpdate,
-      removeMessageWithMediaCleanup: _removeMessageWithMediaCleanup,
-      schedulePersistLoadedChat: _schedulePersistLoadedChat,
-      unreadMessagesCount: unreadMessagesCount,
-      onUnreadBadgeCountChanged: _onUnreadBadgeCountChanged,
-      ensureChatLoaded: ensureChatLoaded,
-      persistLoadedChat: _persistLoadedChat,
-      deleteManagedMediaForMessage: _deleteManagedMediaForMessage,
-      removeMessage: _removeMessage,
-      rememberDeletedGroup: _rememberDeletedGroup,
-      runGroupKeyGc: _runGroupKeyGc,
-      isGroupDeleted: _isGroupDeleted,
-      restoreDeletedGroup: _restoreDeletedGroup,
-      appendMessage: _appendMessage,
-      removeMessageByAuthorWithMediaCleanup:
-          _removeMessageByAuthorWithMediaCleanup,
-      notifyNewMessage: _newMessageNotificationController.add,
-      decryptGroupText: _decryptGroupText,
-      decryptGroupBytes: _decryptGroupBytes,
-      saveGroupAvatarBytes: _saveGroupAvatarBytes,
-      rotateGroupKey: _rotateGroupKey,
-      syncGroupMembershipWithRelay: _syncGroupMembershipWithRelay,
-      broadcastGroupMembersUpdate: _broadcastGroupMembersUpdate,
-      deleteChatLocal: _deleteChatLocal,
-      restoreGroupBlobText: _restoreGroupBlobText,
-      restoreMediaInBackground: _restoreMediaInBackground,
-      waitUntilReady: _waitUntilStartupReady,
-      isGroupDeletePayload: _isGroupDeletePayload,
-      handleIncomingDirectBlobRef: _handleIncomingDirectBlobRef,
-      handleIncomingMessageReceipt: _handleIncomingMessageReceipt,
-      ensureChat: _ensureChat,
-      persistChatSummary: _persistChatSummary,
-      isInitialUnreadAnchor: isInitialUnreadAnchor,
-      decodeAccountPairRequest: ChatAccountPayloadDecoder.decodePairRequest,
-      decodeAccountPairApproval: ChatAccountPayloadDecoder.decodePairApproval,
-      decodeAccountPairRejection: ChatAccountPayloadDecoder.decodePairRejection,
-      decodeAccountMembershipUpdate:
-          ChatAccountPayloadDecoder.decodeMembershipUpdate,
+      presentationState: _ChatControllerPresentationStatePort(this),
+      connectionState: _ChatControllerConnectionStatePort(this),
+      messageState: _ChatControllerMessageStatePort(this),
+      mediaState: _ChatControllerMediaStatePort(this),
+      groupState: _ChatControllerGroupStatePort(this),
+      notifications: _ChatControllerNotificationPort(this),
+      lifecycle: _ChatControllerLifecyclePort(this),
+      inbound: _ChatControllerInboundPort(this),
+      accountPayloads: const _ChatControllerAccountPayloadPort(),
     );
-    _accessControl = dependencies.accessControl;
-    _moderationReports = dependencies.moderationReports;
-    _groupKeyService = dependencies.groupKeyService;
-    _outboundCodec = dependencies.outboundCodec;
-    _groupFlowService = dependencies.groupFlowService;
-    _chatSummaryService = dependencies.summaryService;
-    _chatReadStateService = dependencies.readStateService;
-    _chatReceiptService = dependencies.receiptService;
-    _chatContactsService = dependencies.contactsService;
-    _chatFileQueueService = dependencies.fileQueueService;
-    _chatGroupService = dependencies.groupService;
-    _directLifecycleService = dependencies.directLifecycleService;
-    _directMediaCryptoService = dependencies.directMediaCryptoService;
-    _chatRepository = dependencies.repository;
-    _chatInboundService = dependencies.inboundService;
-    _replyMetadataResolver = dependencies.replyMetadataResolver;
-    _relayMediaRetry = dependencies.relayMediaRetry;
-    _outgoingRelayMediaResumeService =
-        dependencies.outgoingRelayMediaResumeService;
-    _lifecycleService = dependencies.lifecycleService;
-    _messageMutationService = dependencies.messageMutationService;
-    _mediaThumbnailService = dependencies.mediaThumbnailService;
-    _groupCryptoCoordinator = dependencies.groupCryptoCoordinator;
-    _groupOutboundCoordinator = dependencies.groupOutboundCoordinator;
-    _fileTransferCoordinator = dependencies.fileTransferCoordinator;
-    _messageSendCoordinator = dependencies.messageSendCoordinator;
-    _historyLoadCoordinator = dependencies.historyLoadCoordinator;
-    _cleanupCoordinator = dependencies.cleanupCoordinator;
-    _mediaRestoreService = dependencies.mediaRestoreService;
-    _incomingMediaRestoreCoordinator =
-        dependencies.incomingMediaRestoreCoordinator;
-    _fileProgressCoordinator = dependencies.fileProgressCoordinator;
-    _groupInboundCoordinator = dependencies.groupInboundCoordinator;
+    final persistence = dependencies.persistence;
+    final messaging = dependencies.messaging;
+    final groups = dependencies.groups;
+    final mediaLifecycle = dependencies.mediaLifecycle;
+    final safety = dependencies.safety;
+
+    _accessControl = safety.accessControl;
+    _moderationReports = safety.moderationReports;
+    _groupKeyService = persistence.groupKeyService;
+    _outboundCodec = messaging.outboundCodec;
+    _chatSummaryService = persistence.summaryService;
+    _messagesApi = messaging.messagesApi;
+    _chatContactsService = groups.contactsService;
+    _groupsApi = groups.groupsApi;
+    _directLifecycleService = mediaLifecycle.directLifecycleService;
+    _chatInboundService = mediaLifecycle.inboundService;
+    _mediaApi = mediaLifecycle.mediaApi;
+    _lifecycleService = mediaLifecycle.lifecycleService;
+    _historyLoadCoordinator = mediaLifecycle.historyLoadCoordinator;
+    _cleanupCoordinator = mediaLifecycle.cleanupCoordinator;
     _inboundSubscriptionCoordinator =
-        dependencies.inboundSubscriptionCoordinator;
-    _fileSendCoordinator = ChatControllerCoordinatorFactory.fileSend(
-      fileTransferCoordinator: _fileTransferCoordinator,
-      ensureChatLoaded: ensureChatLoaded,
-      ensureChat: (peerId) => _ensureChat(peerId),
-      nextLocalMessageId: _nextLocalMessageId,
-      persistLoadedChat: _persistLoadedChat,
-      replySenderLabel: _replySenderLabel,
-      replyTextPreview: _replyTextPreview,
-      replyKind: _replyKind,
-      logQueue: _logQueue,
-      notifyMessageUpdated: _notifyMessageUpdated,
-      refreshQueuedFileStatuses: _refreshQueuedFileStatuses,
-      drainFileQueue: _drainFileQueue,
-      saveMediaFile:
-          ({
-            required peerId,
-            required messageId,
-            required fileName,
-            required sourcePath,
-          }) => _storage.saveMediaFile(
-            peerId: peerId,
-            messageId: messageId,
-            fileName: fileName,
-            sourcePath: sourcePath,
-          ),
-      saveMediaBytes:
-          ({
-            required peerId,
-            required messageId,
-            required fileName,
-            required bytes,
-          }) => _storage.saveMediaBytes(
-            peerId: peerId,
-            messageId: messageId,
-            fileName: fileName,
-            bytes: bytes,
-          ),
-      ensureThumbnail: _ensureThumbnail,
-    );
+        mediaLifecycle.inboundSubscriptionCoordinator;
     WidgetsBinding.instance.addObserver(this);
     _startupReady = Future.wait(<Future<void>>[
       _loadChats(),
@@ -296,7 +150,7 @@ class ChatController with WidgetsBindingObserver {
   }
 
   bool _isGroupDeleted(String groupId) {
-    return _chatSummaryService.isGroupDeleted(groupId);
+    return _groupsApi.isGroupDeleted(groupId);
   }
 
   Future<void> _rememberDeletedGroup(
@@ -304,7 +158,7 @@ class ChatController with WidgetsBindingObserver {
     required String deletedByPeerId,
     Chat? chat,
   }) async {
-    await _chatSummaryService.rememberDeletedGroup(
+    await _groupsApi.rememberDeletedGroup(
       groupId,
       deletedByPeerId: deletedByPeerId,
       chat: chat,
@@ -312,27 +166,15 @@ class ChatController with WidgetsBindingObserver {
   }
 
   Future<void> _restoreDeletedGroup(String groupId) async {
-    await _chatSummaryService.restoreDeletedGroup(groupId);
+    await _groupsApi.restoreDeletedGroup(groupId);
   }
 
   Future<void> _runGroupKeyGc() async {
-    await _historyLoadCoordinator.runGroupKeyGc();
+    await _groupsApi.runGroupKeyGc();
   }
 
   String _contactNameFor(String peerId, {String? fallback}) {
     return _chatContactsService.resolveChatName(peerId, fallback: fallback);
-  }
-
-  String? _replySenderLabel(String chatPeerId, Message? replyTo) {
-    return _replyMetadataResolver.senderLabel(chatPeerId, replyTo);
-  }
-
-  String? _replyTextPreview(Message? replyTo) {
-    return _replyMetadataResolver.textPreview(replyTo);
-  }
-
-  String? _replyKind(Message? replyTo) {
-    return _replyMetadataResolver.kind(replyTo);
   }
 
   Chat _ensureChat(String peerId, {String? fallbackName}) {
@@ -352,30 +194,20 @@ class ChatController with WidgetsBindingObserver {
   Future<void> _rememberOutgoingRelayMediaState(
     OutgoingRelayMediaState state,
   ) async {
-    await _outgoingRelayMediaResumeService.remember(state);
+    await _mediaApi.rememberOutgoingRelayMediaState(state);
   }
 
   Future<void> _forgetOutgoingRelayMediaState(
     String peerId,
     String messageId,
   ) async {
-    await _outgoingRelayMediaResumeService.forget(peerId, messageId);
+    await _mediaApi.forgetOutgoingRelayMediaState(peerId, messageId);
   }
 
   Future<void> _resumePendingOutgoingRelayMedia({
     required String reason,
   }) async {
-    await _outgoingRelayMediaResumeService.resumePending(
-      reason: reason,
-      ensureChatLoaded: ensureChatLoaded,
-      findChat: (peerId) => chats[peerId],
-      updateFileProgress: _updateFileProgress,
-      replaceMessage: _replaceMessage,
-      clearProgressUpdate: _clearProgressUpdate,
-      setStatus: _setStatus,
-      notifyMessageUpdated: _notifyMessageUpdated,
-      logQueue: _logQueue,
-    );
+    await _mediaApi.resumePendingOutgoingRelayMedia(reason: reason);
   }
 
   /// Загружает следующую страницу сообщений (при прокрутке вверх)
@@ -416,33 +248,26 @@ class ChatController with WidgetsBindingObserver {
   }
 
   Future<void> _appendMessage(String peerId, Message message) async {
-    await _messageMutationService.appendMessage(peerId, message);
-    final chat = chats[peerId];
-    if (chat != null && message.incoming) {
-      await _chatReceiptService.sendDeliveredForMessage(message, chat);
-    }
+    await _messagesApi.appendMessage(peerId, message);
   }
 
   Future<bool> _removeMessage(String peerId, String messageId) async {
-    return _messageMutationService.removeMessage(peerId, messageId);
+    return _messagesApi.removeMessage(peerId, messageId);
   }
 
   Future<Message?> _findMessage(String peerId, String messageId) async {
-    return _messageMutationService.findMessage(peerId, messageId);
+    return _messagesApi.findMessage(peerId, messageId);
   }
 
   Future<void> _deleteManagedMediaForMessage(Message? message) async {
-    await _messageMutationService.deleteManagedMediaForMessage(message);
+    await _messagesApi.deleteManagedMediaForMessage(message);
   }
 
   Future<bool> _removeMessageWithMediaCleanup(
     String peerId,
     String messageId,
   ) async {
-    return _messageMutationService.removeMessageWithMediaCleanup(
-      peerId,
-      messageId,
-    );
+    return _messagesApi.removeMessageWithMediaCleanup(peerId, messageId);
   }
 
   Future<bool> _removeMessageByAuthorWithMediaCleanup(
@@ -450,7 +275,7 @@ class ChatController with WidgetsBindingObserver {
     String messageId,
     String authorPeerId,
   ) async {
-    return _messageMutationService.removeMessageByAuthorWithMediaCleanup(
+    return _messagesApi.removeMessageByAuthorWithMediaCleanup(
       peerId,
       messageId,
       authorPeerId,
@@ -462,43 +287,33 @@ class ChatController with WidgetsBindingObserver {
     String messageId,
     Message Function(Message current) transform,
   ) async {
-    await _messageMutationService.replaceMessage(peerId, messageId, transform);
+    await _messagesApi.replaceMessage(peerId, messageId, transform);
   }
 
   bool _isGroupDeletePayload(String text) {
-    return text.startsWith(_groupDeletePrefix);
+    return _groupsApi.isGroupDeletePayload(text);
   }
 
   Future<void> _rotateGroupKey(
     Chat groupChat, {
     required List<String> recipients,
   }) async {
-    await _groupFlowService.rotateGroupKey(groupChat, recipients: recipients);
+    await _groupsApi.rotateGroupKey(groupChat, recipients: recipients);
   }
 
   Future<void> _syncGroupMembershipWithRelay(Chat groupChat) async {
-    await _groupCryptoCoordinator.syncGroupMembershipWithRelay(groupChat);
-  }
-
-  Future<Uint8List?> _encryptGroupBytes({
-    required String groupId,
-    required Uint8List plainBytes,
-  }) async {
-    return _groupCryptoCoordinator.encryptGroupBytes(
-      groupId: groupId,
-      plainBytes: plainBytes,
-    );
+    await _groupsApi.syncGroupMembershipWithRelay(groupChat);
   }
 
   Future<String?> _decryptGroupText(String text) async {
-    return _groupCryptoCoordinator.decryptGroupText(text);
+    return _groupsApi.decryptGroupText(text);
   }
 
   Future<Uint8List?> _decryptGroupBytes({
     required String groupId,
     required Uint8List encryptedBytes,
   }) async {
-    return _groupCryptoCoordinator.decryptGroupBytes(
+    return _groupsApi.decryptGroupBytes(
       groupId: groupId,
       encryptedBytes: encryptedBytes,
     );
@@ -508,7 +323,7 @@ class ChatController with WidgetsBindingObserver {
     ChatMessage msg, {
     IncomingGroupMembersPayload? payload,
   }) async {
-    await _groupInboundCoordinator.handleMembersUpdate(msg, payload: payload);
+    await _groupsApi.handleIncomingGroupMembersUpdate(msg, payload: payload);
   }
 
   Future<void> _handleIncomingDirectBlobRef(
@@ -526,7 +341,7 @@ class ChatController with WidgetsBindingObserver {
       shouldAutoRestoreIncomingMedia: _shouldAutoRestoreIncomingMedia,
       incomingRelayFetchStatus: _incomingRelayFetchStatus,
       restoreMediaInBackground: _restoreMediaInBackground,
-      sendDeliveredReceipt: _chatReceiptService.sendDeliveredForMessage,
+      sendDeliveredReceipt: _messagesApi.sendDeliveredForMessage,
       notifyNewMessage: _newMessageNotificationController.add,
       unreadMessagesCount: unreadMessagesCount,
       showMessageNotification:
@@ -548,16 +363,11 @@ class ChatController with WidgetsBindingObserver {
   String? connectionError(String peerId) => _connectionErrors[peerId];
 
   int unreadMessagesCount() {
-    return _chatReadStateService.unreadMessagesCount(chats);
+    return _messagesApi.unreadMessagesCount();
   }
 
   void _syncBadgeCount() {
-    _chatReadStateService.syncBadgeCount(
-      chats,
-      setBadgeCount:
-          _onUnreadBadgeCountChanged ??
-          NotificationService.instance.setBadgeCount,
-    );
+    _messagesApi.syncBadgeCount();
   }
 
   String _nextLocalMessageId() {
@@ -598,14 +408,10 @@ class ChatController with WidgetsBindingObserver {
     required Uint8List bytes,
     String mimeType = 'image/png',
   }) async {
-    await _chatGroupService.setGroupAvatar(
+    await _groupsApi.setGroupAvatar(
       groupId: groupId,
-      chats: chats,
       bytes: bytes,
       mimeType: mimeType,
-      persistChatSummary: _persistChatSummary,
-      encryptGroupBytes: _encryptGroupBytes,
-      notifyMessageUpdated: _notifyMessageUpdated,
     );
   }
 
@@ -615,12 +421,11 @@ class ChatController with WidgetsBindingObserver {
     required String mimeType,
     required int updatedAtMs,
   }) async {
-    await _chatGroupService.saveGroupAvatarBytes(
+    await _groupsApi.saveGroupAvatarBytes(
       groupChat: groupChat,
       bytes: bytes,
       mimeType: mimeType,
       updatedAtMs: updatedAtMs,
-      persistChatSummary: _persistChatSummary,
     );
   }
 
@@ -629,13 +434,10 @@ class ChatController with WidgetsBindingObserver {
     required List<String> memberPeerIds,
     bool sendInvites = true,
   }) async {
-    return _chatGroupService.createGroupChat(
+    return _groupsApi.createGroupChat(
       name: name,
       memberPeerIds: memberPeerIds,
-      chats: chats,
       sendInvites: sendInvites,
-      persistChatSummary: _persistChatSummary,
-      notifyMessageUpdated: _notifyMessageUpdated,
     );
   }
 
@@ -647,12 +449,9 @@ class ChatController with WidgetsBindingObserver {
     required String groupId,
     required List<String> participantPeerIds,
   }) async {
-    await _chatGroupService.addGroupParticipants(
+    await _groupsApi.addGroupParticipants(
       groupId: groupId,
       participantPeerIds: participantPeerIds,
-      chats: chats,
-      persistChatSummary: _persistChatSummary,
-      notifyMessageUpdated: _notifyMessageUpdated,
     );
   }
 
@@ -660,12 +459,9 @@ class ChatController with WidgetsBindingObserver {
     required String groupId,
     required List<String> participantPeerIds,
   }) async {
-    await _chatGroupService.removeGroupParticipants(
+    await _groupsApi.removeGroupParticipants(
       groupId: groupId,
       participantPeerIds: participantPeerIds,
-      chats: chats,
-      persistChatSummary: _persistChatSummary,
-      notifyMessageUpdated: _notifyMessageUpdated,
     );
   }
 
@@ -673,13 +469,7 @@ class ChatController with WidgetsBindingObserver {
     required String groupId,
     required String newName,
   }) async {
-    await _chatGroupService.renameGroupChat(
-      groupId: groupId,
-      newName: newName,
-      chats: chats,
-      persistChatSummary: _persistChatSummary,
-      notifyMessageUpdated: _notifyMessageUpdated,
-    );
+    await _groupsApi.renameGroupChat(groupId: groupId, newName: newName);
   }
 
   Future<void> sendMessage(
@@ -690,7 +480,7 @@ class ChatController with WidgetsBindingObserver {
     if (_accessControl.isBlocked(peerId)) {
       throw StateError('Peer is blocked');
     }
-    await _messageSendCoordinator.sendMessage(peerId, text, replyTo: replyTo);
+    await _messagesApi.sendMessage(peerId, text, replyTo: replyTo);
   }
 
   Future<void> sendFile(
@@ -705,7 +495,7 @@ class ChatController with WidgetsBindingObserver {
     if (_accessControl.isBlocked(peerId)) {
       throw StateError('Peer is blocked');
     }
-    await _fileSendCoordinator.sendFile(
+    await _mediaApi.sendFile(
       peerId,
       fileName: fileName,
       fileBytes: fileBytes,
@@ -717,19 +507,11 @@ class ChatController with WidgetsBindingObserver {
   }
 
   Future<void> requestDeleteForEveryone(String peerId, String messageId) async {
-    await _groupOutboundCoordinator.requestDeleteForEveryone(
-      peerId,
-      messageId,
-      chat: chats[peerId],
-    );
-  }
-
-  Future<void> _drainFileQueue() async {
-    await _fileTransferCoordinator.drainFileQueue();
+    await _groupsApi.requestDeleteForEveryone(peerId, messageId);
   }
 
   void _resumeRecoverableFileQueue() {
-    _fileTransferCoordinator.resumeRecoverableFileQueue();
+    _mediaApi.resumeRecoverableFileQueue();
   }
 
   Future<void> _broadcastGroupMembersUpdate({
@@ -742,7 +524,7 @@ class ChatController with WidgetsBindingObserver {
     int? avatarFileSizeBytes,
     int? avatarUpdatedAtMs,
   }) async {
-    await _groupOutboundCoordinator.broadcastGroupMembersUpdate(
+    await _groupsApi.broadcastGroupMembersUpdate(
       groupChat: groupChat,
       recipients: recipients,
       action: action,
@@ -758,18 +540,18 @@ class ChatController with WidgetsBindingObserver {
     Map<String, dynamic> payload, {
     String? sourcePeerId,
   }) async {
-    await _groupOutboundCoordinator.applyGroupMembersUpdateFromPush(
+    await _groupsApi.applyGroupMembersUpdateFromPush(
       payload,
       sourcePeerId: sourcePeerId,
     );
   }
 
   Future<void> cancelFileTransfer(String peerId, String messageId) async {
-    await _fileTransferCoordinator.cancelFileTransfer(peerId, messageId);
+    await _mediaApi.cancelFileTransfer(peerId, messageId);
   }
 
   Future<void> retryMessage(String peerId, String messageId) async {
-    await _messageSendCoordinator.retryMessage(peerId, messageId);
+    await _messagesApi.retryMessage(peerId, messageId);
   }
 
   Future<void> connect(String peerId) async {
@@ -860,7 +642,7 @@ class ChatController with WidgetsBindingObserver {
     bool rememberDeletedGroup = false,
     String? deletedByPeerId,
   }) async {
-    await _cleanupCoordinator.deleteChatLocal(
+    await _groupsApi.deleteChatLocal(
       peerId,
       rememberDeletedGroup: rememberDeletedGroup,
       deletedByPeerId: deletedByPeerId,
@@ -868,39 +650,13 @@ class ChatController with WidgetsBindingObserver {
   }
 
   Future<void> markChatAsRead(String peerId) async {
-    try {
-      final marked = await _chatReadStateService.markChatAsRead(
-        peerId,
-        chats: chats,
-        chatRepository: _chatRepository,
-        persistLoadedChat: _persistLoadedChat,
-        persistChatSummary: _persistChatSummary,
-        notifyMessageUpdated: _notifyMessageUpdated,
-      );
-      if (marked.isNotEmpty) {
-        final chat = chats[peerId];
-        if (chat != null) {
-          await _chatReceiptService.sendReadForMessages(marked, chat);
-        }
-      }
-      _syncBadgeCount();
-    } catch (e, stack) {
-      developer.log(
-        '[chat] markChatAsRead failed peer=$peerId error=$e\n$stack',
-        name: 'chat',
-      );
-    }
+    await _messagesApi.markChatAsRead(peerId);
   }
 
   Future<void> _handleIncomingMessageReceipt(
     IncomingMessageReceiptPayload payload,
   ) async {
-    await _chatReceiptService.applyIncomingReceipt(
-      payload,
-      chats: chats,
-      chatRepository: _chatRepository,
-      notifyMessageUpdated: _notifyMessageUpdated,
-    );
+    await _messagesApi.applyIncomingReceipt(payload);
   }
 
   Future<void> _updateMessageStatusById(
@@ -908,18 +664,11 @@ class ChatController with WidgetsBindingObserver {
     String messageId,
     MessageStatus status,
   ) async {
-    await _messageSendCoordinator.updateMessageStatusById(
-      peerId,
-      messageId,
-      status,
-    );
+    await _messagesApi.updateMessageStatusById(peerId, messageId, status);
   }
 
   String _transferStatusForError(Object error, {required String fallback}) {
-    return _fileProgressCoordinator.transferStatusForError(
-      error,
-      fallback: fallback,
-    );
+    return _mediaApi.transferStatusForError(error, fallback: fallback);
   }
 
   Future<void> _updateFileProgress(
@@ -929,7 +678,7 @@ class ChatController with WidgetsBindingObserver {
     required int? totalBytes,
     required String statusText,
   }) async {
-    await _fileProgressCoordinator.updateFileProgress(
+    await _mediaApi.updateFileProgress(
       peerId,
       messageId,
       sentBytes: sentBytes,
@@ -939,45 +688,32 @@ class ChatController with WidgetsBindingObserver {
   }
 
   void _clearProgressUpdate(String peerId, String messageId) {
-    _fileProgressCoordinator.clearProgressUpdate(peerId, messageId);
+    _mediaApi.clearProgressUpdate(peerId, messageId);
   }
 
   String _incomingMediaKey(String peerId, String messageId) =>
-      RelayMediaRetryCoordinator.mediaKey(peerId, messageId);
+      _mediaApi.incomingMediaKey(peerId, messageId);
 
   Future<void> _resumeInterruptedIncomingMediaQueue({
     required String reason,
   }) async {
-    await _incomingMediaRestoreCoordinator.resumeInterruptedIncomingMediaQueue(
-      chats: chats.values,
-      reason: reason,
-    );
-  }
-
-  void _refreshQueuedFileStatuses() {
-    _fileTransferCoordinator.refreshQueuedFileStatuses();
+    await _mediaApi.resumeInterruptedIncomingMediaQueue(reason: reason);
   }
 
   Future<String?> restoreMediaFromEmbedded(String peerId, Message message) {
-    return ChatControllerMedia.restoreMediaFromEmbedded(
-      storage: _storage,
-      peerId: peerId,
-      message: message,
-      replaceMessage: _replaceMessage,
-      ensureThumbnail: _ensureThumbnail,
-    );
+    return _mediaApi.restoreMediaFromEmbedded(peerId, message);
   }
 
   Future<String?> restoreGroupBlobMedia(Message message) {
-    return _incomingMediaRestoreCoordinator.restoreGroupBlobMedia(message);
+    return _mediaApi.restoreGroupBlobMedia(message);
   }
 
   Future<String?> restoreDirectBlobMedia(Message message) {
-    return _incomingMediaRestoreCoordinator.restoreDirectBlobMedia(message);
+    return _mediaApi.restoreDirectBlobMedia(message);
   }
 
   Future<String?> _ensureThumbnail(Message message) {
-    return _mediaThumbnailService.ensureThumbnail(message);
+    return _mediaApi.ensureThumbnail(message);
   }
 
   void _restoreMediaInBackground(
@@ -985,51 +721,32 @@ class ChatController with WidgetsBindingObserver {
     required bool isGroup,
     bool force = false,
   }) {
-    _incomingMediaRestoreCoordinator.restoreMediaInBackground(
-      message,
-      isGroup: isGroup,
-      force: force,
-    );
+    _mediaApi.restoreMediaInBackground(message, isGroup: isGroup, force: force);
   }
 
   bool isIncomingRelayMediaRestoreInProgress(Message message) {
-    return _incomingMediaRestoreCoordinator
-        .isIncomingRelayMediaRestoreInProgress(message);
+    return _mediaApi.isIncomingRelayMediaRestoreInProgress(message);
   }
 
   bool isIncomingRelayMediaRestoreFailed(Message message) {
-    return _incomingMediaRestoreCoordinator.isIncomingRelayMediaRestoreFailed(
-      message,
-    );
+    return _mediaApi.isIncomingRelayMediaRestoreFailed(message);
   }
 
   bool isInitialUnreadAnchor(Message message) {
-    return _incomingMediaRestoreCoordinator.isInitialUnreadAnchor(message);
+    return _mediaApi.isInitialUnreadAnchor(message);
   }
 
   bool _shouldAutoRestoreIncomingMedia(Message message) {
-    return _incomingMediaRestoreCoordinator.shouldAutoRestoreIncomingMedia(
-      message,
-    );
+    return _mediaApi.shouldAutoRestoreIncomingMedia(message);
   }
 
   Future<Uint8List> _decodeGroupBlobBytes({
     required String groupId,
     required Uint8List encryptedBytes,
   }) async {
-    return _groupCryptoCoordinator.decodeGroupBlobBytes(
+    return _groupsApi.decodeGroupBlobBytes(
       groupId: groupId,
       encryptedBytes: encryptedBytes,
-    );
-  }
-
-  Future<Uint8List> _decryptDirectMediaBytes({
-    required String peerId,
-    required Uint8List encryptedBytes,
-  }) {
-    return _directMediaCryptoService.decryptFromPeer(
-      peerId: peerId,
-      payload: encryptedBytes,
     );
   }
 
@@ -1038,7 +755,7 @@ class ChatController with WidgetsBindingObserver {
     required String blobId,
     String? fallback,
   }) async {
-    return _incomingMediaRestoreCoordinator.restoreGroupBlobText(
+    return _mediaApi.restoreGroupBlobText(
       groupId: groupId,
       blobId: blobId,
       fallback: fallback,
@@ -1062,9 +779,7 @@ class ChatController with WidgetsBindingObserver {
 
   Future<void> dispose() async {
     WidgetsBinding.instance.removeObserver(this);
-    _chatFileQueueService.dispose();
-    _relayMediaRetry.dispose();
-    _mediaRestoreService.dispose();
+    _mediaApi.dispose();
     await _inboundSubscriptionCoordinator.dispose();
     await _lifecycleService.dispose();
     await _connectionStatusController.close();
@@ -1081,4 +796,449 @@ class ChatController with WidgetsBindingObserver {
     }
     return runtime.startCall(peerId);
   }
+}
+
+final class _ChatControllerPresentationStatePort
+    implements ChatPresentationStatePort {
+  const _ChatControllerPresentationStatePort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  Map<String, Chat> get chats => _controller.chats;
+
+  @override
+  String Function(String peerId, {String? fallback}) get contactNameFor =>
+      _controller._contactNameFor;
+
+  @override
+  Chat ensureChat(String peerId, {String? fallbackName}) {
+    return _controller._ensureChat(peerId, fallbackName: fallbackName);
+  }
+
+  @override
+  Future<void> ensureChatLoaded(String peerId) {
+    return _controller.ensureChatLoaded(peerId);
+  }
+
+  @override
+  Future<void> persistLoadedChat(String peerId) {
+    return _controller._persistLoadedChat(peerId);
+  }
+
+  @override
+  void schedulePersistLoadedChat(String peerId) {
+    _controller._schedulePersistLoadedChat(peerId);
+  }
+
+  @override
+  Future<void> persistChatSummary(Chat chat) {
+    return _controller._persistChatSummary(chat);
+  }
+
+  @override
+  void schedulePersistChatSummary(String peerId) {
+    _controller._schedulePersistChatSummary(peerId);
+  }
+
+  @override
+  bool isInitialUnreadAnchor(Message message) {
+    return _controller.isInitialUnreadAnchor(message);
+  }
+}
+
+final class _ChatControllerConnectionStatePort
+    implements ChatConnectionStatePort {
+  const _ChatControllerConnectionStatePort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  void setStatus(String peerId, ChatConnectionStatus status, {String? error}) {
+    _controller._setStatus(peerId, status, error: error);
+  }
+}
+
+final class _ChatControllerMessageStatePort implements ChatMessageStatePort {
+  const _ChatControllerMessageStatePort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  String nextLocalMessageId() => _controller._nextLocalMessageId();
+
+  @override
+  Future<Message?> findMessage(String peerId, String messageId) {
+    return _controller._findMessage(peerId, messageId);
+  }
+
+  @override
+  Future<void> appendMessage(String peerId, Message message) {
+    return _controller._appendMessage(peerId, message);
+  }
+
+  @override
+  Future<void> replaceMessage(
+    String peerId,
+    String messageId,
+    Message Function(Message current) transform,
+  ) {
+    return _controller._replaceMessage(peerId, messageId, transform);
+  }
+
+  @override
+  Future<bool> removeMessage(String peerId, String messageId) {
+    return _controller._removeMessage(peerId, messageId);
+  }
+
+  @override
+  Future<bool> removeMessageWithMediaCleanup(String peerId, String messageId) {
+    return _controller._removeMessageWithMediaCleanup(peerId, messageId);
+  }
+
+  @override
+  Future<bool> removeMessageByAuthorWithMediaCleanup(
+    String peerId,
+    String messageId,
+    String authorPeerId,
+  ) {
+    return _controller._removeMessageByAuthorWithMediaCleanup(
+      peerId,
+      messageId,
+      authorPeerId,
+    );
+  }
+
+  @override
+  Future<void> deleteManagedMediaForMessage(Message? message) {
+    return _controller._deleteManagedMediaForMessage(message);
+  }
+
+  @override
+  Future<void> updateMessageStatusById(
+    String peerId,
+    String messageId,
+    MessageStatus status,
+  ) {
+    return _controller._updateMessageStatusById(peerId, messageId, status);
+  }
+}
+
+final class _ChatControllerMediaStatePort implements ChatMediaStatePort {
+  const _ChatControllerMediaStatePort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  Future<void> updateFileProgress(
+    String peerId,
+    String messageId, {
+    required int sentBytes,
+    required int? totalBytes,
+    required String statusText,
+  }) {
+    return _controller._updateFileProgress(
+      peerId,
+      messageId,
+      sentBytes: sentBytes,
+      totalBytes: totalBytes,
+      statusText: statusText,
+    );
+  }
+
+  @override
+  void clearProgressUpdate(String peerId, String messageId) {
+    _controller._clearProgressUpdate(peerId, messageId);
+  }
+
+  @override
+  Future<String?> ensureThumbnail(Message message) {
+    return _controller._ensureThumbnail(message);
+  }
+
+  @override
+  String mediaKeyFor(String peerId, String messageId) {
+    return _controller._incomingMediaKey(peerId, messageId);
+  }
+
+  @override
+  Future<Uint8List> decodeGroupBlobBytes({
+    required String groupId,
+    required Uint8List encryptedBytes,
+  }) {
+    return _controller._decodeGroupBlobBytes(
+      groupId: groupId,
+      encryptedBytes: encryptedBytes,
+    );
+  }
+
+  @override
+  Future<void> rememberOutgoingRelayMediaState(OutgoingRelayMediaState state) {
+    return _controller._rememberOutgoingRelayMediaState(state);
+  }
+
+  @override
+  Future<void> forgetOutgoingRelayMediaState(String peerId, String messageId) {
+    return _controller._forgetOutgoingRelayMediaState(peerId, messageId);
+  }
+
+  @override
+  String transferStatusForError(Object error, {required String fallback}) {
+    return _controller._transferStatusForError(error, fallback: fallback);
+  }
+
+  @override
+  void restoreMediaInBackground(
+    Message message, {
+    required bool isGroup,
+    bool force = false,
+  }) {
+    _controller._restoreMediaInBackground(
+      message,
+      isGroup: isGroup,
+      force: force,
+    );
+  }
+
+  @override
+  Future<String?> restoreGroupBlobText({
+    required String groupId,
+    required String blobId,
+    String? fallback,
+  }) {
+    return _controller._restoreGroupBlobText(
+      groupId: groupId,
+      blobId: blobId,
+      fallback: fallback,
+    );
+  }
+}
+
+final class _ChatControllerGroupStatePort implements ChatGroupStatePort {
+  const _ChatControllerGroupStatePort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  Future<void> handleIncomingGroupMembersUpdate(
+    ChatMessage message, {
+    IncomingGroupMembersPayload? payload,
+  }) {
+    return _controller._handleIncomingGroupMembersUpdate(
+      message,
+      payload: payload,
+    );
+  }
+
+  @override
+  Future<void> rememberDeletedGroup(
+    String groupId, {
+    required String deletedByPeerId,
+    Chat? chat,
+  }) {
+    return _controller._rememberDeletedGroup(
+      groupId,
+      deletedByPeerId: deletedByPeerId,
+      chat: chat,
+    );
+  }
+
+  @override
+  Future<void> runGroupKeyGc() => _controller._runGroupKeyGc();
+
+  @override
+  bool isGroupDeleted(String groupId) => _controller._isGroupDeleted(groupId);
+
+  @override
+  Future<void> restoreDeletedGroup(String groupId) {
+    return _controller._restoreDeletedGroup(groupId);
+  }
+
+  @override
+  Future<String?> decryptGroupText(String text) {
+    return _controller._decryptGroupText(text);
+  }
+
+  @override
+  Future<Uint8List?> decryptGroupBytes({
+    required String groupId,
+    required Uint8List encryptedBytes,
+  }) {
+    return _controller._decryptGroupBytes(
+      groupId: groupId,
+      encryptedBytes: encryptedBytes,
+    );
+  }
+
+  @override
+  Future<void> saveGroupAvatarBytes({
+    required Chat groupChat,
+    required Uint8List bytes,
+    required String mimeType,
+    required int updatedAtMs,
+  }) {
+    return _controller._saveGroupAvatarBytes(
+      groupChat: groupChat,
+      bytes: bytes,
+      mimeType: mimeType,
+      updatedAtMs: updatedAtMs,
+    );
+  }
+
+  @override
+  Future<void> rotateGroupKey(Chat chat, {required List<String> recipients}) {
+    return _controller._rotateGroupKey(chat, recipients: recipients);
+  }
+
+  @override
+  Future<void> syncGroupMembershipWithRelay(Chat chat) {
+    return _controller._syncGroupMembershipWithRelay(chat);
+  }
+
+  @override
+  Future<void> broadcastGroupMembersUpdate({
+    required Chat groupChat,
+    required List<String> recipients,
+    required String action,
+    required List<String> changedPeerIds,
+    String? avatarBlobId,
+    String? avatarMimeType,
+    int? avatarFileSizeBytes,
+    int? avatarUpdatedAtMs,
+  }) {
+    return _controller._broadcastGroupMembersUpdate(
+      groupChat: groupChat,
+      recipients: recipients,
+      action: action,
+      changedPeerIds: changedPeerIds,
+      avatarBlobId: avatarBlobId,
+      avatarMimeType: avatarMimeType,
+      avatarFileSizeBytes: avatarFileSizeBytes,
+      avatarUpdatedAtMs: avatarUpdatedAtMs,
+    );
+  }
+
+  @override
+  Future<void> deleteChatLocal(
+    String peerId, {
+    bool rememberDeletedGroup = false,
+    String? deletedByPeerId,
+  }) {
+    return _controller._deleteChatLocal(
+      peerId,
+      rememberDeletedGroup: rememberDeletedGroup,
+      deletedByPeerId: deletedByPeerId,
+    );
+  }
+
+  @override
+  bool isGroupDeletePayload(String text) {
+    return _controller._isGroupDeletePayload(text);
+  }
+}
+
+final class _ChatControllerNotificationPort implements ChatNotificationPort {
+  const _ChatControllerNotificationPort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  void syncBadgeCount() {
+    _controller._syncBadgeCount();
+  }
+
+  @override
+  void notifyMessageUpdated(String peerId) {
+    _controller._notifyMessageUpdated(peerId);
+  }
+
+  @override
+  bool isMessageUpdatesClosed() {
+    return _controller._messageUpdatesController.isClosed;
+  }
+
+  @override
+  int unreadMessagesCount() => _controller.unreadMessagesCount();
+
+  @override
+  void Function(int unreadCount)? get onUnreadBadgeCountChanged =>
+      _controller._onUnreadBadgeCountChanged;
+
+  @override
+  void notifyNewMessage(ChatMessage message) {
+    _controller._newMessageNotificationController.add(message);
+  }
+}
+
+final class _ChatControllerLifecyclePort implements ChatLifecyclePort {
+  const _ChatControllerLifecyclePort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  void logQueue(String message) {
+    _controller._logQueue(message);
+  }
+
+  @override
+  void resumeRecoverableFileQueue() {
+    _controller._resumeRecoverableFileQueue();
+  }
+
+  @override
+  Future<void> resumePendingOutgoingRelayMedia({required String reason}) {
+    return _controller._resumePendingOutgoingRelayMedia(reason: reason);
+  }
+
+  @override
+  Future<void> resumeInterruptedIncomingMediaQueue({required String reason}) {
+    return _controller._resumeInterruptedIncomingMediaQueue(reason: reason);
+  }
+
+  @override
+  Future<void> waitUntilReady() {
+    return _controller._waitUntilStartupReady();
+  }
+}
+
+final class _ChatControllerInboundPort implements ChatInboundPort {
+  const _ChatControllerInboundPort(this._controller);
+
+  final ChatController _controller;
+
+  @override
+  Future<void> handleIncomingDirectBlobRef(
+    ChatMessage message,
+    IncomingBlobRefPayload blobRef,
+  ) {
+    return _controller._handleIncomingDirectBlobRef(message, blobRef);
+  }
+
+  @override
+  Future<void> handleIncomingMessageReceipt(
+    IncomingMessageReceiptPayload payload,
+  ) {
+    return _controller._handleIncomingMessageReceipt(payload);
+  }
+}
+
+final class _ChatControllerAccountPayloadPort
+    implements ChatAccountPayloadPort {
+  const _ChatControllerAccountPayloadPort();
+
+  @override
+  AccountPairingRequestPayloadDecoder get decodeAccountPairRequest =>
+      ChatAccountPayloadDecoder.decodePairRequest;
+
+  @override
+  AccountPairingApprovalPayloadDecoder get decodeAccountPairApproval =>
+      ChatAccountPayloadDecoder.decodePairApproval;
+
+  @override
+  AccountPairingRejectionPayloadDecoder get decodeAccountPairRejection =>
+      ChatAccountPayloadDecoder.decodePairRejection;
+
+  @override
+  AccountMembershipUpdatePayloadDecoder get decodeAccountMembershipUpdate =>
+      ChatAccountPayloadDecoder.decodeMembershipUpdate;
 }
