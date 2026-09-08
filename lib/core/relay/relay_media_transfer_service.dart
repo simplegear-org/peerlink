@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import '../runtime/app_file_logger.dart';
 import '../runtime/storage_service.dart';
 import 'relay_models.dart';
+import 'relay_transfer_status.dart';
 
 typedef RelayMediaDownloadProgressCallback =
     void Function({
@@ -51,6 +52,14 @@ typedef RelayMediaPayloadTransform =
 
 enum RelayMediaRestoreStatus { saved, notFound, failed }
 
+class RelayMediaRestoreFailureKind {
+  static const String downloadFailed = 'download_failed';
+  static const String decryptFailed = 'decrypt_failed';
+  static const String saveFailed = 'save_failed';
+  static const String notFound = 'not_found';
+  static const String unavailable = 'unavailable';
+}
+
 class RelayRetryMessage {
   final bool incoming;
   final bool isFile;
@@ -70,12 +79,14 @@ class RelayMediaRestoreResult {
   final String? path;
   final Object? error;
   final StackTrace? stackTrace;
+  final String? failureKind;
 
   const RelayMediaRestoreResult._({
     required this.status,
     this.path,
     this.error,
     this.stackTrace,
+    this.failureKind,
   });
 
   factory RelayMediaRestoreResult.saved(String path) {
@@ -89,17 +100,20 @@ class RelayMediaRestoreResult {
     return RelayMediaRestoreResult._(
       status: RelayMediaRestoreStatus.notFound,
       error: StateError('Relay blob not found: $blobId'),
+      failureKind: RelayMediaRestoreFailureKind.notFound,
     );
   }
 
   factory RelayMediaRestoreResult.failed(
     Object error, [
     StackTrace? stackTrace,
+    String? failureKind,
   ]) {
     return RelayMediaRestoreResult._(
       status: RelayMediaRestoreStatus.failed,
       error: error,
       stackTrace: stackTrace,
+      failureKind: failureKind,
     );
   }
 
@@ -108,12 +122,12 @@ class RelayMediaRestoreResult {
   bool get isRelayUnavailable => error is RelayUnavailableException;
   String get errorKind {
     if (isNotFound) {
-      return 'not_found';
+      return RelayMediaRestoreFailureKind.notFound;
     }
     if (isRelayUnavailable) {
-      return 'unavailable';
+      return RelayMediaRestoreFailureKind.unavailable;
     }
-    return 'transient';
+    return failureKind ?? RelayMediaRestoreFailureKind.downloadFailed;
   }
 }
 
@@ -140,15 +154,29 @@ class RelayMediaUploadResult {
 }
 
 class RelayMediaTransferService {
-  static const String incomingFetchStatus = 'Получение из relay';
-  static const String incomingRetryStatus = 'Повторная загрузка';
-  static const String incomingDownloadStatus = 'Загрузка';
-  static const String incomingCompleteStatus = 'Загрузка завершена';
-  static const String incomingDecryptStatus = 'Расшифровка';
-  static const String incomingSaveStatus = 'Сохранение';
-  static const String incomingRelayNotConfiguredStatus = 'Relay не настроен';
-  static const String incomingErrorStatus = 'Ошибка загрузки';
-  static const String incomingRelayUnavailableStatus = 'Relay недоступен';
+  static const String incomingFetchStatus =
+      RelayTransferStatus.incomingRelayFetching;
+  static const String incomingRetryStatus =
+      RelayTransferStatus.incomingRetrying;
+  static const String incomingDownloadStatus =
+      RelayTransferStatus.incomingDownloading;
+  static const String incomingCompleteStatus =
+      RelayTransferStatus.incomingDownloadComplete;
+  static const String incomingDecryptStatus =
+      RelayTransferStatus.incomingDecrypting;
+  static const String incomingSaveStatus = RelayTransferStatus.incomingSaving;
+  static const String incomingRelayNotConfiguredStatus =
+      RelayTransferStatus.relayNotConfigured;
+  static const String incomingErrorStatus =
+      RelayTransferStatus.incomingDownloadFailed;
+  static const String incomingDecryptErrorStatus =
+      RelayTransferStatus.incomingDecryptFailed;
+  static const String incomingSaveErrorStatus =
+      RelayTransferStatus.incomingSaveFailed;
+  static const String incomingMessageUpdateErrorStatus =
+      RelayTransferStatus.incomingMessageUpdateFailed;
+  static const String incomingRelayUnavailableStatus =
+      RelayTransferStatus.relayUnavailable;
 
   const RelayMediaTransferService();
 
@@ -201,6 +229,7 @@ class RelayMediaTransferService {
     required RelayMediaSaveBytes saveBytes,
     required RelayMediaDownloadProgressCallback onProgress,
     required RelayMediaRestoreStageCallback onStage,
+    String? transferId,
     RelayMediaPayloadTransform? transformPayload,
     String? transformStatus,
     int attempts = 2,
@@ -208,9 +237,9 @@ class RelayMediaTransferService {
   }) async {
     final startedAt = DateTime.now();
     _log(
-      'restore start peer=$peerId messageId=$messageId blobId=$blobId '
+      'relay-download-start peer=$peerId messageId=$messageId blobId=$blobId '
       'fileName=${fileName ?? '-'} attempts=$attempts '
-      'transform=${transformPayload != null}',
+      'transferId=${transferId ?? '-'} transform=${transformPayload != null}',
     );
     await _safeStage(
       peerId: peerId,
@@ -229,17 +258,20 @@ class RelayMediaTransferService {
       retryDelay: retryDelay,
       operation: downloadBlob,
       onProgress: onProgress,
+      fileName: fileName,
+      transferId: transferId,
     );
     final blob = retryResult.download;
     if (blob == null) {
       final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
       _log(
-        'restore download failed peer=$peerId messageId=$messageId '
+        'relay-download-failed peer=$peerId messageId=$messageId '
         'blobId=$blobId elapsedMs=$elapsedMs error=${retryResult.error}',
       );
       return RelayMediaRestoreResult.failed(
         retryResult.error ?? StateError('Relay blob download failed'),
         retryResult.stackTrace,
+        RelayMediaRestoreFailureKind.downloadFailed,
       );
     }
     if (blob.isNotFound) {
@@ -251,7 +283,7 @@ class RelayMediaTransferService {
       return RelayMediaRestoreResult.notFound(blobId);
     }
     _log(
-      'restore download complete peer=$peerId messageId=$messageId '
+      'relay-download-complete peer=$peerId messageId=$messageId '
       'blobId=$blobId bytes=${blob.payload.length} elapsedMs='
       '${DateTime.now().difference(startedAt).inMilliseconds}',
     );
@@ -259,6 +291,10 @@ class RelayMediaTransferService {
     Uint8List bytes;
     try {
       if (transformPayload != null) {
+        _log(
+          'decrypt-start peer=$peerId messageId=$messageId blobId=$blobId '
+          'bytes=${blob.payload.length}',
+        );
         await _safeStage(
           peerId: peerId,
           messageId: messageId,
@@ -269,7 +305,7 @@ class RelayMediaTransferService {
         );
         bytes = await transformPayload(blob);
         _log(
-          'restore transform complete peer=$peerId messageId=$messageId '
+          'decrypt-success peer=$peerId messageId=$messageId '
           'blobId=$blobId bytes=${bytes.length} elapsedMs='
           '${DateTime.now().difference(startedAt).inMilliseconds}',
         );
@@ -279,12 +315,21 @@ class RelayMediaTransferService {
     } catch (error, stackTrace) {
       final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
       _log(
-        'restore transform failed peer=$peerId messageId=$messageId '
-        'blobId=$blobId elapsedMs=$elapsedMs error=$error',
+        'decrypt-failed peer=$peerId messageId=$messageId '
+        'blobId=$blobId elapsedMs=$elapsedMs exception=$error '
+        'stackTrace=$stackTrace',
       );
-      return RelayMediaRestoreResult.failed(error, stackTrace);
+      return RelayMediaRestoreResult.failed(
+        error,
+        stackTrace,
+        RelayMediaRestoreFailureKind.decryptFailed,
+      );
     }
 
+    _log(
+      'save-start peer=$peerId messageId=$messageId blobId=$blobId '
+      'fileName=${fileName ?? blob.fileName} bytes=${bytes.length}',
+    );
     await _safeStage(
       peerId: peerId,
       messageId: messageId,
@@ -302,26 +347,33 @@ class RelayMediaTransferService {
       if (path.isEmpty) {
         final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
         _log(
-          'restore save failed peer=$peerId messageId=$messageId '
+          'save-failed peer=$peerId messageId=$messageId '
           'blobId=$blobId elapsedMs=$elapsedMs error=empty-path',
         );
         return RelayMediaRestoreResult.failed(
           StateError('Relay media save returned empty path'),
+          null,
+          RelayMediaRestoreFailureKind.saveFailed,
         );
       }
       final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
       _log(
-        'restore saved peer=$peerId messageId=$messageId blobId=$blobId '
+        'save-success peer=$peerId messageId=$messageId blobId=$blobId '
         'bytes=${bytes.length} path=$path elapsedMs=$elapsedMs',
       );
       return RelayMediaRestoreResult.saved(path);
     } catch (error, stackTrace) {
       final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
       _log(
-        'restore save failed peer=$peerId messageId=$messageId '
-        'blobId=$blobId elapsedMs=$elapsedMs error=$error',
+        'save-failed peer=$peerId messageId=$messageId '
+        'blobId=$blobId elapsedMs=$elapsedMs exception=$error '
+        'stackTrace=$stackTrace',
       );
-      return RelayMediaRestoreResult.failed(error, stackTrace);
+      return RelayMediaRestoreResult.failed(
+        error,
+        stackTrace,
+        RelayMediaRestoreFailureKind.saveFailed,
+      );
     }
   }
 
@@ -333,14 +385,18 @@ class RelayMediaTransferService {
     required Duration retryDelay,
     required RelayMediaDownloadOperation operation,
     required RelayMediaDownloadProgressCallback onProgress,
+    required String? fileName,
+    required String? transferId,
   }) async {
     assert(attempts > 0);
     Object? lastError;
     StackTrace? lastStackTrace;
 
     for (var attempt = 0; attempt < attempts; attempt++) {
+      var lastLoggedPercent = -1;
+      var lastLoggedBytes = -1;
       _log(
-        'download attempt start peer=$peerId messageId=$messageId '
+        'relay-download-start peer=$peerId messageId=$messageId '
         'blobId=$blobId attempt=${attempt + 1}/$attempts',
       );
       void progressCallback({
@@ -348,6 +404,23 @@ class RelayMediaTransferService {
         required int totalBytes,
         required String status,
       }) {
+        final percent = totalBytes > 0
+            ? ((receivedBytes * 100) ~/ totalBytes).clamp(0, 100)
+            : -1;
+        final shouldLogProgress = percent >= 0
+            ? percent != lastLoggedPercent
+            : lastLoggedBytes < 0 || receivedBytes - lastLoggedBytes >= 262144;
+        if (shouldLogProgress) {
+          lastLoggedPercent = percent;
+          lastLoggedBytes = receivedBytes;
+          _log(
+            'relay-download-progress peer=$peerId messageId=$messageId '
+            'blobId=$blobId transferId=${transferId ?? '-'} '
+            'fileName=${fileName ?? '-'} bytes=$receivedBytes/$totalBytes '
+            'percent=${percent >= 0 ? percent : '-'} '
+            'transferStatus=$status attempt=${attempt + 1}/$attempts',
+          );
+        }
         try {
           onProgress(
             receivedBytes: receivedBytes,
@@ -391,7 +464,7 @@ class RelayMediaTransferService {
       lastError = result.error;
       lastStackTrace = result.stackTrace;
       _log(
-        'download attempt failed peer=$peerId messageId=$messageId '
+        'relay-download-failed peer=$peerId messageId=$messageId '
         'blobId=$blobId attempt=${attempt + 1}/$attempts error=$lastError',
       );
       if (attempt + 1 < attempts) {
@@ -414,22 +487,33 @@ class RelayMediaTransferService {
     required double? sendProgress,
     required String transferStatus,
   }) async {
+    _log(
+      'message-replace-start peer=$peerId messageId=$messageId '
+      'transferStatus=$transferStatus transferredBytes=$transferredBytes '
+      'sendProgress=$sendProgress',
+    );
     try {
       await onStage(
         transferredBytes: transferredBytes,
         sendProgress: sendProgress,
         transferStatus: transferStatus,
       );
-    } catch (error) {
       _log(
-        'stage update failed peer=$peerId messageId=$messageId '
-        'status=$transferStatus error=$error',
+        'message-replace-success peer=$peerId messageId=$messageId '
+        'transferStatus=$transferStatus transferredBytes=$transferredBytes '
+        'sendProgress=$sendProgress',
+      );
+    } catch (error, stackTrace) {
+      _log(
+        'message-replace-failed peer=$peerId messageId=$messageId '
+        'transferStatus=$transferStatus transferredBytes=$transferredBytes '
+        'sendProgress=$sendProgress exception=$error stackTrace=$stackTrace',
       );
     }
   }
 
   void _log(String message) {
-    AppFileLogger.log('[relay_media] $message');
+    AppFileLogger.log('[relay_media] $message', diagnostic: true);
   }
 }
 
@@ -508,14 +592,17 @@ class RelayMediaRetryCoordinator {
     final states = _states();
     final current = states[key] ?? <String, dynamic>{};
     final previousAttempts = current['attempts'];
-    final isRelayUnavailable = errorKind == 'unavailable';
-    final attempts = errorKind == 'not_found'
+    final isRelayUnavailable =
+        errorKind == RelayMediaRestoreFailureKind.unavailable;
+    final isDownloadFailure =
+        errorKind == RelayMediaRestoreFailureKind.downloadFailed;
+    final attempts = errorKind == RelayMediaRestoreFailureKind.notFound
         ? maxAttempts
         : (previousAttempts is int ? previousAttempts : 0) + 1;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final backoffMs = retryDelay.inMilliseconds * attempts;
     final canRetry =
-        errorKind != 'not_found' &&
+        (isDownloadFailure || isRelayUnavailable) &&
         (attempts < maxAttempts || isRelayUnavailable);
     states[key] = <String, dynamic>{
       'peerId': peerId,

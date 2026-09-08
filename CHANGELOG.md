@@ -3,6 +3,43 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.11.8+2026090801] - 2026-09-08
+
+### Fixed
+
+- Fixed Android incoming relay-media restore for direct and group chats: a
+  completed download now proceeds once through decrypt, save, message
+  persistence, and retry-state cleanup without returning to a download loop.
+- Persisted `localFilePath` before best-effort thumbnail generation, so a
+  thumbnail failure can no longer invalidate successfully restored media.
+- Limited automatic relay retry to actual download/relay availability errors;
+  decrypt, save, and message persistence failures no longer restart download.
+- Replaced stale interrupted transfer state with `Retrying` instead of a false
+  `Download failed`, and allowed fresh progress to replace an old error status.
+- Added distinct localized statuses for downloading, decrypting, saving, and
+  their corresponding failures. The status is cleared after successful save.
+
+### Diagnostics
+
+- Added privacy-safe `[relay_media]` and `[chat_media]` stage logs covering
+  download, decrypt, save, message lookup/replacement/persistence, retry-state
+  cleanup, and thumbnail generation.
+- Kept these diagnostics available in the application log even in errors-only
+  mode and mirrored them to Android log output.
+- Throttled download progress diagnostics to integer-percent changes, avoiding
+  log rotation that previously hid the start and group restore stages.
+- Added storage destination, exception, and stack-trace logging for media save
+  failures without logging encrypted payloads or keys.
+
+### Verified
+
+- `flutter analyze`
+- `flutter test` (428 tests)
+- Android release update installed without clearing application data.
+- Direct and group relay media restored successfully on device; retained direct
+  trace confirmed download, decrypt, save, SQLite persistence, and retry clear.
+
+
 ## [3.12.7+2026090701] - 2026-09-07
 
 ### Changed

@@ -100,6 +100,7 @@ Current design combines:
   - the `Logs` category includes the current `app.log` and rotated log archives,
   - the log file now supports two modes from Settings: `Errors only` and `Verbose`,
   - verbose mode is intended for diagnostics and now includes detailed incoming group/message relay traces and relay-media restore timing,
+  - incoming relay-media stage diagnostics are retained even in errors-only mode; progress records are throttled to integer-percent changes and never include payload bytes or encryption keys,
   - noisy UI rebuild spam was removed from the file log; `UiApp.build` is no longer written on every rebuild,
   - `Clear logs` removes both the current log file and rotated archives.
 - Reply-to-message navigation in chat is more stable:

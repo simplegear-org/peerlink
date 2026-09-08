@@ -258,7 +258,6 @@ class ChatControllerComposition {
       fileQueueService: fileQueueService,
       chats: chats,
       incomingMediaRestoreCoordinator: incomingMediaRestoreCoordinator,
-      incomingRelayErrorStatus: RelayMediaTransferService.incomingErrorStatus,
       incomingRelayNotConfiguredStatus:
           RelayMediaTransferService.incomingRelayNotConfiguredStatus,
       incomingRelayUnavailableStatus:

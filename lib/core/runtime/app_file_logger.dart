@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'storage_service.dart';
@@ -23,6 +24,10 @@ class AppFileLogger {
     r'(warn|warning|error|fail|failed|exception|timeout|invalid|denied|fatal)',
     caseSensitive: false,
   );
+  static const List<String> _diagnosticPrefixes = <String>[
+    '[chat_media]',
+    '[relay_media]',
+  ];
 
   static final AppFileLogger instance = AppFileLogger._();
 
@@ -103,7 +108,12 @@ class AppFileLogger {
     Object? error,
     StackTrace? stackTrace,
     int? level,
+    bool diagnostic = false,
   }) {
+    if (diagnostic ||
+        _diagnosticPrefixes.any((prefix) => message.startsWith(prefix))) {
+      return true;
+    }
     if (_logLevel == AppLogLevel.verbose) {
       return true;
     }
@@ -122,15 +132,24 @@ class AppFileLogger {
     int? level,
     Object? error,
     StackTrace? stackTrace,
+    bool diagnostic = false,
   }) {
     if (!shouldLog(
       message,
       error: error,
       stackTrace: stackTrace,
       level: level,
+      diagnostic: diagnostic,
     )) {
       return;
     }
+    developer.log(
+      message,
+      name: name,
+      level: level ?? 0,
+      error: error,
+      stackTrace: stackTrace,
+    );
     unawaited(
       instance._appendStructured(
         name: name,

@@ -41,7 +41,7 @@ class AppBootstrapCoordinator {
 
   static Future<void> configureBackgroundFetch({
     required Future<void> Function() onFetch,
-    required Future<void> Function(String taskId) onHeadlessTask,
+    required Future<void> Function(HeadlessEvent event) onHeadlessTask,
   }) async {
     try {
       final status = await BackgroundFetch.status;

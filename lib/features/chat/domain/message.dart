@@ -8,6 +8,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
+
 enum MessageStatus { sending, sent, failed }
 
 enum MessageReceiptStatus { pending, sent, delivered, read }
@@ -111,7 +113,9 @@ class Message {
       replyToKind: json['replyToKind'] as String?,
       transferredBytes: json['transferredBytes'] as int?,
       sendProgress: (json['sendProgress'] as num?)?.toDouble(),
-      transferStatus: json['transferStatus'] as String?,
+      transferStatus: RelayTransferStatus.normalize(
+        json['transferStatus'] as String?,
+      ),
       status: MessageStatus.values.firstWhere(
         (s) => s.name == (json['status'] as String? ?? 'sent'),
         orElse: () => MessageStatus.sent,
@@ -356,8 +360,7 @@ class Message {
     if (statusText == null) {
       return false;
     }
-    return statusText == 'В очереди' ||
-        statusText.startsWith('Ожидает отправки');
+    return RelayTransferStatus.isQueued(statusText);
   }
 
   bool get isActiveOutgoingTransfer {

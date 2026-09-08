@@ -9,17 +9,24 @@ import 'dart:typed_data';
 
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 import 'package:peerlink/core/runtime/storage_service.dart';
+import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/application/chat_controller_parts.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 
 class ChatControllerMedia {
-  static const String _incomingRelayFetchStatus = 'Получение из relay';
-  static const String _incomingRelayRetryStatus = 'Повторная загрузка';
-  static const String _incomingRelayDownloadStatus = 'Загрузка';
-  static const String _incomingRelayCompleteStatus = 'Загрузка завершена';
-  static const String _incomingRelayDecryptStatus = 'Расшифровка';
-  static const String _incomingRelaySaveStatus = 'Сохранение';
-  static const String _incomingRelayErrorStatus = 'Ошибка загрузки';
+  static const String _incomingRelayFetchStatus =
+      RelayMediaTransferService.incomingFetchStatus;
+  static const String _incomingRelayRetryStatus =
+      RelayMediaTransferService.incomingRetryStatus;
+  static const String _incomingRelayDownloadStatus =
+      RelayMediaTransferService.incomingDownloadStatus;
+  static const String _incomingRelayCompleteStatus =
+      RelayMediaTransferService.incomingCompleteStatus;
+  static const String _incomingRelayDecryptStatus =
+      RelayMediaTransferService.incomingDecryptStatus;
+  static const String _incomingRelaySaveStatus =
+      RelayMediaTransferService.incomingSaveStatus;
 
   static Future<void> processLoadedMessages({
     required StorageService storage,
@@ -53,8 +60,8 @@ class ChatControllerMedia {
         final updated = ChatMessageCopy.copy(
           message,
           transferredBytes: 0,
-          sendProgress: 0.0,
-          transferStatus: _incomingRelayErrorStatus,
+          sendProgress: null,
+          transferStatus: _incomingRelayRetryStatus,
         );
         stored[i] = updated;
         changedMessages[updated.id] = updated;
@@ -65,7 +72,7 @@ class ChatControllerMedia {
 
       if (!message.incoming &&
           message.status == MessageStatus.failed &&
-          message.transferStatus == 'Отменено') {
+          RelayTransferStatus.isCanceled(message.transferStatus)) {
         await deleteManagedMediaForMessage(message);
         messagesToRemove.add(i);
         removedMessageIds.add(message.id);

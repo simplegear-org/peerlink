@@ -7,6 +7,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_parts.dart';
@@ -129,7 +130,7 @@ class ChatFileSendCoordinator {
         fileSizeBytes: resolvedSize,
         transferredBytes: 0,
         sendProgress: 0.02,
-        transferStatus: 'В очереди',
+        transferStatus: RelayTransferStatus.outgoingQueued,
         status: MessageStatus.sending,
         replyToMessageId: replyTo?.id,
         replyToSenderPeerId: replyTo?.senderPeerId ?? replyTo?.peerId,

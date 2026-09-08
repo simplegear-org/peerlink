@@ -12,6 +12,7 @@ import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:peerlink/core/messaging/chat_service.dart';
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -348,7 +349,7 @@ class ChatGroupOutboundHandler {
         (current) => ChatMessageCopy.copy(
           current,
           status: MessageStatus.failed,
-          transferStatus: 'Вы больше не участник чата',
+          transferStatus: RelayTransferStatus.notGroupMember,
         ),
       );
       setStatus(groupChat.peerId, ChatConnectionStatus.error);
@@ -363,7 +364,7 @@ class ChatGroupOutboundHandler {
         (current) => ChatMessageCopy.copy(
           current,
           status: MessageStatus.failed,
-          transferStatus: 'Нет участников для отправки',
+          transferStatus: RelayTransferStatus.noParticipants,
         ),
       );
       return;
@@ -469,7 +470,7 @@ class ChatGroupOutboundHandler {
         messageId,
         sentBytes: fileSizeBytes,
         totalBytes: fileSizeBytes,
-        statusText: 'Отправлено',
+        statusText: RelayTransferStatus.outgoingSent,
       );
     } catch (error) {
       hasFailure = true;
@@ -502,7 +503,7 @@ class ChatGroupOutboundHandler {
             messageId,
             sentBytes: fileSizeBytes,
             totalBytes: fileSizeBytes,
-            statusText: 'Отправлено',
+            statusText: RelayTransferStatus.outgoingSent,
           );
         }
       }
@@ -545,7 +546,7 @@ class ChatGroupOutboundHandler {
         transferStatus: hasFailure
             ? transferStatusForError(
                 failureError ?? StateError('group media send failed'),
-                fallback: 'Ошибка отправки',
+                fallback: RelayTransferStatus.outgoingSendFailed,
               )
             : null,
         status: hasFailure ? MessageStatus.failed : MessageStatus.sent,

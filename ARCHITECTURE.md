@@ -320,6 +320,12 @@ UI
   - Android foreground service is not used for media restore, so `FOREGROUND_SERVICE_DATA_SYNC` is not needed,
   - incoming relay-media restore is single-flight per `peerId::messageId`, so manual taps and background retry do not launch competing blob downloads or conflicting progress updates,
   - incoming relay-media progress is monotonic to hide parallel relay-candidate progress races,
+  - post-download processing is ordered as decrypt, save, durable message/SQLite
+    persistence, retry-state cleanup, UI notification, and best-effort thumbnail;
+    successful persistence clears the transfer status,
+  - retry classification is stage-aware: only download or relay availability
+    failures may retry, while decrypt, save, and message-update failures expose
+    distinct terminal statuses,
   - relay media upload/download mechanics and incoming retry state/timers are isolated in `lib/core/relay/relay_media_transfer_service.dart`; `ChatController` owns message state and UI orchestration.
 - Group media/text blob strategy:
   - preferred for large payloads: chunked upload (`/relay/blob/upload/chunk`, `/relay/blob/upload/complete`),

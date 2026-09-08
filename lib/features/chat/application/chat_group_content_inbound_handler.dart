@@ -6,6 +6,7 @@
 
 import 'dart:typed_data';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
+import 'package:peerlink/core/runtime/app_file_logger.dart';
 
 import 'package:peerlink/core/messaging/chat_service.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
@@ -703,6 +704,11 @@ class ChatGroupContentInboundHandler {
     }
     final fileName = (blobRef.fileName ?? '').trim();
     if (fileName.isEmpty) {
+      AppFileLogger.log(
+        '[chat_media] inbound-group-failed peerId=$groupId groupId=$groupId '
+        'messageId=${blobRef.messageId} blobId=${blobRef.blobId} '
+        'fileName=- exception=empty-file-name',
+      );
       return;
     }
     final incoming = Message(
@@ -730,6 +736,14 @@ class ChatGroupContentInboundHandler {
       isRead: false,
     );
     await appendMessage(groupId, incoming);
+    AppFileLogger.log(
+      '[chat_media] inbound-group-appended peerId=$groupId groupId=$groupId '
+      'messageId=${incoming.id} blobId=${blobRef.blobId} '
+      'transferId=${incoming.transferId ?? '-'} fileName=$fileName '
+      'bytes=${blobRef.fileSizeBytes ?? 0} '
+      'localFilePath=${incoming.localFilePath ?? '-'} '
+      'transferStatus=${incoming.transferStatus ?? '-'}',
+    );
     logGroupFlow(
       'group blob-ref media appended group=$groupId source=${sourcePeerId(msg)} messageId=${incoming.id}',
     );

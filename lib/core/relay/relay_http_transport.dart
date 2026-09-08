@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'relay_http_types.dart';
+import 'relay_transfer_status.dart';
 
 class RelayHttpTransport {
   final http.Client? httpClient;
@@ -446,7 +447,7 @@ class RelayHttpTransport {
         onProgress?.call(
           receivedBytes: receivedBytes,
           totalBytes: totalBytes,
-          status: 'Загрузка',
+          status: RelayTransferStatus.incomingDownloading,
         );
       },
       onError: (Object error, StackTrace stackTrace) {
@@ -515,7 +516,7 @@ class RelayHttpTransport {
         onProgress?.call(
           receivedBytes: receivedBytes,
           totalBytes: totalBytes,
-          status: 'Загрузка',
+          status: RelayTransferStatus.incomingDownloading,
         );
       },
       onError: (Object error, StackTrace stackTrace) {

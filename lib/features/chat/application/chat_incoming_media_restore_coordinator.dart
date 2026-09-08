@@ -187,6 +187,7 @@ class ChatIncomingMediaRestoreCoordinator {
     required RelayMediaDownloadOperation downloadBlob,
     Future<Uint8List> Function(RelayBlobDownload blob)? transformPayload,
     String? transformStatus,
+    String? transferId,
   }) {
     return _mediaRestoreService.restoreMediaFromRelay(
       peerId: peerId,
@@ -200,6 +201,7 @@ class ChatIncomingMediaRestoreCoordinator {
           },
       transformPayload: transformPayload,
       transformStatus: transformStatus,
+      transferId: transferId,
     );
   }
 
@@ -226,8 +228,17 @@ class ChatIncomingMediaRestoreCoordinator {
   Future<String?> _restoreGroupBlobMediaFromRelay(Message message) async {
     final route = _outboundCodec.parseGroupBlobTransferId(message.transferId);
     if (route == null) {
+      _logInvalidRoute(message, isGroup: true);
       return null;
     }
+
+    _logRoute(
+      message,
+      scope: 'group',
+      peerId: route.groupId,
+      messageId: route.messageId,
+      blobId: route.blobId,
+    );
 
     return restoreMediaFromRelay(
       peerId: route.groupId,
@@ -243,14 +254,24 @@ class ChatIncomingMediaRestoreCoordinator {
           encryptedBytes: blob.payload,
         );
       },
+      transferId: message.transferId,
     );
   }
 
   Future<String?> _restoreDirectBlobMediaFromRelay(Message message) async {
     final route = _outboundCodec.parseDirectBlobTransferId(message.transferId);
     if (route == null) {
+      _logInvalidRoute(message, isGroup: false);
       return null;
     }
+
+    _logRoute(
+      message,
+      scope: 'direct',
+      peerId: route.peerId,
+      messageId: route.messageId,
+      blobId: route.blobId,
+    );
 
     return restoreMediaFromRelay(
       peerId: route.peerId,
@@ -266,6 +287,40 @@ class ChatIncomingMediaRestoreCoordinator {
           encryptedBytes: blob.payload,
         );
       },
+      transferId: message.transferId,
+    );
+  }
+
+  void _logRoute(
+    Message message, {
+    required String scope,
+    required String peerId,
+    required String messageId,
+    required String blobId,
+  }) {
+    AppFileLogger.log(
+      '[chat_media] restore-route scope=$scope peerId=$peerId '
+      'groupId=${scope == 'group' ? peerId : '-'} messageId=$messageId '
+      'blobId=$blobId transferId=${message.transferId ?? '-'} '
+      'fileName=${message.fileName ?? '-'} '
+      'bytes=${message.fileSizeBytes ?? 0} '
+      'localFilePath=${message.localFilePath ?? '-'} '
+      'transferStatus=${message.transferStatus ?? '-'}',
+      diagnostic: true,
+    );
+  }
+
+  void _logInvalidRoute(Message message, {required bool isGroup}) {
+    AppFileLogger.log(
+      '[chat_media] restore-route-failed scope=${isGroup ? 'group' : 'direct'} '
+      'peerId=${message.peerId} groupId=${isGroup ? message.peerId : '-'} '
+      'messageId=${message.id} blobId=- '
+      'transferId=${message.transferId ?? '-'} '
+      'fileName=${message.fileName ?? '-'} '
+      'localFilePath=${message.localFilePath ?? '-'} '
+      'transferStatus=${message.transferStatus ?? '-'} '
+      'exception=invalid-transfer-id',
+      diagnostic: true,
     );
   }
 }

@@ -6,6 +6,7 @@
 
 import 'package:flutter/widgets.dart';
 
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/settings/application/settings_server_status_presenter.dart';
 
 import '../../core/runtime/self_hosted_deploy_service.dart';
@@ -597,6 +598,12 @@ class AppStrings implements SettingsServerStatusStrings {
   String get relayFetching => _text('relayFetching');
   String get retryDownload => _text('retryDownload');
   String get downloadError => _text('downloadError');
+  String get downloadInProgress => _text('downloadInProgress');
+  String get decryptingMedia => _text('decryptingMedia');
+  String get savingMedia => _text('savingMedia');
+  String get decryptError => _text('decryptError');
+  String get saveError => _text('saveError');
+  String get messageUpdateError => _text('messageUpdateError');
   String get you => _text('you');
   String get voiceMessage => _text('voiceMessage');
   String get photo => _text('photo');
@@ -732,46 +739,54 @@ class AppStrings implements SettingsServerStatusStrings {
   String get waiting => _text('waiting');
 
   String translateTransferStatus(String? status) {
-    switch (status) {
-      case 'В очереди':
-      case 'Подготовка':
-      case 'Загрузка в relay':
-      case 'Ожидает отправки':
+    final normalized = RelayTransferStatus.normalize(status);
+    switch (normalized) {
+      case RelayTransferStatus.outgoingQueued:
+      case RelayTransferStatus.outgoingPreparing:
+      case RelayTransferStatus.outgoingUploadingRelay:
+      case RelayTransferStatus.outgoingFinalizing:
+      case RelayTransferStatus.outgoingWaiting:
+      case RelayTransferStatus.outgoingRetrying:
         return sending;
-      case 'Отправлено':
-      case 'Загрузка завершена':
+      case RelayTransferStatus.outgoingSent:
+      case RelayTransferStatus.incomingDownloadComplete:
         return sent;
-      case 'Ошибка отправки':
+      case RelayTransferStatus.outgoingSendFailed:
         return sendError;
-      case 'Relay не настроен':
+      case RelayTransferStatus.relayNotConfigured:
         return relayNotConfigured;
-      case 'Relay недоступен':
+      case RelayTransferStatus.relayUnavailable:
         return relayUnavailable;
-      case 'Получение из relay':
-      case 'Загрузка':
-      case 'Расшифровка':
-      case 'Сохранение':
+      case RelayTransferStatus.incomingRelayFetching:
         return relayFetching;
-      case 'Повторная загрузка':
+      case RelayTransferStatus.incomingDownloading:
+        return downloadInProgress;
+      case RelayTransferStatus.incomingDecrypting:
+        return decryptingMedia;
+      case RelayTransferStatus.incomingSaving:
+        return savingMedia;
+      case RelayTransferStatus.incomingRetrying:
         return retryDownload;
-      case 'Ошибка загрузки':
+      case RelayTransferStatus.incomingDownloadFailed:
         return downloadError;
-      case 'Файл недоступен':
-      case 'Не удалось прочитать файл':
+      case RelayTransferStatus.incomingDecryptFailed:
+        return decryptError;
+      case RelayTransferStatus.incomingSaveFailed:
+        return saveError;
+      case RelayTransferStatus.incomingMessageUpdateFailed:
+        return messageUpdateError;
+      case RelayTransferStatus.fileUnavailable:
         return mediaUnavailable;
-      case 'Вы больше не участник чата':
+      case RelayTransferStatus.notGroupMember:
         return notGroupMember;
-      case 'Нет участников для отправки':
+      case RelayTransferStatus.noParticipants:
         return noParticipantsToSend;
-      case 'Отменено':
+      case RelayTransferStatus.canceled:
         return canceled;
       case null:
         return sending;
       default:
-        if (status.startsWith('Ожидает отправки')) {
-          return sending;
-        }
-        return status;
+        return normalized;
     }
   }
 }

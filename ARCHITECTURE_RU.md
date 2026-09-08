@@ -323,7 +323,12 @@ UI
   - direct blob restore использует retry/timeout-обертку на скачивании,
   - после transient network error или временной недоступности relay входящий media restore автоматически продолжает retry позже при активном приложении/open-chat/resume/connectivity restore,
   - `blob not found` остается terminal stop, чтобы не запускать бесконечный restore loop,
-  - Android foreground service для media restore не используется, поэтому `FOREGROUND_SERVICE_DATA_SYNC` не нужен.
+  - Android foreground service для media restore не используется, поэтому `FOREGROUND_SERVICE_DATA_SYNC` не нужен,
+  - post-download pipeline выполняется в порядке decrypt → save → durable
+    message/SQLite persistence → retry-state clear → UI notify → best-effort
+    thumbnail; успешный persistence очищает transfer status,
+  - retry разрешён только для download/relay availability failures; decrypt,
+    save и message-update failures имеют отдельные terminal UI statuses.
 - Blob стратегия в группах:
   - при больших payload: chunked upload (`/relay/blob/upload/chunk`, `/relay/blob/upload/complete`),
   - fallback: `/relay/blob/upload`,

@@ -225,6 +225,7 @@ class ChatMediaRestoreService {
     required RestoreBackground restoreInBackground,
     Future<Uint8List> Function(RelayBlobDownload blob)? transformPayload,
     String? transformStatus,
+    String? transferId,
   }) async {
     return _restoreMediaFromRelay(
       peerId: peerId,
@@ -235,6 +236,7 @@ class ChatMediaRestoreService {
       restoreInBackground: restoreInBackground,
       transformPayload: transformPayload,
       transformStatus: transformStatus,
+      transferId: transferId,
     );
   }
 
@@ -247,6 +249,7 @@ class ChatMediaRestoreService {
     required RestoreBackground restoreInBackground,
     Future<Uint8List> Function(RelayBlobDownload blob)? transformPayload,
     String? transformStatus,
+    String? transferId,
   }) async {
     try {
       final result = await relayMediaTransfer.restoreIncomingMedia(
@@ -257,6 +260,7 @@ class ChatMediaRestoreService {
         downloadBlob: downloadBlob,
         transformPayload: transformPayload,
         transformStatus: transformStatus,
+        transferId: transferId,
         saveBytes: ({required fileName, required bytes}) {
           return saveMediaBytes(
             peerId: peerId,
@@ -313,6 +317,7 @@ class ChatMediaRestoreService {
           blobId: blobId,
           errorKind: result.errorKind,
           error: result.error,
+          allowRetry: _allowsRelayRetry(result.errorKind),
           restoreInBackground: restoreInBackground,
         );
         return null;
@@ -324,52 +329,152 @@ class ChatMediaRestoreService {
           peerId: peerId,
           messageId: messageId,
           blobId: blobId,
-          errorKind: 'transient',
+          errorKind: RelayMediaRestoreFailureKind.saveFailed,
           error: StateError('Relay restore returned empty path'),
+          allowRetry: false,
           restoreInBackground: restoreInBackground,
         );
         return null;
       }
 
       clearProgressUpdate(peerId, messageId);
+      AppFileLogger.log(
+        '[chat_media] message-find-start peerId=$peerId '
+        'messageId=$messageId blobId=$blobId localFilePath=$path',
+      );
       final currentMessage = await findMessage(peerId, messageId);
-      final thumbnailPath = currentMessage == null
-          ? null
-          : await ensureThumbnail(
-              ChatMessageCopy.copy(currentMessage, localFilePath: path),
-            );
+      if (currentMessage == null) {
+        AppFileLogger.log(
+          '[chat_media] message-find-failed peerId=$peerId '
+          'messageId=$messageId blobId=$blobId localFilePath=$path',
+        );
+        await _markIncomingRelayRestoreFailed(
+          peerId: peerId,
+          messageId: messageId,
+          blobId: blobId,
+          errorKind: 'message_update_failed',
+          error: StateError('Message not found after relay media save'),
+          allowRetry: false,
+          restoreInBackground: restoreInBackground,
+        );
+        return null;
+      }
+      AppFileLogger.log(
+        '[chat_media] message-find-success peerId=$peerId '
+        'messageId=$messageId blobId=$blobId '
+        'transferId=${currentMessage.transferId ?? ""} '
+        'transferStatus=${currentMessage.transferStatus ?? ""}',
+      );
+      AppFileLogger.log(
+        '[chat_media] message-replace-start peerId=$peerId '
+        'messageId=$messageId blobId=$blobId localFilePath=$path',
+      );
       await replaceMessage(
         peerId,
         messageId,
         (current) => ChatMessageCopy.copy(
           current,
           localFilePath: path,
-          thumbnailPath: thumbnailPath ?? current.thumbnailPath,
           fileDataBase64: null,
           transferredBytes: null,
           sendProgress: null,
           transferStatus: null,
         ),
       );
-      await relayMediaRetry.clear(peerId, messageId);
+      AppFileLogger.log(
+        '[chat_media] message-replace-success peerId=$peerId '
+        'messageId=$messageId blobId=$blobId localFilePath=$path',
+      );
+      AppFileLogger.log(
+        '[chat_media] retry-clear-start peerId=$peerId '
+        'messageId=$messageId blobId=$blobId',
+      );
+      try {
+        await relayMediaRetry.clear(peerId, messageId);
+        AppFileLogger.log(
+          '[chat_media] retry-clear-success peerId=$peerId '
+          'messageId=$messageId blobId=$blobId',
+        );
+      } catch (error, stackTrace) {
+        AppFileLogger.log(
+          '[chat_media] retry-clear-failed peerId=$peerId '
+          'messageId=$messageId blobId=$blobId localFilePath=$path '
+          'exception=$error stackTrace=$stackTrace',
+        );
+      }
       notifyMessageUpdated(peerId);
+      unawaited(
+        _ensureThumbnailBestEffort(
+          peerId: peerId,
+          messageId: messageId,
+          blobId: blobId,
+          path: path,
+          source: currentMessage,
+        ),
+      );
       return path;
-    } catch (error) {
+    } catch (error, stackTrace) {
       AppFileLogger.log(
         '[chat_media] restore relay failed peer=$peerId '
-        'messageId=$messageId blobId=$blobId error=$error',
+        'messageId=$messageId blobId=$blobId exception=$error '
+        'stackTrace=$stackTrace',
       );
       await _markIncomingRelayRestoreFailed(
         peerId: peerId,
         messageId: messageId,
         blobId: blobId,
         errorKind: error is RelayUnavailableException
-            ? 'unavailable'
-            : 'transient',
+            ? RelayMediaRestoreFailureKind.unavailable
+            : 'message_update_failed',
         error: error,
+        allowRetry: error is RelayUnavailableException,
         restoreInBackground: restoreInBackground,
       );
       return null;
+    }
+  }
+
+  Future<void> _ensureThumbnailBestEffort({
+    required String peerId,
+    required String messageId,
+    required String blobId,
+    required String path,
+    required Message source,
+  }) async {
+    try {
+      AppFileLogger.log(
+        '[chat_media] thumbnail-start peerId=$peerId messageId=$messageId '
+        'blobId=$blobId localFilePath=$path',
+      );
+      final thumbnailPath = await ensureThumbnail(
+        ChatMessageCopy.copy(source, localFilePath: path),
+      );
+      if (thumbnailPath == null || thumbnailPath.isEmpty) {
+        AppFileLogger.log(
+          '[chat_media] thumbnail-failed peerId=$peerId messageId=$messageId '
+          'blobId=$blobId localFilePath=$path exception=empty-thumbnail',
+        );
+        return;
+      }
+      await replaceMessage(
+        peerId,
+        messageId,
+        (current) =>
+            ChatMessageCopy.copy(current, thumbnailPath: thumbnailPath),
+      );
+      AppFileLogger.log(
+        '[chat_media] thumbnail-success peerId=$peerId messageId=$messageId '
+        'blobId=$blobId localFilePath=$path thumbnailPath=$thumbnailPath',
+      );
+      if (!isMessageUpdatesClosed()) {
+        notifyMessageUpdated(peerId);
+      }
+    } catch (error, stackTrace) {
+      AppFileLogger.log(
+        '[chat_media] thumbnail-failed peerId=$peerId messageId=$messageId '
+        'blobId=$blobId localFilePath=$path exception=$error '
+        'stackTrace=$stackTrace',
+      );
     }
   }
 
@@ -379,6 +484,7 @@ class ChatMediaRestoreService {
     required String blobId,
     required String errorKind,
     Object? error,
+    bool allowRetry = true,
     required RestoreBackground restoreInBackground,
   }) {
     return _markIncomingRelayRestoreFailed(
@@ -387,6 +493,7 @@ class ChatMediaRestoreService {
       blobId: blobId,
       errorKind: errorKind,
       error: error,
+      allowRetry: allowRetry,
       restoreInBackground: restoreInBackground,
     );
   }
@@ -397,6 +504,7 @@ class ChatMediaRestoreService {
     required String blobId,
     required String errorKind,
     Object? error,
+    bool allowRetry = true,
     required RestoreBackground restoreInBackground,
   }) async {
     AppFileLogger.log(
@@ -405,11 +513,22 @@ class ChatMediaRestoreService {
     );
     var canRetry = false;
     try {
-      canRetry = await relayMediaRetry.recordFailure(
-        peerId: peerId,
-        messageId: messageId,
-        errorKind: errorKind,
-      );
+      if (allowRetry) {
+        AppFileLogger.log(
+          '[chat_media] retry-record-start peerId=$peerId '
+          'messageId=$messageId blobId=$blobId kind=$errorKind',
+        );
+        canRetry = await relayMediaRetry.recordFailure(
+          peerId: peerId,
+          messageId: messageId,
+          errorKind: errorKind,
+        );
+        AppFileLogger.log(
+          '[chat_media] retry-record-success peerId=$peerId '
+          'messageId=$messageId blobId=$blobId kind=$errorKind '
+          'canRetry=$canRetry',
+        );
+      }
     } catch (stateError) {
       AppFileLogger.log(
         '[chat_media] restore relay retry-state failed peer=$peerId '
@@ -417,13 +536,15 @@ class ChatMediaRestoreService {
       );
     }
 
-    final transferStatus = error is RelayUnavailableException
-        ? (error.isNotConfigured
-              ? RelayMediaTransferService.incomingRelayNotConfiguredStatus
-              : RelayMediaTransferService.incomingRelayUnavailableStatus)
-        : RelayMediaTransferService.incomingErrorStatus;
+    final transferStatus = canRetry
+        ? RelayMediaTransferService.incomingRetryStatus
+        : _failureStatus(errorKind, error);
     clearProgressUpdate(peerId, messageId);
     try {
+      AppFileLogger.log(
+        '[chat_media] message-replace-start peerId=$peerId '
+        'messageId=$messageId blobId=$blobId transferStatus=$transferStatus',
+      );
       await replaceMessage(
         peerId,
         messageId,
@@ -433,20 +554,36 @@ class ChatMediaRestoreService {
           transferStatus: transferStatus,
         ),
       );
-    } catch (updateError) {
       AppFileLogger.log(
-        '[chat_media] restore relay message update failed peer=$peerId '
-        'messageId=$messageId error=$updateError',
+        '[chat_media] message-replace-success peerId=$peerId '
+        'messageId=$messageId blobId=$blobId transferStatus=$transferStatus',
+      );
+    } catch (updateError, updateStackTrace) {
+      AppFileLogger.log(
+        '[chat_media] message-replace-failed peerId=$peerId '
+        'messageId=$messageId blobId=$blobId exception=$updateError '
+        'stackTrace=$updateStackTrace',
       );
     }
 
     Message? failedMessage;
     try {
-      failedMessage = await findMessage(peerId, messageId);
-    } catch (findError) {
       AppFileLogger.log(
-        '[chat_media] restore relay find failed peer=$peerId '
-        'messageId=$messageId error=$findError',
+        '[chat_media] message-find-start peerId=$peerId '
+        'messageId=$messageId blobId=$blobId',
+      );
+      failedMessage = await findMessage(peerId, messageId);
+      AppFileLogger.log(
+        '[chat_media] ${failedMessage == null ? "message-find-failed" : "message-find-success"} '
+        'peerId=$peerId messageId=$messageId blobId=$blobId '
+        'localFilePath=${failedMessage?.localFilePath ?? ""} '
+        'transferStatus=${failedMessage?.transferStatus ?? ""}',
+      );
+    } catch (findError, findStackTrace) {
+      AppFileLogger.log(
+        '[chat_media] message-find-failed peerId=$peerId '
+        'messageId=$messageId blobId=$blobId exception=$findError '
+        'stackTrace=$findStackTrace',
       );
     }
 
@@ -525,7 +662,32 @@ class ChatMediaRestoreService {
     return status ==
             RelayMediaTransferService.incomingRelayNotConfiguredStatus ||
         status == RelayMediaTransferService.incomingErrorStatus ||
+        status == RelayMediaTransferService.incomingDecryptErrorStatus ||
+        status == RelayMediaTransferService.incomingSaveErrorStatus ||
+        status == RelayMediaTransferService.incomingMessageUpdateErrorStatus ||
         status == RelayMediaTransferService.incomingRelayUnavailableStatus;
+  }
+
+  String _failureStatus(String errorKind, Object? error) {
+    if (error is RelayUnavailableException) {
+      return error.isNotConfigured
+          ? RelayMediaTransferService.incomingRelayNotConfiguredStatus
+          : RelayMediaTransferService.incomingRelayUnavailableStatus;
+    }
+    return switch (errorKind) {
+      RelayMediaRestoreFailureKind.decryptFailed =>
+        RelayMediaTransferService.incomingDecryptErrorStatus,
+      RelayMediaRestoreFailureKind.saveFailed =>
+        RelayMediaTransferService.incomingSaveErrorStatus,
+      'message_update_failed' || 'persistence_failed' =>
+        RelayMediaTransferService.incomingMessageUpdateErrorStatus,
+      _ => RelayMediaTransferService.incomingErrorStatus,
+    };
+  }
+
+  bool _allowsRelayRetry(String errorKind) {
+    return errorKind == RelayMediaRestoreFailureKind.downloadFailed ||
+        errorKind == RelayMediaRestoreFailureKind.unavailable;
   }
 
   int _incomingRelayMediaStatusRank(String? status) {

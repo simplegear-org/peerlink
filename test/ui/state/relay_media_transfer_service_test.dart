@@ -39,7 +39,7 @@ void main() {
       );
 
       expect(result.status, RelayMediaRestoreStatus.failed);
-      expect(result.errorKind, 'transient');
+      expect(result.errorKind, RelayMediaRestoreFailureKind.downloadFailed);
       expect(attempts, 2);
       expect(saveCalled, isFalse);
     },
@@ -68,7 +68,7 @@ void main() {
     );
 
     expect(result.status, RelayMediaRestoreStatus.failed);
-    expect(result.errorKind, 'transient');
+    expect(result.errorKind, RelayMediaRestoreFailureKind.downloadFailed);
   });
 
   test('restoreIncomingMedia returns notFound result without saving', () async {

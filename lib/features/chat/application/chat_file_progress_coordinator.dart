@@ -17,14 +17,12 @@ class ChatFileProgressCoordinator {
     required Map<String, Chat> chats,
     required ChatIncomingMediaRestoreCoordinator
     incomingMediaRestoreCoordinator,
-    required String incomingRelayErrorStatus,
     required String incomingRelayNotConfiguredStatus,
     required String incomingRelayUnavailableStatus,
     required void Function(String peerId) notifyMessageUpdated,
   }) : _fileQueueService = fileQueueService,
        _chats = chats,
        _incomingMediaRestoreCoordinator = incomingMediaRestoreCoordinator,
-       _incomingRelayErrorStatus = incomingRelayErrorStatus,
        _incomingRelayNotConfiguredStatus = incomingRelayNotConfiguredStatus,
        _incomingRelayUnavailableStatus = incomingRelayUnavailableStatus,
        _notifyMessageUpdated = notifyMessageUpdated;
@@ -32,7 +30,6 @@ class ChatFileProgressCoordinator {
   final ChatFileQueueService _fileQueueService;
   final Map<String, Chat> _chats;
   final ChatIncomingMediaRestoreCoordinator _incomingMediaRestoreCoordinator;
-  final String _incomingRelayErrorStatus;
   final String _incomingRelayNotConfiguredStatus;
   final String _incomingRelayUnavailableStatus;
   final void Function(String peerId) _notifyMessageUpdated;
@@ -90,9 +87,7 @@ class ChatFileProgressCoordinator {
           msg.kind == MessageKind.file &&
           (relayTransferId.startsWith('dirblob:') ||
               relayTransferId.startsWith('grpblob:'));
-      if (isIncomingRelayMedia &&
-          ((msg.localFilePath?.isNotEmpty ?? false) ||
-              msg.transferStatus == _incomingRelayErrorStatus)) {
+      if (isIncomingRelayMedia && (msg.localFilePath?.isNotEmpty ?? false)) {
         return;
       }
       final nextProgress = (totalBytes == null || totalBytes <= 0)

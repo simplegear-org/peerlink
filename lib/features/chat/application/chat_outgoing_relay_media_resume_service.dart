@@ -7,6 +7,7 @@
 import 'dart:async';
 
 import 'package:peerlink/core/messaging/chat_service.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
@@ -198,7 +199,7 @@ class ChatOutgoingRelayMediaResumeService {
         state.messageId,
         sentBytes: message.fileSizeBytes ?? 0,
         totalBytes: message.fileSizeBytes ?? 0,
-        statusText: 'Повторная отправка',
+        statusText: RelayTransferStatus.outgoingRetrying,
       );
 
       final sendReceipt = await _facade.sendPayload(

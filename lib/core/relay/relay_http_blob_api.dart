@@ -13,6 +13,7 @@ import 'relay_http_server_pool.dart';
 import 'relay_http_transport.dart';
 import 'relay_http_types.dart';
 import 'relay_models.dart';
+import 'relay_transfer_status.dart';
 
 class RelayHttpBlobApi {
   final RelayHttpServerPool serverPool;
@@ -43,7 +44,7 @@ class RelayHttpBlobApi {
       onProgress?.call(
         sentBytes: 0,
         totalBytes: envelope.payload.length,
-        status: 'Загрузка в relay',
+        status: RelayTransferStatus.outgoingUploadingRelay,
       );
       final chunkedOk = await storeBlobChunked(
         envelope,
@@ -57,7 +58,7 @@ class RelayHttpBlobApi {
     onProgress?.call(
       sentBytes: 0,
       totalBytes: envelope.payload.length,
-      status: 'Загрузка в relay',
+      status: RelayTransferStatus.outgoingUploadingRelay,
     );
     await messageApi.postUntilSuccess(
       '/relay/blob/upload',
@@ -67,7 +68,7 @@ class RelayHttpBlobApi {
     onProgress?.call(
       sentBytes: envelope.payload.length,
       totalBytes: envelope.payload.length,
-      status: 'Финализация',
+      status: RelayTransferStatus.outgoingFinalizing,
     );
   }
 
@@ -162,8 +163,8 @@ class RelayHttpBlobApi {
               sentBytes: completedBytes,
               totalBytes: totalBytes,
               status: completedChunks == totalChunks
-                  ? 'Финализация'
-                  : 'Загрузка в relay',
+                  ? RelayTransferStatus.outgoingFinalizing
+                  : RelayTransferStatus.outgoingUploadingRelay,
             );
             if (completedChunks == 1 ||
                 completedChunks == totalChunks ||
@@ -284,10 +285,8 @@ class RelayHttpBlobApi {
     final initialNotFoundErrors = initialBatch.errors
         .where((error) => error.startsWith('blob-fetch 404'))
         .toList(growable: false);
-    final allInitialNotFound =
-        initialNotFoundErrors.isNotEmpty &&
-        initialNotFoundErrors.length == initialBatch.errors.length;
-    if (allInitialNotFound && attempted.length < serverPool.totalServers) {
+    if (initialNotFoundErrors.isNotEmpty &&
+        attempted.length < serverPool.totalServers) {
       final fallbackTargets = serverPool
           .prioritizedServers(limit: serverPool.totalServers)
           .where((server) => !attempted.contains(server.toString()))
@@ -404,7 +403,7 @@ class RelayHttpBlobApi {
       onProgress?.call(
         receivedBytes: payloadBytes.length,
         totalBytes: payloadBytes.length,
-        status: 'Загрузка завершена',
+        status: RelayTransferStatus.incomingDownloadComplete,
       );
       return RelayBlobFetchOutcome(
         download: RelayBlobDownload(

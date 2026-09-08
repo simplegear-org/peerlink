@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
 
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -312,7 +313,7 @@ class ChatDirectOutboundHandler {
           sendProgress: 0.0,
           transferStatus: transferStatusForError(
             e,
-            fallback: 'Ошибка отправки',
+            fallback: RelayTransferStatus.outgoingSendFailed,
           ),
           status: MessageStatus.failed,
         ),

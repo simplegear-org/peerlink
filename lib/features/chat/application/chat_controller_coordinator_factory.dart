@@ -50,7 +50,6 @@ class ChatControllerCoordinatorFactory {
     required Map<String, Chat> chats,
     required ChatIncomingMediaRestoreCoordinator
     incomingMediaRestoreCoordinator,
-    required String incomingRelayErrorStatus,
     required String incomingRelayNotConfiguredStatus,
     required String incomingRelayUnavailableStatus,
     required void Function(String peerId) notifyMessageUpdated,
@@ -59,7 +58,6 @@ class ChatControllerCoordinatorFactory {
       fileQueueService: fileQueueService,
       chats: chats,
       incomingMediaRestoreCoordinator: incomingMediaRestoreCoordinator,
-      incomingRelayErrorStatus: incomingRelayErrorStatus,
       incomingRelayNotConfiguredStatus: incomingRelayNotConfiguredStatus,
       incomingRelayUnavailableStatus: incomingRelayUnavailableStatus,
       notifyMessageUpdated: notifyMessageUpdated,

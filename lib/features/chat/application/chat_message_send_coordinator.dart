@@ -6,6 +6,7 @@
 
 import 'dart:async';
 
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -172,11 +173,11 @@ class ChatMessageSendCoordinator {
       var transferStatus = current.transferStatus;
       if (status == MessageStatus.sent) {
         progress = 1.0;
-        transferStatus = 'Отправлено';
+        transferStatus = RelayTransferStatus.outgoingSent;
       } else if (status == MessageStatus.failed) {
         progress = 0;
-        transferStatus = current.transferStatus == 'Отменено'
-            ? 'Отменено'
+        transferStatus = RelayTransferStatus.isCanceled(current.transferStatus)
+            ? RelayTransferStatus.canceled
             : preserveFailedTransferStatus(current.transferStatus);
       }
       return ChatMessageCopy.copy(
@@ -197,13 +198,14 @@ class ChatMessageSendCoordinator {
 
   String preserveFailedTransferStatus(String? currentStatus) {
     final normalized = (currentStatus ?? '').trim();
+    final status = RelayTransferStatus.normalize(normalized);
     if (normalized.isEmpty ||
-        normalized == 'Подготовка' ||
-        normalized == 'Загрузка в relay' ||
-        normalized == 'Ожидает отправки' ||
-        normalized == 'Отправлено') {
-      return 'Ошибка отправки';
+        status == RelayTransferStatus.outgoingPreparing ||
+        status == RelayTransferStatus.outgoingUploadingRelay ||
+        status == RelayTransferStatus.outgoingWaiting ||
+        status == RelayTransferStatus.outgoingSent) {
+      return RelayTransferStatus.outgoingSendFailed;
     }
-    return normalized;
+    return status ?? RelayTransferStatus.outgoingSendFailed;
   }
 }

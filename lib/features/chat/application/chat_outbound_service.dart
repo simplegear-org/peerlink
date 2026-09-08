@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -373,7 +374,7 @@ class ChatOutboundService {
           current,
           transferredBytes: 0,
           sendProgress: 0.0,
-          transferStatus: 'Файл недоступен',
+          transferStatus: RelayTransferStatus.fileUnavailable,
           status: MessageStatus.failed,
         ),
       );
@@ -391,7 +392,7 @@ class ChatOutboundService {
         current,
         transferredBytes: 0,
         sendProgress: 0.02,
-        transferStatus: 'В очереди',
+        transferStatus: RelayTransferStatus.outgoingQueued,
         status: MessageStatus.sending,
       ),
     );

@@ -76,11 +76,18 @@ Future<void> _pollRelayAndNotify() async {
   }
 }
 
-Future<void> backgroundFetchHeadlessTask(String taskId) async {
+@pragma('vm:entry-point')
+Future<void> backgroundFetchHeadlessTask(HeadlessEvent event) async {
+  final taskId = event.taskId;
   AppFileLogger.log(
-    '[background_fetch] task=$taskId',
+    '[background_fetch] task=$taskId timeout=${event.timeout}',
     name: 'background_fetch',
   );
+
+  if (event.timeout) {
+    BackgroundFetch.finish(taskId);
+    return;
+  }
 
   try {
     await _pollRelayAndNotify();

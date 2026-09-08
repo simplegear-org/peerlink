@@ -7,6 +7,7 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'app_file_logger.dart';
 import 'storage_service_paths.dart';
 
 class StorageServiceMedia {
@@ -39,6 +40,11 @@ class StorageServiceMedia {
     try {
       final peerDir = await _ensurePeerDirectory(peerId);
       if (peerDir == null) {
+        AppFileLogger.log(
+          '[storage_media] saveBytes failed peerId=$peerId '
+          'messageId=$messageId fileName=$fileName '
+          'destinationPath=unavailable exception=media-directory-null',
+        );
         return '';
       }
 
@@ -46,7 +52,13 @@ class StorageServiceMedia {
       final file = File('${peerDir.path}/$messageId-$safeName');
       await file.writeAsBytes(bytes, flush: true);
       return file.path;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppFileLogger.log(
+        '[storage_media] saveBytes failed peerId=$peerId '
+        'messageId=$messageId fileName=$fileName '
+        'destinationPath=${_destinationPath(peerId, messageId, fileName)} '
+        'exception=$error stackTrace=$stackTrace',
+      );
       return '';
     }
   }
@@ -60,11 +72,22 @@ class StorageServiceMedia {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
+        AppFileLogger.log(
+          '[storage_media] saveFile failed peerId=$peerId '
+          'messageId=$messageId fileName=$fileName sourcePath=$sourcePath '
+          'destinationPath=${_destinationPath(peerId, messageId, fileName)} '
+          'exception=source-missing',
+        );
         return '';
       }
 
       final peerDir = await _ensurePeerDirectory(peerId);
       if (peerDir == null) {
+        AppFileLogger.log(
+          '[storage_media] saveFile failed peerId=$peerId '
+          'messageId=$messageId fileName=$fileName sourcePath=$sourcePath '
+          'destinationPath=unavailable exception=media-directory-null',
+        );
         return '';
       }
 
@@ -76,7 +99,13 @@ class StorageServiceMedia {
 
       await sourceFile.copy(destination.path);
       return destination.path;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppFileLogger.log(
+        '[storage_media] saveFile failed peerId=$peerId '
+        'messageId=$messageId fileName=$fileName sourcePath=$sourcePath '
+        'destinationPath=${_destinationPath(peerId, messageId, fileName)} '
+        'exception=$error stackTrace=$stackTrace',
+      );
       return '';
     }
   }
@@ -218,6 +247,15 @@ class StorageServiceMedia {
     final peerDir = Directory('${currentMediaDirectory.path}/$peerId');
     await peerDir.create(recursive: true);
     return peerDir;
+  }
+
+  String _destinationPath(String peerId, String messageId, String fileName) {
+    final currentMediaDirectory = mediaDirectory;
+    final safeName = StorageServicePaths.safeMediaFileName(fileName);
+    if (currentMediaDirectory == null) {
+      return 'unavailable';
+    }
+    return '${currentMediaDirectory.path}/$peerId/$messageId-$safeName';
   }
 
   Future<File?> _findLegacySourceFile({

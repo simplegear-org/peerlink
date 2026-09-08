@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:peerlink/core/notification/notification_service.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -215,10 +216,7 @@ class ChatFileTransferCoordinator {
         message.status != MessageStatus.sending) {
       return false;
     }
-    final status = message.transferStatus ?? '';
-    return status == 'В очереди' ||
-        status == 'Подготовка' ||
-        status.startsWith('Ожидает отправки');
+    return RelayTransferStatus.isRecoverableOutgoing(message.transferStatus);
   }
 
   bool isFileQueuedOrActive(String messageId) {

@@ -268,6 +268,50 @@ void main() {
   );
 
   test(
+    'fetchBlob falls back to remaining relays after mixed timeout and 404',
+    () async {
+      final client = HttpRelayClient(
+        servers: [
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+          'http://relay4.example',
+        ],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/health') {
+            return http.Response('', 200);
+          }
+          if (request.url.path == '/relay/blob/blob-123') {
+            if (request.url.host == 'relay1.example') {
+              throw const SocketException('timed out');
+            }
+            if (request.url.host == 'relay4.example') {
+              return http.Response(
+                jsonEncode({
+                  'id': 'blob-123',
+                  'fileName': 'hello.txt',
+                  'payload': base64Encode(utf8.encode('hello')),
+                  'sizeBytes': 5,
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            return http.Response('not found', 404);
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+
+      final result = await client.fetchBlob('blob-123');
+
+      expect(result.id, 'blob-123');
+      expect(result.fileName, 'hello.txt');
+      expect(utf8.decode(result.payload), 'hello');
+    },
+  );
+
+  test(
     'fetchBlob returns notFound sentinel when all relays return 404',
     () async {
       final client = HttpRelayClient(

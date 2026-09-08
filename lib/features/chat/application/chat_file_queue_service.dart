@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -104,7 +105,7 @@ class ChatFileQueueService {
           message,
           transferredBytes: 0,
           sendProgress: 0.0,
-          transferStatus: 'Файл недоступен',
+          transferStatus: RelayTransferStatus.fileUnavailable,
           status: MessageStatus.failed,
         );
         changed = true;
@@ -233,7 +234,10 @@ class ChatFileQueueService {
         if (msg.status != MessageStatus.sending) {
           break;
         }
-        final nextStatus = 'Ожидает отправки (${index + 1} из $total)';
+        final nextStatus = RelayTransferStatus.waitingPosition(
+          index + 1,
+          total,
+        );
         if (msg.transferStatus != nextStatus || msg.sendProgress != 0.02) {
           chat.messages[i] = ChatMessageCopy.copy(
             msg,

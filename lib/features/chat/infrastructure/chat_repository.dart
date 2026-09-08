@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
+import 'package:peerlink/core/runtime/app_file_logger.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 
 import '../domain/chat.dart';
@@ -225,6 +226,10 @@ class ChatRepository {
     Message Function(Message current) transform,
   ) async {
     final chat = ensureChat(peerId);
+    AppFileLogger.log(
+      '[chat_media] repository-message-find-start peerId=$peerId '
+      'messageId=$messageId loaded=${chat.messagesLoaded}',
+    );
 
     if (chat.messagesLoaded) {
       for (var i = 0; i < chat.messages.length; i++) {
@@ -232,12 +237,34 @@ class ChatRepository {
         if (current.id != messageId) {
           continue;
         }
-        chat.messages[i] = transform(current);
-        await upsertStoredMessages(peerId, <Message>[chat.messages[i]]);
-        await _refreshSummaryAfterMutation(chat);
-        await persistChatSummary(chat);
+        AppFileLogger.log(
+          '[chat_media] repository-message-find-success peerId=$peerId '
+          'messageId=$messageId transferId=${current.transferId ?? '-'} '
+          'localFilePath=${current.localFilePath ?? '-'} '
+          'transferStatus=${current.transferStatus ?? '-'} source=memory',
+        );
+        final updated = transform(current);
+        chat.messages[i] = updated;
+        AppFileLogger.log(
+          '[chat_media] repository-message-replace-success peerId=$peerId '
+          'messageId=$messageId transferId=${updated.transferId ?? '-'} '
+          'localFilePath=${updated.localFilePath ?? '-'} '
+          'transferStatus=${updated.transferStatus ?? '-'} source=memory',
+        );
+        await _persistReplacement(
+          peerId: peerId,
+          message: updated,
+          persistSummary: () async {
+            await _refreshSummaryAfterMutation(chat);
+            await persistChatSummary(chat);
+          },
+        );
         return;
       }
+      AppFileLogger.log(
+        '[chat_media] repository-message-find-failed peerId=$peerId '
+        'messageId=$messageId source=memory exception=message-not-found',
+      );
       return;
     }
 
@@ -247,11 +274,65 @@ class ChatRepository {
       if (current.id != messageId) {
         continue;
       }
-      stored[i] = transform(current);
-      await upsertStoredMessages(peerId, <Message>[stored[i]]);
-      await _refreshSummaryFromStorage(chat);
-      await persistChatSummary(chat);
+      AppFileLogger.log(
+        '[chat_media] repository-message-find-success peerId=$peerId '
+        'messageId=$messageId transferId=${current.transferId ?? '-'} '
+        'localFilePath=${current.localFilePath ?? '-'} '
+        'transferStatus=${current.transferStatus ?? '-'} source=sqlite',
+      );
+      final updated = transform(current);
+      stored[i] = updated;
+      AppFileLogger.log(
+        '[chat_media] repository-message-replace-success peerId=$peerId '
+        'messageId=$messageId transferId=${updated.transferId ?? '-'} '
+        'localFilePath=${updated.localFilePath ?? '-'} '
+        'transferStatus=${updated.transferStatus ?? '-'} source=sqlite',
+      );
+      await _persistReplacement(
+        peerId: peerId,
+        message: updated,
+        persistSummary: () async {
+          await _refreshSummaryFromStorage(chat);
+          await persistChatSummary(chat);
+        },
+      );
       return;
+    }
+    AppFileLogger.log(
+      '[chat_media] repository-message-find-failed peerId=$peerId '
+      'messageId=$messageId source=sqlite exception=message-not-found',
+    );
+  }
+
+  Future<void> _persistReplacement({
+    required String peerId,
+    required Message message,
+    required Future<void> Function() persistSummary,
+  }) async {
+    AppFileLogger.log(
+      '[chat_media] message-persist-start peerId=$peerId '
+      'messageId=${message.id} transferId=${message.transferId ?? '-'} '
+      'localFilePath=${message.localFilePath ?? '-'} '
+      'transferStatus=${message.transferStatus ?? '-'}',
+    );
+    try {
+      await upsertStoredMessages(peerId, <Message>[message]);
+      await persistSummary();
+      AppFileLogger.log(
+        '[chat_media] message-persist-success peerId=$peerId '
+        'messageId=${message.id} transferId=${message.transferId ?? '-'} '
+        'localFilePath=${message.localFilePath ?? '-'} '
+        'transferStatus=${message.transferStatus ?? '-'}',
+      );
+    } catch (error, stackTrace) {
+      AppFileLogger.log(
+        '[chat_media] message-persist-failed peerId=$peerId '
+        'messageId=${message.id} transferId=${message.transferId ?? '-'} '
+        'localFilePath=${message.localFilePath ?? '-'} '
+        'transferStatus=${message.transferStatus ?? '-'} '
+        'exception=$error stackTrace=$stackTrace',
+      );
+      rethrow;
     }
   }
 
