@@ -57,6 +57,7 @@ class ChatScreenMediaActions {
       if (activeMessage.isMedia && (hasLocalFile || hasEmbeddedBytes)) {
         if (!context.mounted) return;
         await _openMediaViewer(
+          controller: controller,
           context: context,
           chat: chat,
           messageId: activeMessage.id,
@@ -82,6 +83,7 @@ class ChatScreenMediaActions {
               if (!context.mounted) return;
               if (refreshed.isMedia) {
                 await _openMediaViewer(
+                  controller: controller,
                   context: context,
                   chat: chat,
                   messageId: refreshed.id,
@@ -112,6 +114,7 @@ class ChatScreenMediaActions {
               if (!context.mounted) return;
               if (refreshed.isMedia) {
                 await _openMediaViewer(
+                  controller: controller,
                   context: context,
                   chat: chat,
                   messageId: refreshed.id,
@@ -177,11 +180,13 @@ class ChatScreenMediaActions {
   }
 
   Future<void> _openMediaViewer({
+    required ChatController controller,
     required BuildContext context,
     required Chat chat,
     required String messageId,
   }) async {
-    final mediaMessages = chat.messages
+    final mediaMessages = controller
+        .visibleMessages(chat)
         .where((item) => item.isMedia)
         .toList(growable: false);
     final initialIndex = mediaMessages.indexWhere(

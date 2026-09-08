@@ -7,6 +7,7 @@
 import 'package:peerlink/app/composition/chat_contacts_repository_adapter.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/core/runtime/moderation_report_service.dart';
+import 'package:peerlink/features/chat/application/chat_safety_service.dart';
 import 'package:peerlink/core/runtime/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
@@ -541,6 +542,11 @@ class ChatControllerComposition {
       notifyMessageUpdated: notifyMessageUpdated,
       onUnreadBadgeCountChanged: onUnreadBadgeCountChanged,
     );
+    final moderationReports = ModerationReportService(
+      settingsBox: settingsBox,
+      localPeerId: () => runtime.peerId,
+      deliverReport: runtime.submitModerationReport,
+    );
     return ChatControllerDependencies(
       persistence: ChatPersistenceDependencies(
         groupKeyService: groupKeyService,
@@ -567,6 +573,7 @@ class ChatControllerComposition {
           setStatus: setStatus,
         ),
         lifecycleService: ChatControllerLifecycleService(
+          retryModerationReports: moderationReports.retryPendingReports,
           facade: runtime,
           setPeerStatus: setStatus,
           syncBadgeCount: syncBadgeCount,
@@ -584,10 +591,19 @@ class ChatControllerComposition {
       ),
       safety: ChatSafetyDependencies(
         accessControl: accessControl,
-        moderationReports: ModerationReportService(
-          settingsBox: settingsBox,
-          localPeerId: () => runtime.peerId,
-          deliverReport: runtime.submitModerationReport,
+        moderationReports: moderationReports,
+        safetyService: ChatSafetyService(
+          accessControl: accessControl,
+          reports: moderationReports,
+          notifyVisibilityChanged: (peerId) {
+            notifyMessageUpdated(peerId);
+            for (final chat in chats.values.where((chat) => chat.isGroup)) {
+              notifyMessageUpdated(chat.peerId);
+            }
+          },
+          syncPushPolicy: (reason) =>
+              runtime.syncPushDeviceState(reason: reason, forcePolicy: true),
+          log: logQueue,
         ),
       ),
     );

@@ -20,6 +20,27 @@ class ModerationReportService {
   final String Function() localPeerId;
   final Future<void> Function(Map<String, dynamic> report)? deliverReport;
   final Uuid _uuid;
+  Future<void> _deliveryTail = Future<void>.value();
+
+  /// Reuses the durable outbox on startup, resume and connectivity recovery.
+  Future<void> retryPendingReports() async {
+    final delivery = deliverReport;
+    if (delivery != null) await _scheduleFlush(delivery, raiseForId: '');
+  }
+
+  Future<void> _scheduleFlush(
+    Future<void> Function(Map<String, dynamic>) delivery, {
+    required String raiseForId,
+  }) {
+    final next = _deliveryTail.then(
+      (_) => _flushPendingReports(delivery, raiseForId: raiseForId),
+    );
+    _deliveryTail = next.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
+    );
+    return next;
+  }
 
   ModerationReportService({
     required this.settingsBox,
@@ -62,7 +83,7 @@ class ModerationReportService {
     await _appendPendingReport(report);
     final delivery = deliverReport;
     if (delivery != null) {
-      await _flushPendingReports(delivery, raiseForId: report['id'] as String);
+      await _scheduleFlush(delivery, raiseForId: report['id'] as String);
       if (!_hasPendingReport(report['id'] as String)) {
         report['deliveryState'] = 'sent';
       }

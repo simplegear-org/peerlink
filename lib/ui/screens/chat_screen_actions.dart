@@ -18,12 +18,14 @@ import '../state/chat_forward_service.dart';
 import '../theme/app_theme.dart';
 import 'avatar_crop_screen.dart';
 import 'chat_screen_mime_type.dart';
+import 'chat_report_actions.dart';
 
 enum ChatMessageAction {
   addContact,
   saveMessage,
   forward,
   report,
+  blockAndReport,
   saveToGallery,
   retrySend,
   deleteLocal,
@@ -119,6 +121,17 @@ class ChatScreenActions {
 
     if (action == ChatMessageAction.report) {
       await reportMessage(message);
+      return;
+    }
+
+    if (action == ChatMessageAction.blockAndReport) {
+      if (!context.mounted) return;
+      await const ChatReportActions().blockAndReportUser(
+        context: context,
+        peerId: chat.isGroup ? (message.senderPeerId ?? '') : chat.peerId,
+        controller: controller,
+        groupId: chat.isGroup ? chat.peerId : null,
+      );
       return;
     }
 
@@ -663,50 +676,12 @@ class ChatScreenActions {
     required ChatController controller,
     required Chat chat,
   }) async {
-    final shouldBlock = await showModalBottomSheet<bool>(
+    if (!context.mounted) return;
+    await const ChatReportActions().blockAndReportUser(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        final strings = context.strings;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(strings.blockUserTitle, style: theme.textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text(
-                  strings.blockUserDescription,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.muted,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.block_rounded),
-                  title: Text(strings.blockUser),
-                  onTap: () => Navigator.of(context).pop(true),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.close_rounded),
-                  title: Text(strings.cancel),
-                  onTap: () => Navigator.of(context).pop(false),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      peerId: chat.peerId,
+      controller: controller,
     );
-    if (shouldBlock != true) {
-      return;
-    }
-    await controller.blockPeer(chat.peerId);
   }
 
   Future<ChatAttachAction?> showAttachMenu({required BuildContext context}) {
@@ -858,6 +833,15 @@ class ChatScreenActions {
                     onTap: () {
                       Navigator.of(context).pop(ChatMessageAction.retrySend);
                     },
+                  ),
+                if (canReport)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.block_rounded),
+                    title: Text(strings.blockUser),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(ChatMessageAction.blockAndReport),
                   ),
                 if (canReport)
                   ListTile(

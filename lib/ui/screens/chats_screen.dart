@@ -95,6 +95,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             : CompactCardTileStyles.tileSeparatorHeight,
                       ),
                       child: ChatTile(
+                        preview: () => widget.controller.visiblePreview(chat),
                         key: ValueKey('chat-${chat.peerId}'),
                         chat: chat,
                         avatar: PeerAvatar(

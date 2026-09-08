@@ -12,8 +12,13 @@ import '../theme/app_theme.dart';
 
 class BlockedUsersScreen extends StatefulWidget {
   final SettingsController controller;
+  final Future<void> Function(String peerId)? unblockPeer;
 
-  const BlockedUsersScreen({super.key, required this.controller});
+  const BlockedUsersScreen({
+    super.key,
+    required this.controller,
+    this.unblockPeer,
+  });
 
   @override
   State<BlockedUsersScreen> createState() => _BlockedUsersScreenState();
@@ -58,7 +63,8 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                   subtitle: Text(_shortPeerId(peer.peerId)),
                   trailing: TextButton(
                     onPressed: () async {
-                      await widget.controller.unblockPeer(peer.peerId);
+                      await (widget.unblockPeer ??
+                          widget.controller.unblockPeer)(peer.peerId);
                       if (mounted) {
                         setState(() {});
                       }

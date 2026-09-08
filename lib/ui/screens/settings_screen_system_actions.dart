@@ -236,7 +236,10 @@ class SettingsScreenSystemActions {
   Future<void> openBlockedUsers(BuildContext context) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => BlockedUsersScreen(controller: controller),
+        builder: (_) => BlockedUsersScreen(
+          controller: controller,
+          unblockPeer: chatController.unblockPeer,
+        ),
       ),
     );
     if (isMounted() && context.mounted) {

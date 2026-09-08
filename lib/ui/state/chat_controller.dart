@@ -15,6 +15,7 @@ import '../../core/notification/notification_service.dart';
 import '../../core/runtime/app_file_logger.dart';
 import '../../core/runtime/moderation_report_models.dart';
 import '../../core/runtime/moderation_report_service.dart';
+import 'package:peerlink/features/chat/application/chat_safety_service.dart';
 import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/storage_service.dart';
 import '../../core/security/group_key_service.dart';
@@ -64,6 +65,7 @@ class ChatController with WidgetsBindingObserver {
   late final ChatCleanupCoordinator _cleanupCoordinator;
   late final PeerAccessControlService _accessControl;
   late final ModerationReportService _moderationReports;
+  late final ChatSafetyService _safetyService;
 
   final Map<String, Chat> chats = {};
   final Map<String, ChatConnectionStatus> _connectionStatus = {};
@@ -104,6 +106,7 @@ class ChatController with WidgetsBindingObserver {
 
     _accessControl = safety.accessControl;
     _moderationReports = safety.moderationReports;
+    _safetyService = safety.safetyService;
     _groupKeyService = persistence.groupKeyService;
     _outboundCodec = messaging.outboundCodec;
     _chatSummaryService = persistence.summaryService;
@@ -559,8 +562,16 @@ class ChatController with WidgetsBindingObserver {
   }
 
   List<Chat> getChatsSorted() {
-    return _directLifecycleService.getChatsSorted();
+    return _directLifecycleService
+        .getChatsSorted()
+        .where(_safetyService.isChatVisible)
+        .toList(growable: false);
   }
+
+  List<Message> visibleMessages(Chat chat) =>
+      _safetyService.visibleMessages(chat);
+
+  Message? visiblePreview(Chat chat) => _safetyService.visiblePreview(chat);
 
   Future<void> clearManagedMediaReferencesInMemory() async {
     await _cleanupCoordinator.clearManagedMediaReferencesInMemory();
@@ -593,18 +604,23 @@ class ChatController with WidgetsBindingObserver {
   bool isPeerBlocked(String peerId) => _accessControl.isBlocked(peerId);
 
   Future<void> blockPeer(String peerId, {String? reason}) async {
-    await _accessControl.blockPeer(peerId, reason: reason);
-    await runtime.syncPushDeviceState(reason: 'block_peer', forcePolicy: true);
-    _notifyMessageUpdated(peerId);
+    await blockAndReportPeer(
+      peerId,
+      reason: ModerationReportReason.values.firstWhere(
+        (value) => value.name == reason,
+        orElse: () => ModerationReportReason.other,
+      ),
+    );
   }
 
+  Future<void> blockAndReportPeer(
+    String peerId, {
+    required ModerationReportReason reason,
+    String? groupId,
+  }) => _safetyService.blockAndReport(peerId, reason: reason, groupId: groupId);
+
   Future<void> unblockPeer(String peerId) async {
-    await _accessControl.unblockPeer(peerId);
-    await runtime.syncPushDeviceState(
-      reason: 'unblock_peer',
-      forcePolicy: true,
-    );
-    _notifyMessageUpdated(peerId);
+    await _safetyService.unblock(peerId);
   }
 
   Future<void> reportPeer({

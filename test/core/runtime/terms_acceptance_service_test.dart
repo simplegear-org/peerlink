@@ -41,7 +41,7 @@ void main() {
   test('requires reacceptance when stored version is stale', () async {
     final settings = storage.getSettings();
     await settings.put(TermsAcceptanceService.termsAcceptedKey, true);
-    await settings.put(TermsAcceptanceService.termsVersionKey, 'old');
+    await settings.put(TermsAcceptanceService.termsVersionKey, '2026-08-24');
     await settings.put(
       TermsAcceptanceService.termsAcceptedAtKey,
       DateTime.utc(2026, 1, 1).toIso8601String(),

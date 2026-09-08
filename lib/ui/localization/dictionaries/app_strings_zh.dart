@@ -106,7 +106,7 @@ const appStringsZh = <String, String>{
   'chatName': '聊天名称',
   'members': '成员',
   'deleteChatTitle': '删除聊天？',
-  'blockUser': '屏蔽用户',
+  'blockUser': '屏蔽并举报',
   'unblockUser': '取消屏蔽',
   'blockUserTitle': '屏蔽此用户？',
   'blockUserDescription': '你将不再接收来自此 PeerLink X ID 的消息、通话或邀请。',
@@ -123,7 +123,8 @@ const appStringsZh = <String, String>{
   'termsTitle': '条款与安全',
   'termsVersion': '版本 {version}',
   'termsIntro': '使用 PeerLink X 通信功能前，请先接受这些条款。',
-  'termsRuleRespect': '不得使用 PeerLink X 发送威胁、骚扰、垃圾信息、非法内容或进行滥用。',
+  'termsRuleRespect':
+      'PeerLink X 对不当内容和滥用行为的用户采取零容忍政策。禁止威胁、骚扰、垃圾信息、非法内容及其他滥用行为。',
   'termsRuleReport': '用户可以屏蔽联系人并举报滥用。审核可能限制对 PeerLink X 基础设施的访问。',
   'termsRulePrivacy': '举报只发送最少元数据。不会发送消息内容、私钥、会话密钥、联系人或聊天历史。',
   'termsRuleRestriction': '如果账号受限，本地历史和媒体仍保留在此设备上。',

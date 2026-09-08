@@ -3,6 +3,22 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.11.9+2026090802] - 2026-09-08
+
+### Changed
+
+- Added **Block and Report** flow for abusive users.
+- Blocking now immediately hides blocked users and their content while submitting a moderation report.
+- Added offline-safe report queueing and automatic retry.
+- Improved blocked-user handling for direct and group chats.
+- Added moderation report integration with the existing moderation dashboard.
+- Added 24-hour report handling SLA tracking with approaching-deadline and `OVERDUE` indicators.
+- Updated Terms & Safety with explicit zero-tolerance policy for objectionable content and abusive users.
+- Updated Terms acceptance version to require acceptance of the new safety policy.
+- Preserved metadata-only moderation reporting without exposing private E2EE message content, media, chat history, or encryption keys.
+- Added automated coverage for blocking, reporting, offline retry, content visibility, unblocking, and Terms acceptance flows.
+
+
 ## [3.11.8+2026090801] - 2026-09-08
 
 ### Fixed

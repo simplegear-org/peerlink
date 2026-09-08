@@ -14,6 +14,7 @@ import 'swipe_delete_tile.dart';
 
 class ChatTile extends StatelessWidget {
   final Chat chat;
+  final Message? Function()? preview;
   final VoidCallback onTap;
   final Future<bool> Function() onDeleteRequested;
   final Widget? avatar;
@@ -21,6 +22,7 @@ class ChatTile extends StatelessWidget {
   const ChatTile({
     super.key,
     required this.chat,
+    this.preview,
     required this.onTap,
     required this.onDeleteRequested,
     this.avatar,
@@ -28,8 +30,8 @@ class ChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final last = chat.lastMessage?.text ?? "";
-    final lastMessage = chat.lastMessage;
+    final lastMessage = preview != null ? preview!() : chat.lastMessage;
+    final last = lastMessage?.text ?? '';
     final theme = Theme.of(context);
     final strings = context.strings;
     final unreadCount = chat.unreadCount;

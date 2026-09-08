@@ -25,6 +25,7 @@ import '../widgets/contact_tile.dart';
 import '../widgets/peer_avatar.dart';
 import 'chat_screen_helpers.dart';
 import 'chat_screen.dart';
+import 'chat_report_actions.dart';
 import 'contacts_screen_view.dart';
 import 'qr_scan_screen.dart';
 
@@ -416,7 +417,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
       case _ContactAction.rename:
         await _showRenameContactDialog(contact);
       case _ContactAction.block:
-        await widget.controller.blockPeer(contact.peerId);
+        await const ChatReportActions().blockAndReportUser(
+          context: context,
+          peerId: contact.peerId,
+          controller: widget.controller,
+        );
         if (mounted) {
           setState(() {});
         }

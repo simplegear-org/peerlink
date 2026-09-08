@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:peerlink/core/runtime/moderation_api_client.dart';
 import 'package:peerlink/core/security/identity_service.dart';
 
@@ -73,8 +74,9 @@ void main() {
         'reason': 'illegalContent',
         'reporterPeerId': identity.nodeId,
         'reportedPeerId': 'bad-peer',
-        'contentEncrypted': false,
-        'content': null,
+        'contentEncrypted': true,
+        'content': {'text': 'private text', 'sessionKey': 'private key'},
+        'history': 'private history',
         'createdAt': '2026-08-24T00:00:00.000Z',
       },
     );
@@ -87,6 +89,24 @@ void main() {
     expect(body['reportedPeerId'], 'bad-peer');
     expect(body.containsKey('sig'), isTrue);
     expect(body.containsKey('signingPub'), isTrue);
+    expect(body['contentEncrypted'], isFalse);
+    expect(body.containsKey('encryptedContent'), isFalse);
+    expect(jsonEncode(body), isNot(contains('private')));
+    final payload =
+        '${body['id']}|${body['from']}|${body['reportedPeerId']}|${body['reason']}|${body['type']}|false|{}|${body['ts']}';
+    expect(
+      await Ed25519().verify(
+        utf8.encode(payload),
+        signature: Signature(
+          base64Decode(body['sig'] as String),
+          publicKey: SimplePublicKey(
+            base64Decode(body['signingPub'] as String),
+            type: KeyPairType.ed25519,
+          ),
+        ),
+      ),
+      isTrue,
+    );
   });
 
   test('fetches status from moderation endpoint', () async {

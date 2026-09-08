@@ -6,6 +6,7 @@
 
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/core/runtime/moderation_report_service.dart';
+import 'chat_safety_service.dart';
 import 'package:peerlink/core/runtime/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
@@ -95,10 +96,12 @@ class ChatSafetyDependencies {
   const ChatSafetyDependencies({
     required this.accessControl,
     required this.moderationReports,
+    required this.safetyService,
   });
 
   final PeerAccessControlService accessControl;
   final ModerationReportService moderationReports;
+  final ChatSafetyService safetyService;
 }
 
 typedef ChatControllerDependenciesFactory =

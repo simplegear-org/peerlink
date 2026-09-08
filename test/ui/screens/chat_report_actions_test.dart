@@ -16,6 +16,18 @@ class _FakeChatController implements ChatController {
   ModerationReportReason? reason;
   Message? selectedMessage;
   String? groupId;
+  String? blockedPeerId;
+
+  @override
+  Future<void> blockAndReportPeer(
+    String peerId, {
+    required ModerationReportReason reason,
+    String? groupId,
+  }) async {
+    blockedPeerId = peerId;
+    this.reason = reason;
+    this.groupId = groupId;
+  }
 
   @override
   Future<void> reportPeer({
@@ -97,5 +109,20 @@ void main() {
     expect(controller.groupId, 'group:1');
     expect(controller.deletedPeerId, 'group:1');
     expect(controller.deletedMessageId, 'm1');
+
+    final blockFuture = actions.blockAndReportUser(
+      context: context,
+      peerId: 'bad-peer',
+      controller: controller,
+      groupId: chat.peerId,
+    );
+    await tester.pumpAndSettle();
+    expect(controller.blockedPeerId, isNull);
+    await tester.tap(find.text('Spam'));
+    await tester.pumpAndSettle();
+    await blockFuture;
+    expect(controller.blockedPeerId, 'bad-peer');
+    expect(controller.reason, ModerationReportReason.spam);
+    expect(controller.groupId, 'group:1');
   });
 }

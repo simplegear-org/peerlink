@@ -16,6 +16,7 @@ import 'message_bubble_text.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
+  final bool showReplyPreview;
   final String? senderLabel;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -28,6 +29,7 @@ class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
+    this.showReplyPreview = true,
     this.senderLabel,
     this.onTap,
     this.onLongPress,
@@ -130,7 +132,8 @@ class MessageBubble extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                         ],
-                        if (message.replyToTextPreview != null &&
+                        if (showReplyPreview &&
+                            message.replyToTextPreview != null &&
                             message.replyToTextPreview!.trim().isNotEmpty) ...[
                           MessageReplyPreview(
                             senderLabel: replySenderLabel,

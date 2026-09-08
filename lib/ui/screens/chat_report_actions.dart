@@ -40,6 +40,32 @@ class ChatReportActions {
     );
   }
 
+  Future<void> blockAndReportUser({
+    required BuildContext context,
+    required String peerId,
+    required ChatController controller,
+    String? groupId,
+  }) async {
+    final reason = await showReportReasonSheet(context: context);
+    if (reason == null || !context.mounted) return;
+    try {
+      await controller.blockAndReportPeer(
+        peerId,
+        reason: reason,
+        groupId: groupId,
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.strings.reportSent)));
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.strings.reportFailed(error))),
+      );
+    }
+  }
+
   Future<void> reportMessage({
     required BuildContext context,
     required Chat chat,

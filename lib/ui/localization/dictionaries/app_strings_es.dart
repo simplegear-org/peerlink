@@ -117,7 +117,7 @@ const appStringsEs = <String, String>{
   'chatName': 'Nombre del chat',
   'members': 'Miembros',
   'deleteChatTitle': '¿Eliminar chat?',
-  'blockUser': 'Bloquear usuario',
+  'blockUser': 'Bloquear y denunciar',
   'unblockUser': 'Desbloquear usuario',
   'blockUserTitle': '¿Bloquear a este usuario?',
   'blockUserDescription':
@@ -138,7 +138,7 @@ const appStringsEs = <String, String>{
   'termsIntro':
       'Acepta estos términos antes de usar las funciones de comunicación de PeerLink X.',
   'termsRuleRespect':
-      'No uses PeerLink X para amenazas, acoso, mensajes no deseados, contenido ilegal ni abuso.',
+      'PeerLink X tiene tolerancia cero con el contenido inapropiado y los usuarios abusivos. Se prohíben las amenazas, el acoso, el spam, el contenido ilegal y cualquier otro comportamiento abusivo.',
   'termsRuleReport':
       'Los usuarios pueden bloquear contactos y reportar abusos. La moderación puede restringir el acceso a la infraestructura de PeerLink X.',
   'termsRulePrivacy':

@@ -17,6 +17,7 @@ class ChatScreenMessageList extends StatelessWidget {
   final AppStrings strings;
   final ScrollController scrollController;
   final List<Message> visibleMessages;
+  final bool Function(Message message)? showReplyPreviewFor;
   final bool initialPositionApplied;
   final bool isLoadingMore;
   final bool hasMoreMessages;
@@ -46,6 +47,7 @@ class ChatScreenMessageList extends StatelessWidget {
     required this.strings,
     required this.scrollController,
     required this.visibleMessages,
+    this.showReplyPreviewFor,
     required this.initialPositionApplied,
     required this.isLoadingMore,
     required this.hasMoreMessages,
@@ -132,6 +134,7 @@ class ChatScreenMessageList extends StatelessWidget {
         KeyedSubtree(
           key: messageKeyFor(message.id),
           child: MessageBubble(
+            showReplyPreview: showReplyPreviewFor?.call(message) ?? true,
             message: message,
             senderLabel: senderLabelFor(message),
             replySenderLabel: replySenderLabelFor(message),

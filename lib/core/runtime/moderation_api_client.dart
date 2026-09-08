@@ -46,13 +46,11 @@ class ModerationApiClient {
       throw ArgumentError.value(report, 'report', 'invalid moderation report');
     }
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final encryptedContent = report['content'] is Map
-        ? _normalizeJsonValue(report['content']) as Map<String, dynamic>
-        : const <String, dynamic>{};
-    final contentEncrypted = report['contentEncrypted'] == true;
+    // Metadata-only even when replaying legacy outbox entries.
+    const contentEncrypted = false;
     final payloadToSign =
         '$requestId|$reporterPeerId|$reportedPeerId|$reason|'
-        '$type|$contentEncrypted|${jsonEncode(_sortJsonValue(encryptedContent))}|$ts';
+        '$type|$contentEncrypted|{}|$ts';
     final sig = await _sign(identity, payloadToSign);
     final signingPub = base64Encode(identity.signingPublicKey.bytes);
     await _postJson(baseUri, '/moderation/reports', <String, dynamic>{
@@ -66,7 +64,6 @@ class ModerationApiClient {
       'reporterPeerId': reporterPeerId,
       'reportedPeerId': reportedPeerId,
       'contentEncrypted': contentEncrypted,
-      if (encryptedContent.isNotEmpty) 'encryptedContent': encryptedContent,
       if (report['createdAt'] != null) 'createdAt': report['createdAt'],
     });
   }
@@ -203,45 +200,6 @@ class ModerationApiClient {
       default:
         return normalized;
     }
-  }
-
-  dynamic _normalizeJsonValue(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-    if (value is Map) {
-      final normalized = <String, dynamic>{};
-      value.forEach((key, item) {
-        final trimmedKey = key.toString().trim();
-        if (trimmedKey.isEmpty || item == null) {
-          return;
-        }
-        normalized[trimmedKey] = _normalizeJsonValue(item);
-      });
-      return _sortJsonValue(normalized);
-    }
-    if (value is Iterable) {
-      return value.map(_normalizeJsonValue).toList(growable: false);
-    }
-    if (value is num || value is bool || value is String) {
-      return value;
-    }
-    return value.toString();
-  }
-
-  dynamic _sortJsonValue(dynamic value) {
-    if (value is Map) {
-      final keys = value.keys.map((item) => item.toString()).toList()..sort();
-      final sorted = <String, dynamic>{};
-      for (final key in keys) {
-        sorted[key] = _sortJsonValue(value[key]);
-      }
-      return sorted;
-    }
-    if (value is List) {
-      return value.map(_sortJsonValue).toList(growable: false);
-    }
-    return value;
   }
 
   String _requestId(String prefix) {

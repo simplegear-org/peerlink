@@ -232,7 +232,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final strings = context.strings;
-    final visibleMessages = widget.chat.messages;
+    final visibleMessages = widget.controller.visibleMessages(widget.chat);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
@@ -274,6 +274,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 strings: strings,
                 scrollController: _scrollCoordinator.scrollController,
                 visibleMessages: visibleMessages,
+                showReplyPreviewFor: (message) => !widget.controller
+                    .isPeerBlocked(message.replyToSenderPeerId ?? ''),
                 initialPositionApplied:
                     _scrollCoordinator.initialPositionApplied,
                 isLoadingMore: _scrollCoordinator.isLoadingMore,
@@ -783,18 +785,26 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildComposer() {
+    final target = _composerCoordinator.replyToMessage;
+    final visibleReply =
+        target != null &&
+        !widget.controller.isPeerBlocked(
+          _isGroupChat
+              ? (target.senderPeerId ?? target.peerId)
+              : widget.chat.peerId,
+        );
     return ChatComposer(
       textController: textCtrl,
       isSendingText: _composerCoordinator.isSendingText,
       isRecordingVoice: _audioActions.isRecordingVoice,
       hasStoppedRecording: _audioActions.hasStoppedRecording,
       recordingDuration: _audioActions.recordingDuration,
-      replySenderLabel: _composerCoordinator.replyToMessage == null
+      replySenderLabel: !visibleReply
           ? null
           : _presenter.replySenderLabelFor(
               _composerCoordinator.replyToMessage!,
             ),
-      replyTextPreview: _composerCoordinator.replyToMessage == null
+      replyTextPreview: !visibleReply
           ? null
           : _presenter.replyPreviewFor(_composerCoordinator.replyToMessage!),
       onAttachPressed: _handlePickFilePressed,

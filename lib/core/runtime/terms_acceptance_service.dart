@@ -19,7 +19,7 @@ class TermsAcceptanceState {
 }
 
 class TermsAcceptanceService {
-  static const String currentTermsVersion = '2026-08-24';
+  static const String currentTermsVersion = '2026-09-08';
   static const String termsAcceptedKey = 'peerlink.terms.accepted.v1';
   static const String termsVersionKey = 'peerlink.terms.version.v1';
   static const String termsAcceptedAtKey = 'peerlink.terms.accepted_at.v1';
