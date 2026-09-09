@@ -444,11 +444,13 @@ class RelayHttpTransport {
         restartIdleTimer();
         chunks.add(chunk);
         receivedBytes += chunk.length;
-        onProgress?.call(
-          receivedBytes: receivedBytes,
-          totalBytes: totalBytes,
-          status: RelayTransferStatus.incomingDownloading,
-        );
+        if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+          onProgress?.call(
+            receivedBytes: receivedBytes,
+            totalBytes: totalBytes,
+            status: RelayTransferStatus.incomingDownloading,
+          );
+        }
       },
       onError: (Object error, StackTrace stackTrace) {
         complete(RelayAwaitResult<http.Response>.error(error, stackTrace));
@@ -513,11 +515,13 @@ class RelayHttpTransport {
         restartIdleTimer();
         chunks.add(chunk);
         receivedBytes += chunk.length;
-        onProgress?.call(
-          receivedBytes: receivedBytes,
-          totalBytes: totalBytes,
-          status: RelayTransferStatus.incomingDownloading,
-        );
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          onProgress?.call(
+            receivedBytes: receivedBytes,
+            totalBytes: totalBytes,
+            status: RelayTransferStatus.incomingDownloading,
+          );
+        }
       },
       onError: (Object error, StackTrace stackTrace) {
         complete(RelayAwaitResult<http.Response>.error(error, stackTrace));

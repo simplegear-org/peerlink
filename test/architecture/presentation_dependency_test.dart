@@ -253,6 +253,69 @@ void main() {
     expect(source.content, contains('ChatMediaApi'));
   });
 
+  test('ChatController uses ChatHistoryApi for history workflows', () {
+    final source = dartSourcesUnder(const ['lib/ui/state']).singleWhere(
+      (source) => source.path == 'lib/ui/state/chat_controller.dart',
+    );
+    final imports = source
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .toSet();
+
+    expect(
+      imports,
+      isNot(
+        contains(
+          'lib/features/chat/application/chat_history_load_coordinator.dart',
+        ),
+      ),
+      reason:
+          'ChatController should use ChatHistoryApi instead of owning '
+          'ChatHistoryLoadCoordinator.',
+    );
+    expect(source.content, contains('ChatHistoryApi'));
+  });
+
+  test('ChatController does not mutate message collections directly', () {
+    final source = dartSourcesUnder(const ['lib/ui/state']).singleWhere(
+      (source) => source.path == 'lib/ui/state/chat_controller.dart',
+    );
+
+    expect(
+      RegExp(
+        r'\.messages\s*\.\s*(add|addAll|insert|insertAll|remove|removeWhere|clear)\s*\(',
+      ).hasMatch(source.content),
+      isFalse,
+      reason:
+          'ChatController must mutate messages through ChatMessagesApi, not '
+          'through Chat.messages directly.',
+    );
+  });
+
+  test('ChatController avoids cleanup and moderation implementations', () {
+    final source = dartSourcesUnder(const ['lib/ui/state']).singleWhere(
+      (source) => source.path == 'lib/ui/state/chat_controller.dart',
+    );
+    final imports = source
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .toSet();
+
+    expect(
+      imports.intersection(const {
+        'lib/features/chat/application/chat_cleanup_coordinator.dart',
+        'lib/features/chat/application/chat_safety_service.dart',
+        'lib/core/runtime/moderation_report_service.dart',
+        'lib/core/runtime/peer_access_control_service.dart',
+        'lib/core/security/group_key_service.dart',
+        'lib/core/relay/relay_media_transfer_service.dart',
+      }),
+      isEmpty,
+    );
+  });
+
   test('migrated settings application paths remain forwarding exports', () {
     final violations = <String>[];
 

@@ -12,7 +12,7 @@ import 'package:peerlink/features/chat/application/chat_group_crypto_coordinator
 import 'package:peerlink/features/chat/application/chat_group_inbound_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_group_outbound_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_group_service.dart';
-import 'package:peerlink/features/chat/application/chat_history_load_coordinator.dart';
+import 'package:peerlink/features/chat/application/chat_history_api.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 import 'package:peerlink/features/chat/application/chat_cleanup_coordinator.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
@@ -122,7 +122,7 @@ class ChatControllerGroupsApi implements ChatGroupsApi {
     required ChatGroupOutboundCoordinator groupOutboundCoordinator,
     required ChatGroupInboundCoordinator groupInboundCoordinator,
     required ChatSummaryService summaryService,
-    required ChatHistoryLoadCoordinator historyLoadCoordinator,
+    required ChatHistoryApi historyApi,
     required ChatCleanupCoordinator cleanupCoordinator,
     required Map<String, Chat> chats,
     required Future<void> Function(Chat chat) persistChatSummary,
@@ -133,7 +133,7 @@ class ChatControllerGroupsApi implements ChatGroupsApi {
        _groupOutboundCoordinator = groupOutboundCoordinator,
        _groupInboundCoordinator = groupInboundCoordinator,
        _summaryService = summaryService,
-       _historyLoadCoordinator = historyLoadCoordinator,
+       _historyApi = historyApi,
        _cleanupCoordinator = cleanupCoordinator,
        _chats = chats,
        _persistChatSummary = persistChatSummary,
@@ -145,7 +145,7 @@ class ChatControllerGroupsApi implements ChatGroupsApi {
   final ChatGroupOutboundCoordinator _groupOutboundCoordinator;
   final ChatGroupInboundCoordinator _groupInboundCoordinator;
   final ChatSummaryService _summaryService;
-  final ChatHistoryLoadCoordinator _historyLoadCoordinator;
+  final ChatHistoryApi _historyApi;
   final ChatCleanupCoordinator _cleanupCoordinator;
   final Map<String, Chat> _chats;
   final Future<void> Function(Chat chat) _persistChatSummary;
@@ -370,7 +370,7 @@ class ChatControllerGroupsApi implements ChatGroupsApi {
 
   @override
   Future<void> runGroupKeyGc() {
-    return _historyLoadCoordinator.runGroupKeyGc();
+    return _historyApi.runGroupKeyGc();
   }
 
   @override

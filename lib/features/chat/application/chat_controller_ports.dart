@@ -22,10 +22,6 @@ abstract interface class ChatPresentationStatePort {
 
   Future<void> ensureChatLoaded(String peerId);
 
-  Future<void> persistLoadedChat(String peerId);
-
-  void schedulePersistLoadedChat(String peerId);
-
   Future<void> persistChatSummary(Chat chat);
 
   void schedulePersistChatSummary(String peerId);

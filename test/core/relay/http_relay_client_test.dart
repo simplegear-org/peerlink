@@ -338,4 +338,168 @@ void main() {
       expect(result.payload, isEmpty);
     },
   );
+
+  test('fetchBlob does not report download progress for a 404 body', () async {
+    final progress = <int>[];
+    final client = HttpRelayClient(
+      servers: ['http://relay.example'],
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/health') {
+          return http.Response('', 200);
+        }
+        return http.Response('{"error":"blob not found"}', 404);
+      }),
+    );
+
+    final result = await client.fetchBlob(
+      'missing-blob',
+      onProgress:
+          ({required receivedBytes, required totalBytes, required status}) =>
+              progress.add(receivedBytes),
+    );
+
+    expect(result.isNotFound, isTrue);
+    expect(progress, isEmpty);
+  });
+
+  test('storeBlob requires every available relay', () async {
+    final uploads = <String>[];
+    final client = HttpRelayClient(
+      servers: [
+        'http://relay1.example',
+        'http://relay2.example',
+        'http://relay3.example',
+      ],
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/health') {
+          return http.Response('', 200);
+        }
+        if (request.url.path == '/relay/blob/upload') {
+          uploads.add(request.url.host);
+          return request.url.host == 'relay3.example'
+              ? http.Response('offline', 503)
+              : http.Response('', 200);
+        }
+        return http.Response('unexpected', 500);
+      }),
+    );
+    final blob = RelayBlobUploadEnvelope(
+      id: 'blob-123',
+      from: 'alice',
+      groupId: 'dm:alice|bob',
+      fileName: 'hello.txt',
+      mimeType: 'text/plain',
+      timestampMs: 1000,
+      ttlSeconds: 3600,
+      payload: Uint8List.fromList(utf8.encode('hello')),
+      signature: Uint8List.fromList([11, 22]),
+      senderSigningPublicKey: Uint8List.fromList([33, 44]),
+    );
+
+    await expectLater(client.storeBlob(blob), throwsA(isA<Exception>()));
+
+    expect(
+      uploads,
+      containsAll(<String>[
+        'relay1.example',
+        'relay2.example',
+        'relay3.example',
+      ]),
+    );
+  });
+
+  test(
+    'chunked storeBlob reports one monotonic replication progress',
+    () async {
+      final progress = <int>[];
+      final client = HttpRelayClient(
+        servers: [
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/health') {
+            return http.Response('', 200);
+          }
+          if (request.url.path == '/relay/blob/upload/chunk' ||
+              request.url.path == '/relay/blob/upload/complete') {
+            return http.Response('', 200);
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+      final payload = Uint8List(512 * 1024);
+      final blob = RelayBlobUploadEnvelope(
+        id: 'blob-123',
+        from: 'alice',
+        groupId: 'dm:alice|bob',
+        fileName: 'large.bin',
+        mimeType: 'application/octet-stream',
+        timestampMs: 1000,
+        ttlSeconds: 3600,
+        payload: payload,
+        signature: Uint8List.fromList([11, 22]),
+        senderSigningPublicKey: Uint8List.fromList([33, 44]),
+      );
+
+      await client.storeBlob(
+        blob,
+        onProgress:
+            ({required sentBytes, required totalBytes, required status}) =>
+                progress.add(sentBytes),
+      );
+
+      expect(progress, orderedEquals(progress.toList()..sort()));
+      expect(progress.last, payload.length);
+      expect(progress.where((bytes) => bytes == payload.length), hasLength(1));
+    },
+  );
+
+  test(
+    'chunked storeBlob excludes a relay that times out mid-upload',
+    () async {
+      final completedServers = <String>[];
+      final client = HttpRelayClient(
+        servers: [
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/health') {
+            return http.Response('', 200);
+          }
+          if (request.url.path == '/relay/blob/upload/chunk' &&
+              request.url.host == 'relay1.example') {
+            throw const SocketException('timed out');
+          }
+          if (request.url.path == '/relay/blob/upload/chunk') {
+            return http.Response('', 200);
+          }
+          if (request.url.path == '/relay/blob/upload/complete') {
+            completedServers.add(request.url.host);
+            return http.Response('', 200);
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+      final blob = RelayBlobUploadEnvelope(
+        id: 'blob-123',
+        from: 'alice',
+        groupId: 'dm:alice|bob',
+        fileName: 'large.bin',
+        mimeType: 'application/octet-stream',
+        timestampMs: 1000,
+        ttlSeconds: 3600,
+        payload: Uint8List(512 * 1024),
+        signature: Uint8List.fromList([11, 22]),
+        senderSigningPublicKey: Uint8List.fromList([33, 44]),
+      );
+
+      await client.storeBlob(blob);
+
+      expect(completedServers, <String>['relay2.example', 'relay3.example']);
+    },
+  );
 }

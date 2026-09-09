@@ -190,6 +190,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     _callCoordinator.start();
     _lifecycleCoordinator = AppLifecycleCoordinator(
       refreshRestrictionStatus: _refreshRestrictionStatus,
+      retryModerationReports: ui.moderationLifecycleService.handleAppResumed,
     );
     _deepLinkCoordinator = AppDeepLinkCoordinator(
       calls: widget.facade,

@@ -2,6 +2,60 @@
 
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
+## [3.12.9+2026090902] - 2026-09-09
+
+### Изменено
+
+- Moderation выделен в bounded context `lib/features/moderation` с слоями
+  `domain`, `application` и `infrastructure`.
+- Добавлены узкие contracts `ModerationReportsApi`, `AccessPolicyApi` и
+  `ModerationStatusApi`; Chat safety и inbound используют contracts.
+- Retry durable outbox перенесён в `ModerationLifecycleService` (startup,
+  resume и восстановление connectivity), вне Chat lifecycle.
+- HTTP client, delivery и storage-backed report outbox перенесены в
+  moderation infrastructure; старые `core/runtime` пути оставлены как
+  compatibility exports.
+- Добавлены architecture guards для moderation boundaries.
+- Relay blob теперь реплицируется на все доступные relay выбранного рабочего
+  набора (не более 3), а не только на quorum. Timeout во время chunked upload
+  исключает relay из текущей операции; сохранение продолжается на остальных.
+- Progress исходящей репликации стал одной монотонной шкалой до 100%, без
+  повторного завершения для каждого relay.
+- Входящее relay-media игнорирует запоздалые исходящие progress-статусы и не
+  может показать «Отправка 100%» после получения.
+
+### Проверено
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test test/architecture` (48 тестов)
+- `flutter test`
+- `flutter test test/core/relay/http_relay_client_test.dart`
+- `flutter test test/features/chat/application/chat_media_restore_service_test.dart`
+- `flutter analyze` для изменённых relay/chat файлов.
+
+
+## [3.12.8+2026090901] - 2026-09-09
+
+### Изменено
+
+- Добавлен `ChatHistoryApi` для загрузки и выгрузки истории, пагинации,
+  unread anchor, persistence и поиска message offset.
+- Прямая mutation сообщений в `ChatController` переведена за `ChatMessagesApi`.
+- Добавлены узкие `ChatCleanupApi` и `ChatSafetyApi`: cleanup, moderation,
+  access policy, инициализация group keys и relay status больше не попадают в
+  presentation state.
+- Добавлены architecture guards для history, прямой mutation `Chat.messages` и
+  запрещённых cleanup/moderation/crypto/relay imports.
+
+### Проверено
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test test/architecture` (43 теста)
+- `flutter test test/features/chat` (15 тестов)
+- `flutter test` (438 тестов)
+
 
 ## [3.11.9+2026090802] - 2026-09-08
 

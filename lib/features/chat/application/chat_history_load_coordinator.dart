@@ -31,6 +31,7 @@ class ChatHistoryLoadCoordinator {
     required ChatSummaryService chatSummaryService,
     required ChatFileTransferCoordinator fileTransferCoordinator,
     required Map<String, Chat> chats,
+    required Chat Function(String peerId) ensureChat,
     required String Function(String peerId, {String? fallback}) contactNameFor,
     required Future<void> Function(Chat chat) persistChatSummary,
     required Future<void> Function(Message? message)
@@ -50,6 +51,7 @@ class ChatHistoryLoadCoordinator {
        _chatSummaryService = chatSummaryService,
        _fileTransferCoordinator = fileTransferCoordinator,
        _chats = chats,
+       _ensureChat = ensureChat,
        _contactNameFor = contactNameFor,
        _persistChatSummary = persistChatSummary,
        _deleteManagedMediaForMessage = deleteManagedMediaForMessage,
@@ -73,6 +75,7 @@ class ChatHistoryLoadCoordinator {
   final ChatSummaryService _chatSummaryService;
   final ChatFileTransferCoordinator _fileTransferCoordinator;
   final Map<String, Chat> _chats;
+  final Chat Function(String peerId) _ensureChat;
   final String Function(String peerId, {String? fallback}) _contactNameFor;
   final Future<void> Function(Chat chat) _persistChatSummary;
   final Future<void> Function(Message? message) _deleteManagedMediaForMessage;
@@ -87,6 +90,8 @@ class ChatHistoryLoadCoordinator {
       Queue<_ThumbnailBackfillItem>();
   final Set<String> _queuedThumbnailBackfills = <String>{};
   int _activeThumbnailBackfills = 0;
+
+  Future<void> initializeGroupKeys() => _groupKeyService.initialize();
 
   Future<void> loadChats() async {
     _chatSummaryService.loadGroupMetaFromSettings();
@@ -118,11 +123,8 @@ class ChatHistoryLoadCoordinator {
     unawaited(_resumePendingOutgoingRelayMedia(reason: 'startup'));
   }
 
-  Future<void> ensureChatLoaded(
-    String peerId, {
-    required Chat Function(String peerId) ensureChat,
-  }) async {
-    final chat = ensureChat(peerId);
+  Future<void> ensureChatLoaded(String peerId) async {
+    final chat = _ensureChat(peerId);
     if (chat.messagesLoaded) {
       return;
     }

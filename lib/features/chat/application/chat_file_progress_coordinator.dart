@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'package:peerlink/core/relay/relay_models.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_parts.dart';
@@ -88,6 +89,13 @@ class ChatFileProgressCoordinator {
           (relayTransferId.startsWith('dirblob:') ||
               relayTransferId.startsWith('grpblob:'));
       if (isIncomingRelayMedia && (msg.localFilePath?.isNotEmpty ?? false)) {
+        return;
+      }
+      if (isIncomingRelayMedia &&
+          RelayTransferStatus.normalize(
+                statusText,
+              )?.startsWith('transfer.outgoing.') ==
+              true) {
         return;
       }
       final nextProgress = (totalBytes == null || totalBytes <= 0)

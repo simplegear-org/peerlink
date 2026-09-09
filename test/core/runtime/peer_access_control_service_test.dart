@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
-import 'package:peerlink/core/runtime/peer_access_control_service.dart';
+import 'package:peerlink/features/moderation/application/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/ui/models/contact.dart';
 

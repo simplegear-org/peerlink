@@ -194,6 +194,12 @@ UI
   resume, incoming media restore/resume, embedded media restore, thumbnails,
   transfer progress/status helpers, and media lifecycle disposal are delegated
   to the chat application layer.
+- History workflows used by `ChatController` are behind `ChatHistoryApi`:
+  initial load, pagination, unread anchors, loaded-history persistence,
+  unload, message-offset lookup, and group-key initialization.
+- Cleanup and safety workflows are behind `ChatCleanupApi` and `ChatSafetyApi`;
+  presentation state must not import cleanup, moderation, access-control,
+  group-key, or relay-transfer implementations.
 - Account pairing/membership payload decoding lives in `chat_account_payload_decoder.dart`, and reply metadata creation lives in `chat_reply_metadata_resolver.dart`; `ChatController` must not absorb these responsibilities back into its body.
 - Group crypto is moved out of `ChatController` into `lib/core/security/group_message_crypto_service.dart` next to `group_key_service.dart`; UI/state code must not keep its own pack/unpack or encrypt/decrypt implementation for group payloads.
 - Group `memberPeerIds` must be kept in canonical form (`trim + unique + sort`) in both runtime state and persisted group meta, so equivalent membership sets do not create fake persistence churn due only to ordering.
@@ -251,11 +257,12 @@ UI
 - `NetworkDependencies`: dependency graph builder.
 - `AppBootstrapCoordinator`: post-bootstrap wiring (servers, background tasks).
 - Storage runtime (`StorageService` as facade, `storage_service_paths`, `storage_service_migrations`, `storage_service_media`). Production storage ownership is explicit in app/bootstrap entrypoints; the FCM background handler creates its own storage for the background isolate lifecycle. Feature repositories/database implementations should live under their owning feature modules; legacy `core/runtime` import paths remain only as temporary forwarding exports where needed.
-- `PeerAccessControlService` lives in `lib/core/runtime` next to runtime repositories and must not move into UI: UI only calls block/unblock/settings APIs, while runtime/chat/push/call paths use the shared allow/drop contract.
-- `ModerationReportService` creates metadata-only UGC reports: direct reports target the peer, group reports target the selected message author plus `groupId`, and message text/media is not included; after a report the UI hides the selected message locally for the reporter.
-- `ModerationApiClient` isolates the `/moderation/reports`, `/moderation/appeals`, and `/moderation/status` HTTP contract; `PushApiClient` must not contain moderation endpoints.
-- `ModerationDeliveryService` coordinates report/appeal/status delivery through configured push servers and keeps `MeshNode` as runtime wiring/facade.
-- `ModerationPolicyService` stores the local warning/ban snapshot, applies `moderation_policy` push/status events, verifies `signedStatus` when a pinned public key is configured, and persists warning acknowledgement / appeal submission so fullscreen warning/ban screens do not reappear after restart.
+- Moderation belongs to `lib/features/moderation`: domain owns report models,
+  application owns policy/report/access workflows and narrow contracts, and
+  infrastructure owns HTTP, delivery, and the persistent outbox. Related
+  `core/runtime/*` paths remain compatibility exports only.
+- `ModerationLifecycleService` retries pending reports on startup, resume, and
+  connectivity recovery; Chat lifecycle does not own the moderation outbox.
 - SQLite chat storage keeps message uniqueness scoped to a chat through `(peerId, messageId)`, so the same message id in different chats cannot overwrite another chat's row.
 - Real SQLite chat persistence coverage exists in `test/core/runtime/storage_service_chat_messages_test.dart` through `ChatDatabaseChatMessageStore` and should be kept for chat-message persistence changes.
 - `StorageService` now acts as an orchestration/facade layer over storage helper modules, owns instance-scoped runtime state, and should not grow back into a monolith.

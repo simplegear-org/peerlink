@@ -11,7 +11,8 @@ import 'package:peerlink/core/messaging/chat_service.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
-import 'package:peerlink/core/runtime/peer_access_control_service.dart';
+import 'package:peerlink/features/moderation/application/access_policy_api.dart';
+import 'package:peerlink/features/moderation/application/access_policy_models.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/profile/application/profile_avatar_inbound_handler.dart';
@@ -27,7 +28,7 @@ class ChatInboundService {
   final SecureStorageBox settingsBox;
   final ProfileAvatarInboundHandler avatarService;
   final ChatInboundClassifier inboundClassifier;
-  final PeerAccessControlService accessControl;
+  final AccessPolicyApi accessControl;
   late final ChatAccountInboundHandler _accountInboundHandler;
   final ChatGroupControlInboundHandler _groupControlInboundHandler =
       const ChatGroupControlInboundHandler();

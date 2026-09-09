@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:peerlink/core/runtime/moderation_policy_service.dart';
+import 'package:peerlink/features/moderation/application/moderation_policy_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 
 void main() {

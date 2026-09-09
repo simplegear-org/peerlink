@@ -173,6 +173,12 @@ UI
 - `ChatControllerDependencies` отдаёт grouped dependencies для persistence, messaging, groups, media/lifecycle и safety, а не плоский список concrete services.
 - Message workflows в `ChatController` проходят через `ChatMessagesApi`: send, retry, mark-read, receipt/status updates, unread/badge sync и message mutations.
 - Group workflows в `ChatController` проходят через `ChatGroupsApi`: создание групп, участники, metadata/avatar updates, group delete payloads, key rotation/sync и group cleanup.
+- History workflows в `ChatController` проходят через `ChatHistoryApi`: initial
+  load, pagination, unread anchor, persistence/unload loaded history, message
+  offset lookup и group-key initialization.
+- Cleanup и safety workflows проходят через `ChatCleanupApi` и `ChatSafetyApi`;
+  presentation state не должен импортировать cleanup, moderation,
+  access-control, group-key или relay-transfer implementations.
 - Decode account pairing/membership payload-ов вынесен в `chat_account_payload_decoder.dart`, а формирование reply metadata — в `chat_reply_metadata_resolver.dart`; `ChatController` не должен возвращать эти helper-ответственности в свое тело.
 - `ChatContactsService` использует общий `ContactsRepository` из
   `features/contacts`; отдельное чтение contacts storage в chat-state слое не
@@ -247,11 +253,12 @@ UI
 - `NetworkDependencies`: сборка dependency graph.
 - `AppBootstrapCoordinator`: post-bootstrap конфигурация (сервера, background-задачи).
 - Runtime storage (`StorageService` как facade, `storage_service_paths`, `storage_service_migrations`, `storage_service_media`). Feature repositories/database implementations должны жить в owning feature modules; legacy `core/runtime` import paths временно остаются только forwarding exports.
-- `PeerAccessControlService` живет в `lib/core/runtime` рядом с runtime repositories и не должен переноситься в UI: UI только вызывает block/unblock/settings API, а runtime/chat/push/call paths используют общий allow/drop контракт.
-- `ModerationReportService` формирует metadata-only UGC reports: direct report указывает собеседника, group report указывает автора выбранного сообщения и `groupId`, но не включает текст/медиа сообщения; UI после жалобы скрывает выбранное сообщение локально у репортера.
-- `ModerationApiClient` изолирует HTTP-контракт `/moderation/reports`, `/moderation/appeals`, `/moderation/status`; `PushApiClient` не должен содержать moderation endpoint-ы.
-- `ModerationDeliveryService` координирует отправку report/appeal/status через настроенные push-серверы и оставляет `MeshNode` только runtime wiring/facade-слоем.
-- `ModerationPolicyService` хранит локальный warning/ban snapshot, применяет `moderation_policy` push/status, проверяет `signedStatus` при заданном pinned public key, помнит подтвержденный warning и отправленную appeal, чтобы fullscreen warning/ban не показывался повторно после перезапуска.
+- Moderation принадлежит `lib/features/moderation`: domain содержит report
+  models, application — policy/report/access workflows и узкие contracts,
+  infrastructure — HTTP, delivery и persistent outbox. Пути `core/runtime/*`
+  для этих модулей оставлены только compatibility exports.
+- `ModerationLifecycleService` повторяет pending reports на startup, resume и
+  recovery connectivity; Chat lifecycle не владеет moderation outbox.
 - `StorageService` теперь выступает как orchestration/facade-слой над storage helper-модулями, держит runtime state на instance lifetime и не должен обратно разрастаться.
 - SQLite chat storage хранит уникальность сообщений в пределах конкретного чата: ключ `(peerId, messageId)` не допускает вытеснения сообщения из одного чата записью с таким же `messageId` в другом чате.
 - Real SQLite coverage для chat persistence идет через `ChatDatabaseChatMessageStore` в `test/core/runtime/storage_service_chat_messages_test.dart`.

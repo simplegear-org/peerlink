@@ -12,15 +12,19 @@ import 'package:peerlink/features/calls/platform/ios_callkit_service.dart';
 
 typedef AppRestrictionStatusRefresh =
     Future<void> Function({required String reason});
+typedef ModerationLifecycleResume = void Function();
 
 class AppLifecycleCoordinator {
   AppLifecycleCoordinator({
     required AppRestrictionStatusRefresh refreshRestrictionStatus,
+    ModerationLifecycleResume? retryModerationReports,
     IosCallkitService? iosCallkitService,
   }) : _refreshRestrictionStatus = refreshRestrictionStatus,
+       _retryModerationReports = retryModerationReports,
        _iosCallkitService = iosCallkitService ?? IosCallkitService.instance;
 
   final AppRestrictionStatusRefresh _refreshRestrictionStatus;
+  final ModerationLifecycleResume? _retryModerationReports;
   final IosCallkitService _iosCallkitService;
 
   void handleLifecycleState(AppLifecycleState state) {
@@ -29,6 +33,7 @@ class AppLifecycleCoordinator {
     }
     unawaited(_iosCallkitService.refreshVoipRegistration(reason: 'resume'));
     unawaited(_refreshRestrictionStatus(reason: 'resume'));
+    _retryModerationReports?.call();
     unawaited(FirebaseMessagingService.consumePendingOpenedPushIfAny());
   }
 }

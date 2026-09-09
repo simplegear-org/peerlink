@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
+import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/application/chat_file_progress_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_file_queue_service.dart';
@@ -290,6 +291,67 @@ void main() {
       RelayMediaTransferService.incomingDownloadStatus,
     );
     expect(chat.messages.single.sendProgress, 0.5);
+  });
+
+  test('incoming relay media ignores delayed outgoing progress', () async {
+    final chats = <String, Chat>{};
+    final chat = Chat(
+      peerId: 'peer-progress',
+      name: 'peer-progress',
+      messagesLoaded: true,
+    );
+    final message = ChatMessageCopy.copy(
+      _message(
+        peerId: chat.peerId,
+        messageId: 'm-progress',
+        transferId: 'dirblob:peer-progress|m-progress|blob-progress',
+      ),
+      sendProgress: 1.0,
+      transferStatus: RelayMediaTransferService.incomingCompleteStatus,
+    );
+    chat.messages.add(message);
+    chats[chat.peerId] = chat;
+    final mediaRestoreService = _service(
+      retry: retry,
+      messages: <String, Message>{},
+      backgroundRestores: backgroundRestores,
+    );
+    final progressCoordinator = ChatFileProgressCoordinator(
+      fileQueueService: ChatFileQueueService(),
+      chats: chats,
+      incomingMediaRestoreCoordinator: ChatIncomingMediaRestoreCoordinator(
+        mediaRestoreService: mediaRestoreService,
+        outboundCodec: const ChatOutboundCodec(
+          localPeerIdProvider: _testLocalPeerId,
+        ),
+        facade: _FakeChatRuntimeApi(),
+        decodeGroupBlobBytes:
+            ({required groupId, required encryptedBytes}) async =>
+                encryptedBytes,
+        decodeDirectBlobBytes:
+            ({required peerId, required encryptedBytes}) async =>
+                encryptedBytes,
+      ),
+      incomingRelayNotConfiguredStatus:
+          RelayMediaTransferService.incomingRelayNotConfiguredStatus,
+      incomingRelayUnavailableStatus:
+          RelayMediaTransferService.incomingRelayUnavailableStatus,
+      notifyMessageUpdated: (_) {},
+    );
+
+    await progressCoordinator.applyFileProgressUpdate(
+      chat.peerId,
+      message.id,
+      sentBytes: 100,
+      totalBytes: 100,
+      statusText: RelayTransferStatus.outgoingUploadingRelay,
+    );
+
+    expect(
+      chat.messages.single.transferStatus,
+      RelayMediaTransferService.incomingCompleteStatus,
+    );
+    expect(chat.messages.single.sendProgress, 1.0);
   });
 
   test(

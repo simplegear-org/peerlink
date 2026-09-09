@@ -13,7 +13,6 @@ import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 
 class ChatControllerLifecycleService {
   ChatControllerLifecycleService({
-    this.retryModerationReports,
     required ChatRuntimeApi facade,
     required void Function(String peerId, ChatConnectionStatus status)
     setPeerStatus,
@@ -34,15 +33,6 @@ class ChatControllerLifecycleService {
            resumeInterruptedIncomingMediaQueue;
 
   final ChatRuntimeApi _facade;
-  final Future<void> Function()? retryModerationReports;
-
-  Future<void> _retryReports() async {
-    try {
-      await retryModerationReports?.call();
-    } catch (error) {
-      _logQueue('moderation retry deferred: $error');
-    }
-  }
 
   final void Function(String peerId, ChatConnectionStatus status)
   _setPeerStatus;
@@ -59,7 +49,6 @@ class ChatControllerLifecycleService {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   void start() {
-    unawaited(_retryReports());
     _peerConnectedSub = _facade.peerConnectedStream.listen((peerId) {
       _setPeerStatus(peerId, ChatConnectionStatus.connected);
     });
@@ -72,7 +61,6 @@ class ChatControllerLifecycleService {
       if (!_hasNetworkConnectivity(results)) {
         return;
       }
-      unawaited(_retryReports());
       unawaited(_facade.pollRelay());
       unawaited(_resumePendingOutgoingRelayMedia(reason: 'connectivity'));
       unawaited(_resumeInterruptedIncomingMediaQueue(reason: 'connectivity'));
@@ -80,7 +68,6 @@ class ChatControllerLifecycleService {
   }
 
   void handleAppResumed() {
-    unawaited(_retryReports());
     _syncBadgeCount();
     _logQueue('resume app lifecycle');
     _resumeRecoverableFileQueue();

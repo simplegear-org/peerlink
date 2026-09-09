@@ -7,24 +7,28 @@ void main() {
   test('resume refreshes voip registration and restriction status', () async {
     final callkit = _FakeIosCallkitService();
     var restrictionRefreshes = 0;
+    var moderationRetries = 0;
     final coordinator = AppLifecycleCoordinator(
       iosCallkitService: callkit,
       refreshRestrictionStatus: ({required reason}) async {
         restrictionRefreshes++;
         expect(reason, 'resume');
       },
+      retryModerationReports: () => moderationRetries++,
     );
 
     coordinator.handleLifecycleState(AppLifecycleState.paused);
     await Future<void>.delayed(Duration.zero);
     expect(callkit.refreshes, 0);
     expect(restrictionRefreshes, 0);
+    expect(moderationRetries, 0);
 
     coordinator.handleLifecycleState(AppLifecycleState.resumed);
     await Future<void>.delayed(Duration.zero);
     expect(callkit.refreshes, 1);
     expect(callkit.lastReason, 'resume');
     expect(restrictionRefreshes, 1);
+    expect(moderationRetries, 1);
   });
 }
 

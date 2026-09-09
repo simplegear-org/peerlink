@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cryptography/cryptography.dart';
-import 'package:peerlink/core/runtime/moderation_api_client.dart';
+import 'package:peerlink/features/moderation/infrastructure/moderation_api_client.dart';
 import 'package:peerlink/core/security/identity_service.dart';
 
 class _MemoryIdentityKeyStore implements IdentityKeyStore {

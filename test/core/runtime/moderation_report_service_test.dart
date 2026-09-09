@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:peerlink/core/runtime/moderation_report_models.dart';
-import 'package:peerlink/core/runtime/moderation_report_service.dart';
+import 'package:peerlink/features/moderation/application/moderation_report_service.dart';
+import 'package:peerlink/features/moderation/domain/moderation_report_models.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 
 void main() {

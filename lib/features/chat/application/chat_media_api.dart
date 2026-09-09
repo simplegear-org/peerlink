@@ -21,6 +21,8 @@ import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 
 abstract interface class ChatMediaApi {
+  String get incomingRelayFetchStatus;
+
   Future<void> sendFile(
     String peerId, {
     required String fileName,
@@ -176,6 +178,10 @@ class ChatControllerMediaApi implements ChatMediaApi {
     required Message message,
   })
   _restoreMediaFromEmbedded;
+
+  @override
+  String get incomingRelayFetchStatus =>
+      RelayMediaTransferService.incomingFetchStatus;
 
   @override
   Future<void> sendFile(

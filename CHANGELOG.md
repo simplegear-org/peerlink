@@ -2,6 +2,60 @@
 
 All notable PeerLink application changes should be recorded in this file.
 
+## [3.12.9+2026090902] - 2026-09-09
+
+### Changed
+
+- Extracted Moderation into the `lib/features/moderation` bounded context with
+  `domain`, `application`, and `infrastructure` layers.
+- Added narrow `ModerationReportsApi`, `AccessPolicyApi`, and
+  `ModerationStatusApi` contracts; Chat safety and inbound now use contracts.
+- Moved durable outbox retry to `ModerationLifecycleService` for startup,
+  resume, and connectivity recovery, outside Chat lifecycle.
+- Moved HTTP client, delivery, and storage-backed report outbox to moderation
+  infrastructure; old `core/runtime` paths remain compatibility exports.
+- Added architecture guards for moderation boundaries.
+- Relay blobs are now replicated to every available relay in the selected
+  working set (up to 3), rather than only to a quorum. A timeout during chunked
+  upload excludes that relay from the current operation and storage continues
+  on the remaining relays.
+- Outgoing replication progress is now one monotonic scale to 100%, without a
+  separate completion for each relay.
+- Incoming relay media ignores delayed outgoing progress statuses and cannot
+  show `Sending 100%` after reception.
+
+### Verified
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test test/architecture` (48 tests)
+- `flutter test`
+- `flutter test test/core/relay/http_relay_client_test.dart`
+- `flutter test test/features/chat/application/chat_media_restore_service_test.dart`
+- `flutter analyze` for the changed relay/chat files.
+
+
+## [3.12.8+2026090901] - 2026-09-09
+
+### Changed
+
+- Added `ChatHistoryApi` for history loading, pagination, unread anchors,
+  persistence, unload, and message-offset lookup.
+- Moved direct message mutation in `ChatController` behind `ChatMessagesApi`.
+- Added narrow `ChatCleanupApi` and `ChatSafetyApi`; cleanup, moderation,
+  access policy, group-key initialization, and relay status no longer leak into
+  presentation state.
+- Added architecture guards for history, direct message collection mutation,
+  and forbidden cleanup/moderation/crypto/relay imports.
+
+### Verified
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test test/architecture` (43 tests)
+- `flutter test test/features/chat` (15 tests)
+- `flutter test` (438 tests)
+
 
 ## [3.11.9+2026090802] - 2026-09-08
 

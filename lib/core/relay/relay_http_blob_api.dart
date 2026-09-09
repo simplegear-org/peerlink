@@ -60,10 +60,11 @@ class RelayHttpBlobApi {
       totalBytes: envelope.payload.length,
       status: RelayTransferStatus.outgoingUploadingRelay,
     );
-    await messageApi.postUntilSuccess(
+    await messageApi.postToQuorum(
       '/relay/blob/upload',
       envelope.toJson(),
       operationName: 'blob-upload',
+      quorum: serverPool.maxActiveRelayPool,
     );
     onProgress?.call(
       sentBytes: envelope.payload.length,
@@ -99,6 +100,35 @@ class RelayHttpBlobApi {
       'blob-upload chunked start bytes=$totalBytes chunks=$totalChunks '
       'chunkSize=$blobChunkSizeBytes servers=${targets.length}',
     );
+    var successfulServers = 0;
+    var unavailableServers = 0;
+    void reportReplicatedProgress({
+      required int sentBytes,
+      required String status,
+    }) {
+      // UI progress represents the complete replication, rather than the
+      // current replica. This prevents the indicator from restarting for
+      // every relay while the same blob is replicated.
+      final boundedBytes = sentBytes < 0
+          ? 0
+          : sentBytes > totalBytes
+          ? totalBytes
+          : sentBytes;
+      final bytesBeforeFinalize =
+          status == RelayTransferStatus.outgoingFinalizing &&
+              boundedBytes == totalBytes
+          ? totalBytes - 1
+          : boundedBytes;
+      final activeReplicaCount = targets.length - unavailableServers;
+      onProgress?.call(
+        sentBytes:
+            (successfulServers * totalBytes + bytesBeforeFinalize) ~/
+            activeReplicaCount,
+        totalBytes: totalBytes,
+        status: status,
+      );
+    }
+
     for (final server in targets) {
       var endpointMissing = false;
       try {
@@ -159,9 +189,8 @@ class RelayHttpBlobApi {
 
             completedChunks += 1;
             completedBytes += chunkBytes.length;
-            onProgress?.call(
+            reportReplicatedProgress(
               sentBytes: completedBytes,
-              totalBytes: totalBytes,
               status: completedChunks == totalChunks
                   ? RelayTransferStatus.outgoingFinalizing
                   : RelayTransferStatus.outgoingUploadingRelay,
@@ -236,17 +265,36 @@ class RelayHttpBlobApi {
           'blob-upload chunked ok server=${server.toString()} '
           'bytes=$totalBytes chunks=$totalChunks',
         );
-        return true;
+        successfulServers += 1;
+        final activeReplicaCount = targets.length - unavailableServers;
+        onProgress?.call(
+          sentBytes: successfulServers * totalBytes ~/ activeReplicaCount,
+          totalBytes: totalBytes,
+          status: successfulServers == activeReplicaCount
+              ? RelayTransferStatus.outgoingFinalizing
+              : RelayTransferStatus.outgoingUploadingRelay,
+        );
       } on HttpException catch (e) {
         serverPool.markUnhealthy(server, 'blob-upload chunked http');
+        unavailableServers += 1;
         log('blob-upload chunked failed server=${server.toString()} error=$e');
         continue;
       } catch (e) {
         serverPool.markUnhealthy(server, 'blob-upload chunked error');
+        unavailableServers += 1;
         log('blob-upload chunked failed server=${server.toString()} error=$e');
         continue;
       }
     }
+    final requiredSuccesses = targets.length - unavailableServers;
+    if (successfulServers > 0 && successfulServers >= requiredSuccesses) {
+      return true;
+    }
+    log(
+      'blob-upload chunked quorum failed success=$successfulServers/'
+      '${targets.length} unavailable=$unavailableServers '
+      'required=$requiredSuccesses',
+    );
     return false;
   }
 

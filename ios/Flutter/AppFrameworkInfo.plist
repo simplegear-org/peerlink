@@ -17,10 +17,10 @@
   <key>CFBundlePackageType</key>
   <string>FMWK</string>
   <key>CFBundleShortVersionString</key>
-  <string>3.11.9</string>
+  <string>3.12.9</string>
   <key>CFBundleSignature</key>
   <string>????</string>
   <key>CFBundleVersion</key>
-  <string>2026090802</string>
+  <string>2026090902</string>
 </dict>
 </plist>

@@ -14,11 +14,7 @@ import '../../core/messaging/chat_service.dart';
 import '../../core/notification/notification_service.dart';
 import '../../core/runtime/app_file_logger.dart';
 import '../../core/runtime/moderation_report_models.dart';
-import '../../core/runtime/moderation_report_service.dart';
-import 'package:peerlink/features/chat/application/chat_safety_service.dart';
-import '../../core/runtime/peer_access_control_service.dart';
 import '../../core/runtime/storage_service.dart';
-import '../../core/security/group_key_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import '../models/contact.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -29,27 +25,22 @@ import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import 'package:peerlink/features/chat/application/chat_controller_ports.dart';
 import 'package:peerlink/features/chat/application/chat_controller_lifecycle_service.dart';
 import 'package:peerlink/features/chat/application/chat_contacts_service.dart';
-import 'package:peerlink/features/chat/application/chat_cleanup_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_direct_lifecycle_service.dart';
 import 'package:peerlink/features/chat/application/chat_groups_api.dart';
-import 'package:peerlink/features/chat/application/chat_history_load_coordinator.dart';
+import 'package:peerlink/features/chat/application/chat_history_api.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_service.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_subscription_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_media_api.dart';
 import 'package:peerlink/features/chat/application/chat_messages_api.dart';
 import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
-import '../../core/relay/relay_media_transfer_service.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
+import 'package:peerlink/features/chat/application/chat_cleanup_api.dart';
+import 'package:peerlink/features/chat/application/chat_safety_api.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 
 class ChatController with WidgetsBindingObserver {
   static int _lastGeneratedMessageId = 0;
-  static const String _incomingRelayFetchStatus =
-      RelayMediaTransferService.incomingFetchStatus;
   final ChatRuntimeApi runtime;
-  late final GroupKeyService _groupKeyService;
-  final RelayMediaTransferService _relayMediaTransfer =
-      const RelayMediaTransferService();
   late final ChatOutboundCodec _outboundCodec;
   late final ChatSummaryService _chatSummaryService;
   late final ChatControllerLifecycleService _lifecycleService;
@@ -61,11 +52,9 @@ class ChatController with WidgetsBindingObserver {
   late final ChatMediaApi _mediaApi;
   late final Future<void> _startupReady;
   late final ChatInboundSubscriptionCoordinator _inboundSubscriptionCoordinator;
-  late final ChatHistoryLoadCoordinator _historyLoadCoordinator;
-  late final ChatCleanupCoordinator _cleanupCoordinator;
-  late final PeerAccessControlService _accessControl;
-  late final ModerationReportService _moderationReports;
-  late final ChatSafetyService _safetyService;
+  late final ChatHistoryApi _historyApi;
+  late final ChatCleanupApi _cleanupApi;
+  late final ChatSafetyApi _safetyApi;
 
   final Map<String, Chat> chats = {};
   final Map<String, ChatConnectionStatus> _connectionStatus = {};
@@ -87,7 +76,6 @@ class ChatController with WidgetsBindingObserver {
       runtime: runtime,
       storage: storage,
       avatarService: avatarService,
-      relayMediaTransfer: _relayMediaTransfer,
       presentationState: _ChatControllerPresentationStatePort(this),
       connectionState: _ChatControllerConnectionStatePort(this),
       messageState: _ChatControllerMessageStatePort(this),
@@ -104,10 +92,7 @@ class ChatController with WidgetsBindingObserver {
     final mediaLifecycle = dependencies.mediaLifecycle;
     final safety = dependencies.safety;
 
-    _accessControl = safety.accessControl;
-    _moderationReports = safety.moderationReports;
-    _safetyService = safety.safetyService;
-    _groupKeyService = persistence.groupKeyService;
+    _historyApi = persistence.historyApi;
     _outboundCodec = messaging.outboundCodec;
     _chatSummaryService = persistence.summaryService;
     _messagesApi = messaging.messagesApi;
@@ -117,14 +102,14 @@ class ChatController with WidgetsBindingObserver {
     _chatInboundService = mediaLifecycle.inboundService;
     _mediaApi = mediaLifecycle.mediaApi;
     _lifecycleService = mediaLifecycle.lifecycleService;
-    _historyLoadCoordinator = mediaLifecycle.historyLoadCoordinator;
-    _cleanupCoordinator = mediaLifecycle.cleanupCoordinator;
+    _cleanupApi = mediaLifecycle.cleanupApi;
+    _safetyApi = safety.safetyApi;
     _inboundSubscriptionCoordinator =
         mediaLifecycle.inboundSubscriptionCoordinator;
     WidgetsBinding.instance.addObserver(this);
     _startupReady = Future.wait(<Future<void>>[
       _loadChats(),
-      _groupKeyService.initialize(),
+      _historyApi.initializeGroupKeys(),
     ]);
     _syncBadgeCount();
     _inboundSubscriptionCoordinator.start();
@@ -149,7 +134,7 @@ class ChatController with WidgetsBindingObserver {
   }
 
   Future<void> _loadChats() async {
-    await _historyLoadCoordinator.loadChats();
+    await _historyApi.loadChats();
   }
 
   bool _isGroupDeleted(String groupId) {
@@ -188,10 +173,7 @@ class ChatController with WidgetsBindingObserver {
   }
 
   Future<void> ensureChatLoaded(String peerId) async {
-    await _historyLoadCoordinator.ensureChatLoaded(
-      peerId,
-      ensureChat: (peerId) => _ensureChat(peerId),
-    );
+    await _historyApi.ensureChatLoaded(peerId);
   }
 
   Future<void> _rememberOutgoingRelayMediaState(
@@ -215,19 +197,19 @@ class ChatController with WidgetsBindingObserver {
 
   /// Загружает следующую страницу сообщений (при прокрутке вверх)
   Future<bool> loadMoreMessages(String peerId) async {
-    return _historyLoadCoordinator.loadMoreMessages(peerId);
+    return _historyApi.loadMoreMessages(peerId);
   }
 
   Future<void> unloadChatMessages(String peerId) async {
-    await _historyLoadCoordinator.unloadChatMessages(peerId);
+    await _historyApi.unloadChatMessages(peerId);
   }
 
   Future<int?> messageOffsetFromNewest(String peerId, String messageId) {
-    return _historyLoadCoordinator.messageOffsetFromNewest(peerId, messageId);
+    return _historyApi.messageOffsetFromNewest(peerId, messageId);
   }
 
   Future<String?> firstInitialUnreadMessageId(String peerId) {
-    return _historyLoadCoordinator.firstInitialUnreadMessageId(peerId);
+    return _historyApi.firstInitialUnreadMessageId(peerId);
   }
 
   Future<void> _persistChatSummary(Chat chat) async {
@@ -240,14 +222,6 @@ class ChatController with WidgetsBindingObserver {
       return;
     }
     unawaited(_persistChatSummary(chat));
-  }
-
-  Future<void> _persistLoadedChat(String peerId) async {
-    await _historyLoadCoordinator.persistLoadedChat(peerId);
-  }
-
-  void _schedulePersistLoadedChat(String peerId) {
-    _historyLoadCoordinator.schedulePersistLoadedChat(peerId);
   }
 
   Future<void> _appendMessage(String peerId, Message message) async {
@@ -338,11 +312,11 @@ class ChatController with WidgetsBindingObserver {
       blobRef,
       ensureChatLoaded: ensureChatLoaded,
       ensureChat: _ensureChat,
-      persistLoadedChat: _persistLoadedChat,
+      persistLoadedChat: _historyApi.persistLoadedChat,
       directBlobTransferId: _outboundCodec.directBlobTransferId,
       notifyMessageUpdated: _notifyMessageUpdated,
       shouldAutoRestoreIncomingMedia: _shouldAutoRestoreIncomingMedia,
-      incomingRelayFetchStatus: _incomingRelayFetchStatus,
+      incomingRelayFetchStatus: _mediaApi.incomingRelayFetchStatus,
       restoreMediaInBackground: _restoreMediaInBackground,
       sendDeliveredReceipt: _messagesApi.sendDeliveredForMessage,
       notifyNewMessage: _newMessageNotificationController.add,
@@ -480,7 +454,7 @@ class ChatController with WidgetsBindingObserver {
     String text, {
     Message? replyTo,
   }) async {
-    if (_accessControl.isBlocked(peerId)) {
+    if (_safetyApi.isPeerBlocked(peerId)) {
       throw StateError('Peer is blocked');
     }
     await _messagesApi.sendMessage(peerId, text, replyTo: replyTo);
@@ -495,7 +469,7 @@ class ChatController with WidgetsBindingObserver {
     String? mimeType,
     Message? replyTo,
   }) async {
-    if (_accessControl.isBlocked(peerId)) {
+    if (_safetyApi.isPeerBlocked(peerId)) {
       throw StateError('Peer is blocked');
     }
     await _mediaApi.sendFile(
@@ -564,21 +538,20 @@ class ChatController with WidgetsBindingObserver {
   List<Chat> getChatsSorted() {
     return _directLifecycleService
         .getChatsSorted()
-        .where(_safetyService.isChatVisible)
+        .where(_safetyApi.isChatVisible)
         .toList(growable: false);
   }
 
-  List<Message> visibleMessages(Chat chat) =>
-      _safetyService.visibleMessages(chat);
+  List<Message> visibleMessages(Chat chat) => _safetyApi.visibleMessages(chat);
 
-  Message? visiblePreview(Chat chat) => _safetyService.visiblePreview(chat);
+  Message? visiblePreview(Chat chat) => _safetyApi.visiblePreview(chat);
 
   Future<void> clearManagedMediaReferencesInMemory() async {
-    await _cleanupCoordinator.clearManagedMediaReferencesInMemory();
+    await _cleanupApi.clearManagedMediaReferencesInMemory();
   }
 
   void clearAllChatsFromMemory() {
-    _cleanupCoordinator.clearAllChatsFromMemory();
+    _cleanupApi.clearAllChatsFromMemory();
   }
 
   Chat openChat(String peerId, String name) {
@@ -587,21 +560,19 @@ class ChatController with WidgetsBindingObserver {
 
   Future<void> addMessage(String peerId, Message message) async {
     await ensureChatLoaded(peerId);
-    final chat = _ensureChat(peerId);
-    chat.messages.add(message);
-    await _persistLoadedChat(peerId);
+    await _messagesApi.appendMessage(peerId, message);
     _messageUpdatesController.add(peerId);
   }
 
   Future<void> deleteMessage(String peerId, String messageId) async {
-    await _cleanupCoordinator.deleteMessage(peerId, messageId);
+    await _cleanupApi.deleteMessage(peerId, messageId);
   }
 
   Future<void> deleteChat(String peerId) async {
-    await _cleanupCoordinator.deleteChat(peerId);
+    await _cleanupApi.deleteChat(peerId);
   }
 
-  bool isPeerBlocked(String peerId) => _accessControl.isBlocked(peerId);
+  bool isPeerBlocked(String peerId) => _safetyApi.isPeerBlocked(peerId);
 
   Future<void> blockPeer(String peerId, {String? reason}) async {
     await blockAndReportPeer(
@@ -617,10 +588,10 @@ class ChatController with WidgetsBindingObserver {
     String peerId, {
     required ModerationReportReason reason,
     String? groupId,
-  }) => _safetyService.blockAndReport(peerId, reason: reason, groupId: groupId);
+  }) => _safetyApi.blockAndReport(peerId, reason: reason, groupId: groupId);
 
   Future<void> unblockPeer(String peerId) async {
-    await _safetyService.unblock(peerId);
+    await _safetyApi.unblock(peerId);
   }
 
   Future<void> reportPeer({
@@ -629,26 +600,10 @@ class ChatController with WidgetsBindingObserver {
     Message? selectedMessage,
     String? groupId,
   }) {
-    return _moderationReports.createDirectReport(
-      reportedPeerId: peerId,
+    return _safetyApi.reportPeer(
+      peerId: peerId,
       reason: reason,
-      selectedMessage: selectedMessage == null
-          ? null
-          : ModerationReportedMessageMetadata(
-              messageId: selectedMessage.id,
-              senderPeerId:
-                  (selectedMessage.senderPeerId ?? selectedMessage.peerId)
-                      .trim(),
-              incoming: selectedMessage.incoming,
-              timestamp: selectedMessage.timestamp,
-              kind: selectedMessage.kind.name,
-              mimeType: selectedMessage.kind == MessageKind.file
-                  ? selectedMessage.mimeType
-                  : null,
-              fileSizeBytes: selectedMessage.kind == MessageKind.file
-                  ? selectedMessage.fileSizeBytes
-                  : null,
-            ),
+      selectedMessage: selectedMessage,
       groupId: groupId,
     );
   }
@@ -807,7 +762,7 @@ class ChatController with WidgetsBindingObserver {
       runtime.discoveredPeersStream;
 
   Future<void> startCall(String peerId) {
-    if (_accessControl.isBlocked(peerId)) {
+    if (_safetyApi.isPeerBlocked(peerId)) {
       throw StateError('Peer is blocked');
     }
     return runtime.startCall(peerId);
@@ -835,16 +790,6 @@ final class _ChatControllerPresentationStatePort
   @override
   Future<void> ensureChatLoaded(String peerId) {
     return _controller.ensureChatLoaded(peerId);
-  }
-
-  @override
-  Future<void> persistLoadedChat(String peerId) {
-    return _controller._persistLoadedChat(peerId);
-  }
-
-  @override
-  void schedulePersistLoadedChat(String peerId) {
-    _controller._schedulePersistLoadedChat(peerId);
   }
 
   @override

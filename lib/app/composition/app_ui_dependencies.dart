@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:peerlink/app/badges/app_badge_coordinator.dart';
 import 'package:peerlink/app/composition/chat_controller_composition.dart';
@@ -18,7 +19,10 @@ import 'package:peerlink/features/profile/application/avatar_service.dart';
 import 'package:peerlink/features/calls/infrastructure/call_log_repository.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
-import 'package:peerlink/core/runtime/peer_access_control_service.dart';
+import 'package:peerlink/features/moderation/application/moderation_lifecycle_service.dart';
+import 'package:peerlink/features/moderation/application/moderation_report_service.dart';
+import 'package:peerlink/features/moderation/application/peer_access_control_service.dart';
+import 'package:peerlink/features/moderation/infrastructure/storage_moderation_report_outbox.dart';
 import 'package:peerlink/core/runtime/self_hosted_deploy_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/ui/state/app_restriction_controller.dart';
@@ -41,6 +45,7 @@ class AppUiDependencies {
     required this.callLogRepository,
     required this.callsController,
     required this.contactsController,
+    required this.moderationLifecycleService,
     required this.settingsController,
     required this.restrictionController,
     required this.selfHostedDeployService,
@@ -67,6 +72,16 @@ class AppUiDependencies {
       settingsBox: storage.getSettings(),
       contactsRepository: contactsRepository,
     );
+    final moderationReports = ModerationReportService(
+      settingsBox: storage.getSettings(),
+      outbox: StorageModerationReportOutbox(storage.getSettings()),
+      localPeerId: () => facade.peerId,
+      deliverReport: facade.submitModerationReport,
+    );
+    final moderationLifecycleService = ModerationLifecycleService(
+      reports: moderationReports,
+      log: (message) => developer.log(message, name: 'moderation'),
+    )..start();
     final callLogRepository = CallLogRepository(storage: storage);
     final callsController = CallsController(repository: callLogRepository);
     final contactsController = ContactsController(
@@ -126,6 +141,7 @@ class AppUiDependencies {
       callLogRepository: callLogRepository,
       callsController: callsController,
       contactsController: contactsController,
+      moderationLifecycleService: moderationLifecycleService,
       settingsController: settingsController,
       restrictionController: restrictionController,
       selfHostedDeployService: SelfHostedDeployService(),
@@ -144,6 +160,7 @@ class AppUiDependencies {
   final CallLogRepository callLogRepository;
   final CallsController callsController;
   final ContactsController contactsController;
+  final ModerationLifecycleService moderationLifecycleService;
   final SettingsController settingsController;
   final AppRestrictionController restrictionController;
   final SelfHostedDeployService selfHostedDeployService;
@@ -151,6 +168,7 @@ class AppUiDependencies {
   final UiAppController appController;
 
   Future<void> dispose() async {
+    await moderationLifecycleService.dispose();
     await avatarService.dispose();
     await presenceService.dispose();
   }

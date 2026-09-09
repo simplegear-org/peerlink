@@ -2,9 +2,9 @@
 
 import 'dart:async';
 
-import 'package:peerlink/core/runtime/moderation_report_models.dart';
-import 'package:peerlink/core/runtime/moderation_report_service.dart';
-import 'package:peerlink/core/runtime/peer_access_control_service.dart';
+import 'package:peerlink/features/moderation/application/access_policy_api.dart';
+import 'package:peerlink/features/moderation/application/moderation_reports_api.dart';
+import 'package:peerlink/features/moderation/domain/moderation_report_models.dart';
 import '../domain/chat.dart';
 import '../domain/message.dart';
 
@@ -18,8 +18,8 @@ class ChatSafetyService {
     required this.log,
   });
 
-  final PeerAccessControlService accessControl;
-  final ModerationReportService reports;
+  final AccessPolicyApi accessControl;
+  final ModerationReportsApi reports;
   final void Function(String peerId) notifyVisibilityChanged;
   final Future<void> Function(String reason) syncPushPolicy;
   final void Function(String message) log;

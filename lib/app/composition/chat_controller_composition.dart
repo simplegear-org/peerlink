@@ -6,14 +6,15 @@
 
 import 'package:peerlink/app/composition/chat_contacts_repository_adapter.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
-import 'package:peerlink/core/runtime/moderation_report_service.dart';
+import 'package:peerlink/features/moderation/application/moderation_report_service.dart';
 import 'package:peerlink/features/chat/application/chat_safety_service.dart';
-import 'package:peerlink/core/runtime/peer_access_control_service.dart';
+import 'package:peerlink/features/moderation/application/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/group_key_service.dart';
 import 'package:peerlink/core/security/group_message_crypto_service.dart';
 import 'package:peerlink/features/chat/application/chat_contacts_service.dart';
 import 'package:peerlink/features/chat/application/chat_cleanup_coordinator.dart';
+import 'package:peerlink/features/chat/application/chat_cleanup_api.dart';
 import 'package:peerlink/features/chat/application/chat_controller_dependencies.dart';
 import 'package:peerlink/features/chat/application/chat_controller_lifecycle_service.dart';
 import 'package:peerlink/features/chat/application/chat_controller_ports.dart';
@@ -29,6 +30,7 @@ import 'package:peerlink/features/chat/application/chat_group_inbound_coordinato
 import 'package:peerlink/features/chat/application/chat_group_outbound_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_group_service.dart';
 import 'package:peerlink/features/chat/application/chat_groups_api.dart';
+import 'package:peerlink/features/chat/application/chat_history_api.dart';
 import 'package:peerlink/features/chat/application/chat_history_load_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_incoming_media_restore_coordinator.dart';
 import 'package:peerlink/features/chat/application/chat_inbound_classifier.dart';
@@ -48,11 +50,13 @@ import 'package:peerlink/features/chat/application/chat_read_state_service.dart'
 import 'package:peerlink/features/chat/application/chat_receipt_service.dart';
 import 'package:peerlink/features/chat/application/chat_reply_metadata_resolver.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
+import 'package:peerlink/features/chat/application/chat_safety_api.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
 import 'package:peerlink/features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/moderation/infrastructure/storage_moderation_report_outbox.dart';
 
 class ChatControllerComposition {
   const ChatControllerComposition._();
@@ -61,7 +65,6 @@ class ChatControllerComposition {
     required ChatRuntimeApi runtime,
     required StorageService storage,
     required AvatarService avatarService,
-    required RelayMediaTransferService relayMediaTransfer,
     required ChatPresentationStatePort presentationState,
     required ChatConnectionStatePort connectionState,
     required ChatMessageStatePort messageState,
@@ -72,13 +75,11 @@ class ChatControllerComposition {
     required ChatInboundPort inbound,
     required ChatAccountPayloadPort accountPayloads,
   }) {
+    const relayMediaTransfer = RelayMediaTransferService();
     final chats = presentationState.chats;
     final contactNameFor = presentationState.contactNameFor;
     final ensureChat = presentationState.ensureChat;
     final ensureChatLoaded = presentationState.ensureChatLoaded;
-    final persistLoadedChat = presentationState.persistLoadedChat;
-    final schedulePersistLoadedChat =
-        presentationState.schedulePersistLoadedChat;
     final persistChatSummary = presentationState.persistChatSummary;
     final schedulePersistChatSummary =
         presentationState.schedulePersistChatSummary;
@@ -144,6 +145,11 @@ class ChatControllerComposition {
         accountPayloads.decodeAccountPairRejection;
     final decodeAccountMembershipUpdate =
         accountPayloads.decodeAccountMembershipUpdate;
+    late final ChatHistoryApi historyApi;
+    Future<void> persistLoadedChat(String peerId) =>
+        historyApi.persistLoadedChat(peerId);
+    void schedulePersistLoadedChat(String peerId) =>
+        historyApi.schedulePersistLoadedChat(peerId);
     final settingsBox = storage.getSettings();
     final groupMetaBox = storage.getGroupMeta();
     final contactsRepository = ContactsRepository(storage: storage);
@@ -419,6 +425,7 @@ class ChatControllerComposition {
       chatSummaryService: summaryService,
       fileTransferCoordinator: fileTransferCoordinator,
       chats: chats,
+      ensureChat: ensureChat,
       contactNameFor: contactNameFor,
       persistChatSummary: persistChatSummary,
       deleteManagedMediaForMessage: deleteManagedMediaForMessage,
@@ -429,6 +436,7 @@ class ChatControllerComposition {
       resumePendingOutgoingRelayMedia: resumePendingOutgoingRelayMedia,
       ensureThumbnail: ensureThumbnail,
     );
+    historyApi = ChatControllerHistoryApi(historyLoadCoordinator);
     final cleanupCoordinator = ChatCleanupCoordinator(
       facade: runtime,
       storage: storage,
@@ -447,6 +455,7 @@ class ChatControllerComposition {
       syncBadgeCount: syncBadgeCount,
       notifyMessageUpdated: notifyMessageUpdated,
     );
+    final cleanupApi = ChatControllerCleanupApi(cleanupCoordinator);
     final groupInboundCoordinator = ChatGroupInboundCoordinator(
       facade: runtime,
       inboundService: inboundService,
@@ -513,7 +522,7 @@ class ChatControllerComposition {
       groupOutboundCoordinator: groupOutboundCoordinator,
       groupInboundCoordinator: groupInboundCoordinator,
       summaryService: summaryService,
-      historyLoadCoordinator: historyLoadCoordinator,
+      historyApi: historyApi,
       cleanupCoordinator: cleanupCoordinator,
       chats: chats,
       persistChatSummary: persistChatSummary,
@@ -544,13 +553,14 @@ class ChatControllerComposition {
     );
     final moderationReports = ModerationReportService(
       settingsBox: settingsBox,
+      outbox: StorageModerationReportOutbox(settingsBox),
       localPeerId: () => runtime.peerId,
       deliverReport: runtime.submitModerationReport,
     );
     return ChatControllerDependencies(
       persistence: ChatPersistenceDependencies(
-        groupKeyService: groupKeyService,
         summaryService: summaryService,
+        historyApi: historyApi,
       ),
       messaging: ChatMessagingDependencies(
         outboundCodec: outboundCodec,
@@ -573,7 +583,6 @@ class ChatControllerComposition {
           setStatus: setStatus,
         ),
         lifecycleService: ChatControllerLifecycleService(
-          retryModerationReports: moderationReports.retryPendingReports,
           facade: runtime,
           setPeerStatus: setStatus,
           syncBadgeCount: syncBadgeCount,
@@ -584,26 +593,27 @@ class ChatControllerComposition {
               resumeInterruptedIncomingMediaQueue,
         ),
         mediaApi: mediaApi,
-        historyLoadCoordinator: historyLoadCoordinator,
-        cleanupCoordinator: cleanupCoordinator,
+        cleanupApi: cleanupApi,
         inboundService: inboundService,
         inboundSubscriptionCoordinator: inboundSubscriptionCoordinator,
       ),
       safety: ChatSafetyDependencies(
-        accessControl: accessControl,
-        moderationReports: moderationReports,
-        safetyService: ChatSafetyService(
+        safetyApi: ChatControllerSafetyApi(
           accessControl: accessControl,
-          reports: moderationReports,
-          notifyVisibilityChanged: (peerId) {
-            notifyMessageUpdated(peerId);
-            for (final chat in chats.values.where((chat) => chat.isGroup)) {
-              notifyMessageUpdated(chat.peerId);
-            }
-          },
-          syncPushPolicy: (reason) =>
-              runtime.syncPushDeviceState(reason: reason, forcePolicy: true),
-          log: logQueue,
+          moderationReports: moderationReports,
+          safetyService: ChatSafetyService(
+            accessControl: accessControl,
+            reports: moderationReports,
+            notifyVisibilityChanged: (peerId) {
+              notifyMessageUpdated(peerId);
+              for (final chat in chats.values.where((chat) => chat.isGroup)) {
+                notifyMessageUpdated(chat.peerId);
+              }
+            },
+            syncPushPolicy: (reason) =>
+                runtime.syncPushDeviceState(reason: reason, forcePolicy: true),
+            log: logQueue,
+          ),
         ),
       ),
     );

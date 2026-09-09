@@ -136,6 +136,105 @@ void main() {
     );
   });
 
+  test('chat safety uses moderation contracts instead of implementations', () {
+    final sources = dartSourcesUnder(const ['lib/features/chat/application'])
+        .where(
+          (source) => {
+            'lib/features/chat/application/chat_safety_api.dart',
+            'lib/features/chat/application/chat_safety_service.dart',
+          }.contains(source.path),
+        );
+    final imports = sources
+        .expand((source) => source.imports())
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .toSet();
+
+    expect(
+      imports.intersection(const {
+        'core/runtime/moderation_report_service.dart',
+        'core/runtime/peer_access_control_service.dart',
+        'core/runtime/moderation_api_client.dart',
+        'features/moderation/application/moderation_report_service.dart',
+        'features/moderation/application/peer_access_control_service.dart',
+        'features/moderation/infrastructure/moderation_api_client.dart',
+      }),
+      isEmpty,
+      reason:
+          'Chat safety must use moderation contracts, not concrete services.',
+    );
+    expect(
+      imports,
+      contains('features/moderation/application/access_policy_api.dart'),
+    );
+    expect(
+      imports,
+      contains('features/moderation/application/moderation_reports_api.dart'),
+    );
+  });
+
+  test('chat lifecycle does not own moderation retry', () {
+    final source = dartSourcesUnder(const ['lib/features/chat/application'])
+        .singleWhere(
+          (source) =>
+              source.path ==
+              'lib/features/chat/application/chat_controller_lifecycle_service.dart',
+        );
+
+    expect(source.content.toLowerCase(), isNot(contains('moderation')));
+  });
+
+  test('chat application imports only moderation contracts and models', () {
+    final violations = dartSourcesUnder(const ['lib/features/chat/application'])
+        .expand((source) => source.imports())
+        .where((import) {
+          final uri = import.uri;
+          return uri.contains('moderation_') &&
+              !uri.endsWith('access_policy_api.dart') &&
+              !uri.endsWith('access_policy_models.dart') &&
+              !uri.endsWith('moderation_reports_api.dart') &&
+              !uri.endsWith('moderation_report_models.dart');
+        })
+        .map((import) => import.location)
+        .toList();
+
+    expect(violations, isEmpty);
+  });
+
+  test('UI does not construct moderation infrastructure', () {
+    final violations =
+        constructorCallViolations(dartSourcesUnder(const ['lib/ui']), const [
+          'ModerationApiClient',
+          'ModerationDeliveryService',
+          'StorageModerationReportOutbox',
+        ]);
+
+    expect(violations, isEmpty);
+  });
+
+  test('runtime moderation paths are compatibility exports only', () {
+    final paths = <String>{
+      'lib/core/runtime/moderation_api_client.dart',
+      'lib/core/runtime/moderation_delivery_service.dart',
+      'lib/core/runtime/moderation_policy_service.dart',
+      'lib/core/runtime/moderation_report_models.dart',
+      'lib/core/runtime/moderation_report_service.dart',
+      'lib/core/runtime/peer_access_control_service.dart',
+    };
+    final violations = dartSourcesUnder(const ['lib/core/runtime'])
+        .where((source) => paths.contains(source.path))
+        .where(
+          (source) => !RegExp(
+            r'^\s*export\s+',
+            multiLine: true,
+          ).hasMatch(source.content),
+        )
+        .map((source) => source.path)
+        .toList();
+
+    expect(violations, isEmpty);
+  });
+
   test('profile application does not import NodeFacade', () {
     final imports = dartSourcesUnder(const [
       'lib/features/profile/application',
@@ -246,6 +345,9 @@ String? _featureName(String? path) {
 
 const _approvedCrossFeatureContracts = {
   'lib/features/contacts/domain/contact.dart',
+  'lib/features/moderation/application/access_policy_api.dart',
+  'lib/features/moderation/application/moderation_reports_api.dart',
+  'lib/features/moderation/domain/moderation_report_models.dart',
   'lib/features/profile/application/profile_avatar_inbound_handler.dart',
 };
 

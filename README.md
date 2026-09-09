@@ -123,9 +123,14 @@ Current design combines:
   - unavailable relays are skipped when healthy ones are available, helping reduce visible delivery delays.
 - Personal media delivery now also uses relay blob transport:
   - direct chat media is uploaded once into relay blob storage,
+  - up to 3 live relays are selected for each blob; it is replicated to every
+    selected available relay. A timeout excludes the relay from the current
+    upload, while visible progress remains a single monotonic scale to 100%,
   - direct media bytes are encrypted before relay upload, and chat delivery uses encrypted `direct_blob_ref` metadata instead of the legacy direct `fileMeta/fileChunk` send path,
   - direct media receive now also resolves only through `direct_blob_ref` and relay blob download,
   - direct blob restore now uses retry/timeout protection during download,
+  - incoming media rejects delayed outgoing progress statuses, so it cannot
+    show `Sending 100%` after reception,
   - failed incoming media downloads caused by transient network switches or temporary relay unavailability remain resumable and continue later while the app is active, when the chat opens, on app resume, or when connectivity returns,
   - Android foreground-service media restore is not used; the app does not request `FOREGROUND_SERVICE_DATA_SYNC`.
 - Chat media previews:
