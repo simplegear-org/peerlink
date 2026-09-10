@@ -201,6 +201,28 @@ void main() {
     expect(violations, isEmpty);
   });
 
+  test('incoming chat relay discovery does not merge configured servers', () {
+    final chatService = dartSourcesUnder(const ['lib/core/messaging'])
+        .singleWhere(
+          (source) => source.path == 'lib/core/messaging/chat_service.dart',
+        );
+    final imports = chatService
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .toSet();
+
+    expect(
+      imports,
+      isNot(
+        contains('lib/core/runtime/runtime_servers_merge_orchestrator.dart'),
+      ),
+      reason:
+          'Relay metadata carried by a chat message belongs in the peer relay '
+          'directory, never in the persistent configured relay pool.',
+    );
+    expect(imports, contains('lib/core/relay/peer_relay_directory.dart'));
+  });
+
   test('UI does not construct moderation infrastructure', () {
     final violations =
         constructorCallViolations(dartSourcesUnder(const ['lib/ui']), const [

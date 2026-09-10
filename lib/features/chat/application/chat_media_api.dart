@@ -86,6 +86,7 @@ abstract interface class ChatMediaApi {
   Future<String?> restoreGroupBlobText({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   });
 
@@ -349,11 +350,13 @@ class ChatControllerMediaApi implements ChatMediaApi {
   Future<String?> restoreGroupBlobText({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   }) {
     return _incomingMediaRestoreCoordinator.restoreGroupBlobText(
       groupId: groupId,
       blobId: blobId,
+      relayServers: relayServers,
       fallback: fallback,
     );
   }

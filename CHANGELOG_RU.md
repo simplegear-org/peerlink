@@ -2,6 +2,34 @@
 
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
+
+## [3.13.0+2026091001] - 2026-09-10
+
+### Изменено
+
+- Добавлена общая relay replication policy: до трёх кандидатов с durable
+  quorum 1/1, 2/2 или 2/3 для messages и media blobs.
+- Blob upload теперь возвращает точные successful relay locations; direct и
+  group media reference передают опциональные `blobRelayServers`, а получатель
+  использует их первыми для targeted blob fetch, сохраняя legacy fallback.
+- Relay topology discovery отделён от object routing: metadata relay из
+  входящего chat-сообщения сохраняется в TTL-ограниченном
+  `PeerRelayDirectory` и больше не merge-ит чужие endpoints в persistent
+  configured relay pool.
+- Добавлено regression-покрытие relay routing и architecture boundaries.
+- Chunked media upload теперь делает одну попытку к relay с таймаутом пять
+  секунд и затем переключается на следующий; упавший relay локально
+  исключается на две минуты, поэтому устаревший общий health не задерживает
+  следующие медиа.
+
+### Проверено
+
+- `dart format .`
+- `flutter analyze`
+- `flutter test test/architecture` (48 тестов)
+- `flutter test test/core/relay/http_relay_client_test.dart`
+- `flutter test` (449 тестов)
+
 ## [3.12.9+2026090902] - 2026-09-09
 
 ### Изменено

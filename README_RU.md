@@ -130,6 +130,12 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
   - перед runtime-операциями выполняется быстрый health probe,
   - для путей текста и медиа используется только небольшой рабочий набор живых relay (до 3 серверов),
   - если healthy relay доступны, недоступные серверы пропускаются и не должны заметно тормозить доставку.
+- Relay discovery и object routing разделены:
+  - configured relay остаются локальным Settings-owned pool,
+  - advertised topology peer хранится в TTL-ограниченном `PeerRelayDirectory`
+    и не сохраняет чужие endpoints в этом pool,
+  - запись использует durable quorum 1/1, 2/2 или 2/3 и возвращает точные
+    successful locations объекта.
 - Доставка медиа в личных чатах теперь тоже использует relay blob transport:
   - файл один раз загружается в relay blob storage,
   - для blob выбирается до 3 живых relay; файл реплицируется на все выбранные
@@ -137,6 +143,9 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
     остаётся одной монотонной шкалой до 100%,
   - байты direct media шифруются до relay upload, а в чат доставляется зашифрованный `direct_blob_ref`, а не legacy-пара `fileMeta/fileChunk`,
   - прием direct media теперь тоже работает только через `direct_blob_ref` и загрузку blob из relay,
+  - direct и group media reference могут включать точные `blobRelayServers`;
+    получатель пробует их первыми без изменения локальной relay-конфигурации, а
+    legacy reference сохраняют fallback по configured pool,
   - direct blob restore использует retry/timeout-защиту при скачивании,
   - входящее медиа не принимает запоздалые исходящие статусы progress, поэтому
     после получения не может появиться «Отправка 100%»,

@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/core/relay/relay_media_transfer_service.dart';
+import 'package:peerlink/core/relay/relay_models.dart';
 import 'package:peerlink/core/relay/relay_transfer_status.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -42,10 +43,12 @@ typedef ChatMediaSaveBytes =
 
 class ChatMediaOutboundUploadResult {
   final String blobId;
+  final List<String> relayServers;
   final Uint8List originalBytes;
 
   const ChatMediaOutboundUploadResult({
     required this.blobId,
+    required this.relayServers,
     required this.originalBytes,
   });
 }
@@ -58,7 +61,7 @@ class ChatMediaLocalSaveResult {
 }
 
 class ChatMediaOutboundService {
-  const ChatMediaOutboundService({
+  ChatMediaOutboundService({
     required ChatRuntimeApi facade,
     required RelayMediaTransferService relayMediaTransfer,
   }) : _facade = facade,
@@ -85,7 +88,7 @@ class ChatMediaOutboundService {
     logQueue(
       'upload prepare peer=$chatPeerId messageId=$messageId file=$fileName '
       'size=$fileSizeBytes path=${filePath?.isNotEmpty == true} '
-      'bytes=${fileBytes?.length ?? 0}',
+      'bytes=${fileBytes?.length ?? 0} media=${_relayMediaTransfer.runtimeType}',
     );
     await updateFileProgress(
       chatPeerId,
@@ -123,46 +126,57 @@ class ChatMediaOutboundService {
       'upload blob start peer=$chatPeerId messageId=$messageId bytes=${payloadBytes.length}',
     );
 
-    final uploadResult = await _relayMediaTransfer.uploadBlob(
-      peerId: chatPeerId,
-      messageId: messageId,
-      upload: (onProgress) => _facade.uploadBlob(
+    void progress({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    }) {
+      unawaited(
+        updateFileProgress(
+          chatPeerId,
+          messageId,
+          sentBytes: sentBytes,
+          totalBytes: totalBytes,
+          statusText: status,
+        ),
+      );
+    }
+
+    RelayBlobStoreReceipt uploadReceipt;
+    try {
+      uploadReceipt = await _facade.uploadBlobWithReceipt(
         scopeKind: scopeKind,
         targetId: targetId,
         fileName: fileName,
         mimeType: mimeType,
         bytes: payloadBytes,
         blobId: 'blob:$messageId',
-        onProgress: onProgress,
-      ),
-      onProgress:
-          ({
-            required int sentBytes,
-            required int totalBytes,
-            required String status,
-          }) {
-            unawaited(
-              updateFileProgress(
-                chatPeerId,
-                messageId,
-                sentBytes: sentBytes,
-                totalBytes: totalBytes,
-                statusText: status,
-              ),
-            );
-          },
-    );
-    if (!uploadResult.isUploaded) {
-      throw uploadResult.error ?? StateError('Relay blob upload failed');
+        onProgress: progress,
+      );
+    } on UnsupportedError {
+      final legacyBlobId = await _facade.uploadBlob(
+        scopeKind: scopeKind,
+        targetId: targetId,
+        fileName: fileName,
+        mimeType: mimeType,
+        bytes: payloadBytes,
+        blobId: 'blob:$messageId',
+        onProgress: progress,
+      );
+      uploadReceipt = RelayBlobStoreReceipt(
+        blobId: legacyBlobId,
+        relayServers: const <String>[],
+      );
     }
     if (isCancelled()) {
       throw const FileTransferCancelledException();
     }
     logQueue(
-      'upload blob done peer=$chatPeerId messageId=$messageId blobId=${uploadResult.blobId}',
+      'upload blob done peer=$chatPeerId messageId=$messageId blobId=${uploadReceipt.blobId}',
     );
     return ChatMediaOutboundUploadResult(
-      blobId: uploadResult.blobId!,
+      blobId: uploadReceipt.blobId,
+      relayServers: uploadReceipt.relayServers,
       originalBytes: originalBytes,
     );
   }

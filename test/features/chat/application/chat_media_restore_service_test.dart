@@ -81,6 +81,35 @@ void main() {
     },
   );
 
+  test('incoming restore notifies UI for every post-download stage', () async {
+    final updatedPeers = <String>[];
+    final service = _service(
+      retry: retry,
+      messages: messages,
+      backgroundRestores: backgroundRestores,
+      notifyMessageUpdated: updatedPeers.add,
+    );
+    final message = _message(
+      peerId: 'peer-stages',
+      messageId: 'm-stages',
+      transferId: 'dirblob:peer-stages|m-stages|blob-stages',
+    );
+    messages[_key(message.peerId, message.id)] = message;
+
+    await service.restoreMediaFromRelay(
+      peerId: message.peerId,
+      messageId: message.id,
+      blobId: 'blob-stages',
+      fileName: 'photo.jpg',
+      downloadBlob: _download(<int>[1, 2, 3]),
+      transformPayload: (blob) async => blob.payload,
+      restoreInBackground: _background(backgroundRestores),
+    );
+
+    expect(updatedPeers, hasLength(4));
+    expect(updatedPeers, everyElement(message.peerId));
+  });
+
   test(
     'TEST RELAY-MEDIA-002 group restore persists localFilePath and no retry',
     () async {
@@ -582,6 +611,7 @@ ChatMediaRestoreService _service({
   RestoreSaveMediaBytes? saveMediaBytes,
   RestoreReplaceMessage? replaceMessage,
   RestoreEnsureThumbnail? ensureThumbnail,
+  void Function(String peerId)? notifyMessageUpdated,
 }) {
   return ChatMediaRestoreService(
     relayMediaTransfer: const RelayMediaTransferService(),
@@ -629,7 +659,7 @@ ChatMediaRestoreService _service({
         },
     ensureThumbnail: ensureThumbnail ?? (_) async => null,
     clearProgressUpdate: (_, _) {},
-    notifyMessageUpdated: (_) {},
+    notifyMessageUpdated: notifyMessageUpdated ?? (_) {},
     mediaKeyFor: _key,
     isMessageUpdatesClosed: () => false,
   );

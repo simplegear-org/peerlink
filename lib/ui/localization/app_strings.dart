@@ -749,8 +749,9 @@ class AppStrings implements SettingsServerStatusStrings {
       case RelayTransferStatus.outgoingRetrying:
         return sending;
       case RelayTransferStatus.outgoingSent:
-      case RelayTransferStatus.incomingDownloadComplete:
         return sent;
+      case RelayTransferStatus.incomingDownloadComplete:
+        return downloadInProgress;
       case RelayTransferStatus.outgoingSendFailed:
         return sendError;
       case RelayTransferStatus.relayNotConfigured:

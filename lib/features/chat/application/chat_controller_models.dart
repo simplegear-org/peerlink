@@ -46,6 +46,7 @@ class IncomingBlobRefPayload {
   final String? groupName;
   final List<String> memberPeerIds;
   final String? ownerPeerId;
+  final List<String> blobRelayServers;
   final Map<String, dynamic> raw;
 
   const IncomingBlobRefPayload({
@@ -61,6 +62,7 @@ class IncomingBlobRefPayload {
     required this.groupName,
     required this.memberPeerIds,
     required this.ownerPeerId,
+    this.blobRelayServers = const <String>[],
     required this.raw,
   });
 

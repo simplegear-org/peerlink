@@ -142,6 +142,7 @@ class ChatOutboundCodec {
     int? fileSizeBytes,
     String? textPreview,
     required String blobId,
+    List<String> blobRelayServers = const <String>[],
   }) {
     final payload = <String, dynamic>{
       'type': 'group_blob_ref',
@@ -155,6 +156,7 @@ class ChatOutboundCodec {
       'fileSizeBytes': fileSizeBytes,
       'textPreview': textPreview,
       'blobId': blobId,
+      if (blobRelayServers.isNotEmpty) 'blobRelayServers': blobRelayServers,
       'memberPeerIds': groupChat.memberPeerIds,
       'senderPeerId': _localPeerId(),
       'ownerPeerId': groupChat.ownerPeerId ?? _localPeerId(),
@@ -208,6 +210,7 @@ class ChatOutboundCodec {
     String? mimeType,
     int? fileSizeBytes,
     required String blobId,
+    List<String> blobRelayServers = const <String>[],
   }) {
     final payload = <String, dynamic>{
       'type': 'direct_blob_ref',
@@ -220,6 +223,7 @@ class ChatOutboundCodec {
       'mimeType': mimeType,
       'fileSizeBytes': fileSizeBytes,
       'blobId': blobId,
+      if (blobRelayServers.isNotEmpty) 'blobRelayServers': blobRelayServers,
       'senderPeerId': _localPeerId(),
       'createdAt': DateTime.now().toIso8601String(),
     };
@@ -284,16 +288,34 @@ class ChatOutboundCodec {
     required String groupId,
     required String messageId,
     required String blobId,
-  }) => 'grpblob:$groupId|$messageId|$blobId';
+    List<String> blobRelayServers = const <String>[],
+  }) => _blobTransferId(
+    prefix: 'grpblob',
+    targetId: groupId,
+    messageId: messageId,
+    blobId: blobId,
+    blobRelayServers: blobRelayServers,
+  );
   String directBlobTransferId({
     required String peerId,
     required String messageId,
     required String blobId,
-  }) => 'dirblob:$peerId|$messageId|$blobId';
+    List<String> blobRelayServers = const <String>[],
+  }) => _blobTransferId(
+    prefix: 'dirblob',
+    targetId: peerId,
+    messageId: messageId,
+    blobId: blobId,
+    blobRelayServers: blobRelayServers,
+  );
 
-  ({String groupId, String messageId, String blobId})? parseGroupBlobTransferId(
-    String? transferId,
-  ) {
+  ({
+    String groupId,
+    String messageId,
+    String blobId,
+    List<String> blobRelayServers,
+  })?
+  parseGroupBlobTransferId(String? transferId) {
     final raw = transferId?.trim() ?? '';
     if (!raw.startsWith('grpblob:')) {
       return null;
@@ -306,16 +328,30 @@ class ChatOutboundCodec {
     }
     final groupId = body.substring(0, first).trim();
     final messageId = body.substring(first + 1, second).trim();
-    final blobId = body.substring(second + 1).trim();
+    final remainder = body.substring(second + 1);
+    final third = remainder.indexOf('|');
+    final blobId = (third == -1 ? remainder : remainder.substring(0, third))
+        .trim();
     if (groupId.isEmpty || messageId.isEmpty || blobId.isEmpty) {
       return null;
     }
-    return (groupId: groupId, messageId: messageId, blobId: blobId);
+    return (
+      groupId: groupId,
+      messageId: messageId,
+      blobId: blobId,
+      blobRelayServers: _decodeBlobRelayServers(
+        third == -1 ? null : remainder.substring(third + 1),
+      ),
+    );
   }
 
-  ({String peerId, String messageId, String blobId})? parseDirectBlobTransferId(
-    String? transferId,
-  ) {
+  ({
+    String peerId,
+    String messageId,
+    String blobId,
+    List<String> blobRelayServers,
+  })?
+  parseDirectBlobTransferId(String? transferId) {
     final raw = transferId?.trim() ?? '';
     if (!raw.startsWith('dirblob:')) {
       return null;
@@ -328,11 +364,55 @@ class ChatOutboundCodec {
     }
     final peerId = body.substring(0, first).trim();
     final messageId = body.substring(first + 1, second).trim();
-    final blobId = body.substring(second + 1).trim();
+    final remainder = body.substring(second + 1);
+    final third = remainder.indexOf('|');
+    final blobId = (third == -1 ? remainder : remainder.substring(0, third))
+        .trim();
     if (peerId.isEmpty || messageId.isEmpty || blobId.isEmpty) {
       return null;
     }
-    return (peerId: peerId, messageId: messageId, blobId: blobId);
+    return (
+      peerId: peerId,
+      messageId: messageId,
+      blobId: blobId,
+      blobRelayServers: _decodeBlobRelayServers(
+        third == -1 ? null : remainder.substring(third + 1),
+      ),
+    );
+  }
+
+  String _blobTransferId({
+    required String prefix,
+    required String targetId,
+    required String messageId,
+    required String blobId,
+    required List<String> blobRelayServers,
+  }) {
+    final relays = blobRelayServers
+        .map((server) => server.trim())
+        .where((server) => server.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (relays.isEmpty) {
+      return '$prefix:$targetId|$messageId|$blobId';
+    }
+    return '$prefix:$targetId|$messageId|$blobId|${base64UrlEncode(utf8.encode(jsonEncode(relays)))}';
+  }
+
+  List<String> _decodeBlobRelayServers(String? encoded) {
+    if (encoded == null || encoded.isEmpty) return const <String>[];
+    try {
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(encoded)));
+      if (decoded is! List) return const <String>[];
+      return decoded
+          .whereType<String>()
+          .map((server) => server.trim())
+          .where((server) => server.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+    } catch (_) {
+      return const <String>[];
+    }
   }
 
   Map<String, dynamic>? _decodePrefixedJson(String text, String prefix) {

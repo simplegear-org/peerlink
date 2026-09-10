@@ -29,6 +29,7 @@ import '../node/node_facade.dart';
 import '../node/reliable_call_control_adapter.dart';
 import '../push/push_api_client.dart';
 import '../relay/http_relay_client.dart';
+import '../relay/storage_peer_relay_directory.dart';
 import '../signaling/bootstrap_signaling_models.dart';
 import '../signaling/multi_bootstrap_signaling_service.dart';
 import '../turn/turn_allocator.dart';
@@ -204,21 +205,23 @@ class NetworkDependencies {
       AppFileLogger.log('[network] creating PushApiClient');
       final pushApiClient = PushApiClient();
       AppFileLogger.log('[network] creating ReliableMessagingService');
+      final peerRelayDirectory = StoragePeerRelayDirectory(
+        settings: storage.getSettings(),
+      );
       final messaging = ReliableMessagingService(
         relayClient,
         sessions,
         identity.nodeId,
         enableEncryption: true,
         stateBox: storage.getSettings(),
+        peerRelayDirectory: peerRelayDirectory,
       );
       await messaging.initialize();
       AppFileLogger.log('[network] creating ChatService');
       final chat = ChatService(
         messaging,
         eventBus,
-        serversMergeOrchestrator: RuntimeServersMergeOrchestrator(
-          settings: storage.getSettings(),
-        ),
+        peerRelayDirectory: peerRelayDirectory,
       );
       final accessControl = PeerAccessControlService(
         settingsBox: storage.getSettings(),

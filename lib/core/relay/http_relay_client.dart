@@ -15,6 +15,7 @@ import 'relay_http_server_pool.dart';
 import 'relay_http_transport.dart';
 import 'relay_http_types.dart';
 import 'relay_models.dart';
+import 'relay_replication_policy.dart';
 import 'relay_server_status.dart';
 
 export 'relay_server_status.dart';
@@ -22,12 +23,14 @@ export 'relay_server_status.dart';
 class HttpRelayClient implements RelayClient {
   static const Duration _controlTimeout = Duration(seconds: 6);
   static const Duration _blobTimeout = Duration(seconds: 20);
+  static const Duration _blobChunkUploadTimeout = Duration(seconds: 5);
   static const Duration _sharedHealthFreshness = Duration(seconds: 12);
   static const int _blobChunkSizeBytes = 1024 * 1024;
   static const int _blobChunkUploadConcurrency = 5;
   static const int _chunkedUploadThresholdBytes = 512 * 1024;
-  static const int _maxActiveRelayPool = 3;
-  static const int _writeQuorum = 2;
+  static const int _maxActiveRelayPool = RelayReplicationPolicy.maxCandidates;
+  static const int _writeQuorum =
+      RelayReplicationPolicy.desiredSuccessfulReplicas;
   static const int _ackQuorum = 2;
   static const int _fetchPoolSize = 3;
 
@@ -70,6 +73,7 @@ class HttpRelayClient implements RelayClient {
       messageApi: _messageApi,
       log: _log,
       blobTimeout: _blobTimeout,
+      blobChunkUploadTimeout: _blobChunkUploadTimeout,
       blobChunkSizeBytes: _blobChunkSizeBytes,
       blobChunkUploadConcurrency: _blobChunkUploadConcurrency,
       chunkedUploadThresholdBytes: _chunkedUploadThresholdBytes,
@@ -97,8 +101,10 @@ class HttpRelayClient implements RelayClient {
   List<RelayServerStatus> get serverStatuses => _serverPool.serverStatuses;
 
   @override
-  Future<RelayWriteReceipt> store(RelayEnvelope envelope) =>
-      _messageApi.store(envelope);
+  Future<RelayWriteReceipt> store(
+    RelayEnvelope envelope, {
+    List<String> preferredServers = const <String>[],
+  }) => _messageApi.store(envelope, preferredServers: preferredServers);
 
   @override
   Future<RelayWriteReceipt> storeGroup(RelayGroupEnvelope envelope) {
@@ -135,11 +141,22 @@ class HttpRelayClient implements RelayClient {
   }
 
   @override
+  Future<RelayBlobStoreReceipt> storeBlobWithReceipt(
+    RelayBlobUploadEnvelope envelope, {
+    RelayUploadProgressCallback? onProgress,
+  }) => _blobApi.storeBlobWithReceipt(envelope, onProgress: onProgress);
+
+  @override
   Future<RelayBlobDownload> fetchBlob(
     String blobId, {
+    List<String>? relayServers,
     RelayDownloadProgressCallback? onProgress,
   }) {
-    return _blobApi.fetchBlob(blobId, onProgress: onProgress);
+    return _blobApi.fetchBlob(
+      blobId,
+      relayServers: relayServers,
+      onProgress: onProgress,
+    );
   }
 
   @override

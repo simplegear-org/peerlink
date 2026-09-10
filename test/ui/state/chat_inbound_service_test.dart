@@ -230,8 +230,9 @@ void main() {
       ),
       notificationSenderLabel: 'Recovered Group',
       localPeerId: 'owner-peer',
-      restoreGroupBlobText: ({required groupId, required blobId, fallback}) =>
-          Future<String?>.value(fallback),
+      restoreGroupBlobText:
+          ({required groupId, required blobId, relayServers, fallback}) =>
+              Future<String?>.value(fallback),
       downloadBlob: (_) => throw UnimplementedError(),
       decodeGroupBlobBytes:
           ({required groupId, required encryptedBytes}) async => encryptedBytes,
@@ -246,8 +247,12 @@ void main() {
         persisted.add(Chat.fromJson(Map<String, dynamic>.from(chat.toJson())));
       },
       groupBlobTransferId:
-          ({required groupId, required messageId, required blobId}) =>
-              '$groupId|$messageId|$blobId',
+          ({
+            required groupId,
+            required messageId,
+            required blobId,
+            blobRelayServers = const <String>[],
+          }) => '$groupId|$messageId|$blobId',
       appendMessage: (peerId, message) async => appended.add(message),
       notifyMessageUpdated: (_) {},
       restoreMediaInBackground: (_, {required isGroup, force = false}) {},

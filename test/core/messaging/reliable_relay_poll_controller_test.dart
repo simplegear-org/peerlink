@@ -85,7 +85,22 @@ class _FakeRelayClient implements RelayClient {
   }) async {}
 
   @override
-  Future<RelayWriteReceipt> store(RelayEnvelope envelope) async {
+  Future<RelayBlobStoreReceipt> storeBlobWithReceipt(
+    RelayBlobUploadEnvelope envelope, {
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  }) async =>
+      RelayBlobStoreReceipt(blobId: envelope.id, relayServers: const []);
+
+  @override
+  Future<RelayWriteReceipt> store(
+    RelayEnvelope envelope, {
+    List<String> preferredServers = const <String>[],
+  }) async {
     return RelayWriteReceipt.empty;
   }
 
@@ -108,6 +123,7 @@ class _FakeRelayClient implements RelayClient {
   @override
   Future<RelayBlobDownload> fetchBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,

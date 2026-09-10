@@ -20,6 +20,10 @@ void main() {
       en.translateTransferStatus(RelayTransferStatus.incomingSaveFailed),
       'Save error',
     );
+    expect(
+      ru.translateTransferStatus(RelayTransferStatus.incomingDownloadComplete),
+      'Загрузка',
+    );
   });
 
   test('localizes legacy persisted transfer statuses through migration', () {

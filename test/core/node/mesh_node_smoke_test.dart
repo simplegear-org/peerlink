@@ -18,7 +18,6 @@ import 'package:peerlink/core/overlay/overlay_router.dart';
 import 'package:peerlink/core/push/push_api_client.dart';
 import 'package:peerlink/core/relay/http_relay_client.dart';
 import 'package:peerlink/core/runtime/network_event_bus.dart';
-import 'package:peerlink/core/runtime/runtime_servers_merge_orchestrator.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/identity_service.dart';
 import 'package:peerlink/core/security/session_crypto.dart';
@@ -175,13 +174,7 @@ _buildHarness() async {
     stateBox: settings,
   );
   await messaging.initialize();
-  final chat = ChatService(
-    messaging,
-    events,
-    serversMergeOrchestrator: RuntimeServersMergeOrchestrator(
-      settings: settings,
-    ),
-  );
+  final chat = ChatService(messaging, events);
   final turnAllocator = TurnAllocator();
   final callControlTransport = ReliableCallControlAdapter(
     selfPeerId: identity.nodeId,

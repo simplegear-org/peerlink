@@ -10,6 +10,7 @@ import '../runtime/server_availability.dart';
 import 'relay_server_status.dart';
 
 class RelayHttpServerPool {
+  static const Duration _operationFailureCooldown = Duration(minutes: 2);
   final bool httpsOnly;
   final int maxActiveRelayPool;
   final int fetchPoolSize;
@@ -21,6 +22,7 @@ class RelayHttpServerPool {
   final Map<String, RelayServerStatus> _statuses =
       <String, RelayServerStatus>{};
   final Map<String, String?> _fetchCursorByServer = <String, String?>{};
+  final Map<String, DateTime> _operationUnavailableUntil = <String, DateTime>{};
 
   ServerAvailability? Function(String endpoint)? _availabilityLookup;
   Future<void> Function(List<String> endpoints)? _refreshAvailability;
@@ -98,6 +100,9 @@ class RelayHttpServerPool {
     final activeKeys = _servers.map((server) => server.toString()).toSet();
     _statuses.removeWhere((key, _) => !activeKeys.contains(key));
     _fetchCursorByServer.removeWhere((key, _) => !activeKeys.contains(key));
+    _operationUnavailableUntil.removeWhere(
+      (key, _) => !activeKeys.contains(key),
+    );
     for (final server in _servers) {
       final key = server.toString();
       _statuses.putIfAbsent(
@@ -112,7 +117,20 @@ class RelayHttpServerPool {
     }
   }
 
-  Future<List<Uri>> writeTargets() => liveServers(limit: maxActiveRelayPool);
+  Future<List<Uri>> writeTargets({
+    Iterable<String> preferredServers = const <String>[],
+  }) async {
+    final targets = await liveServers(limit: maxActiveRelayPool);
+    final preferred = resolveServers(
+      preferredServers,
+    ).map((server) => server.toString()).toSet();
+    return List<Uri>.from(targets)..sort((a, b) {
+      final aPreferred = preferred.contains(a.toString());
+      final bPreferred = preferred.contains(b.toString());
+      if (aPreferred == bPreferred) return 0;
+      return aPreferred ? -1 : 1;
+    });
+  }
 
   Future<List<Uri>> fetchTargets() => liveServers(limit: fetchPoolSize);
 
@@ -154,6 +172,7 @@ class RelayHttpServerPool {
 
   void markHealthy(Uri server) {
     final key = server.toString();
+    _operationUnavailableUntil.remove(key);
     _statuses[key] = RelayServerStatus(
       url: key,
       healthy: true,
@@ -163,6 +182,9 @@ class RelayHttpServerPool {
 
   void markUnhealthy(Uri server, String error) {
     final key = server.toString();
+    _operationUnavailableUntil[key] = DateTime.now().add(
+      _operationFailureCooldown,
+    );
     final previous = _statuses[key];
     _statuses[key] = RelayServerStatus(
       url: key,
@@ -185,8 +207,16 @@ class RelayHttpServerPool {
   }
 
   bool? effectiveHealthy(Uri server) {
+    final key = server.toString();
+    final unavailableUntil = _operationUnavailableUntil[key];
+    if (unavailableUntil != null) {
+      if (DateTime.now().isBefore(unavailableUntil)) {
+        return false;
+      }
+      _operationUnavailableUntil.remove(key);
+    }
     if (_availabilityLookup == null) {
-      return _statuses[server.toString()]?.healthy ?? true;
+      return _statuses[key]?.healthy ?? true;
     }
     return sharedAvailabilityFor(server)?.isAvailable;
   }

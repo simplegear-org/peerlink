@@ -121,6 +121,12 @@ Current design combines:
   - fast health probes are used before runtime operations,
   - text/media paths use only a small live working set (up to 3 relays),
   - unavailable relays are skipped when healthy ones are available, helping reduce visible delivery delays.
+- Relay discovery and object routing are separate:
+  - configured relays remain the local Settings-owned pool,
+  - peer-advertised topology is TTL-bounded in `PeerRelayDirectory` and never
+    persists foreign endpoints into that pool,
+  - writes use a 1/1, 2/2, or 2/3 durable quorum and return exact successful
+    object locations.
 - Personal media delivery now also uses relay blob transport:
   - direct chat media is uploaded once into relay blob storage,
   - up to 3 live relays are selected for each blob; it is replicated to every
@@ -128,6 +134,9 @@ Current design combines:
     upload, while visible progress remains a single monotonic scale to 100%,
   - direct media bytes are encrypted before relay upload, and chat delivery uses encrypted `direct_blob_ref` metadata instead of the legacy direct `fileMeta/fileChunk` send path,
   - direct media receive now also resolves only through `direct_blob_ref` and relay blob download,
+  - direct and group media references can include exact `blobRelayServers`;
+    receivers try these first without changing local relay configuration, while
+    legacy references retain configured-pool fallback,
   - direct blob restore now uses retry/timeout protection during download,
   - incoming media rejects delayed outgoing progress statuses, so it cannot
     show `Sending 100%` after reception,

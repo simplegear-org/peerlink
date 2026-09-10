@@ -225,8 +225,33 @@ class ChatRuntimeNodeAdapter implements ChatRuntimeApi {
   }
 
   @override
+  Future<RelayBlobStoreReceipt> uploadBlobWithReceipt({
+    required RelayBlobScopeKind scopeKind,
+    required String targetId,
+    required String fileName,
+    required String? mimeType,
+    required Uint8List bytes,
+    String? blobId,
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  }) => _facade.uploadBlobWithReceipt(
+    scopeKind: scopeKind,
+    targetId: targetId,
+    fileName: fileName,
+    mimeType: mimeType,
+    bytes: bytes,
+    blobId: blobId,
+    onProgress: onProgress,
+  );
+
+  @override
   Future<RelayBlobDownload> downloadBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,
@@ -234,7 +259,11 @@ class ChatRuntimeNodeAdapter implements ChatRuntimeApi {
     })?
     onProgress,
   }) {
-    return _facade.downloadBlob(blobId, onProgress: onProgress);
+    return _facade.downloadBlob(
+      blobId,
+      relayServers: relayServers,
+      onProgress: onProgress,
+    );
   }
 
   @override

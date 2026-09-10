@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Last updated: 2026-09-06
+Last updated: 2026-09-10
 
 ## 1. Purpose
 
@@ -48,6 +48,11 @@ Working now:
 - `AccountIdentity` above device identity: `accountId`, `displayName`, device list, and a `peerlink://pair` QR/deep link for pairing a second device without changing the current device-based routing.
 - Overlay router + message dedup cache.
 - HTTP relay client with live-relay preselection, bounded active pool, quorum write/quorum ack, and status tracking.
+- Relay topology and object routing are separate: configured relays remain the
+  local Settings-owned pool, peer-advertised relays are held in the
+  TTL-bounded `PeerRelayDirectory`, and exact successful message/blob locations
+  are used for targeted operations. Incoming chat metadata never merges foreign
+  relays into the persistent configured pool.
 - Reliable messaging envelopes, relay poll loop, ack flow.
 - Group chat delivery via relay group envelopes.
 - Personal media delivery via relay blob + encrypted direct blob-reference metadata.

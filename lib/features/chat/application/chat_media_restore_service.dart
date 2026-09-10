@@ -284,7 +284,7 @@ class ChatMediaRestoreService {
                   sendProgress: sendProgress,
                   transferStatus: transferStatus,
                 ),
-              );
+              ).then((_) => notifyMessageUpdated(peerId));
             },
         onProgress:
             ({

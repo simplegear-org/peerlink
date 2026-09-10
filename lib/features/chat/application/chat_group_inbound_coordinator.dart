@@ -88,6 +88,7 @@ class ChatGroupInboundCoordinator {
     required Future<String?> Function({
       required String groupId,
       required String blobId,
+      List<String>? relayServers,
       String? fallback,
     })
     restoreGroupBlobText,
@@ -183,6 +184,7 @@ class ChatGroupInboundCoordinator {
   final Future<String?> Function({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   })
   _restoreGroupBlobText;

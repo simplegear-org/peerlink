@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Обновлено: 2026-09-06
+Обновлено: 2026-09-10
 
 ## 1. Назначение
 
@@ -53,6 +53,11 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - `AccountIdentity` поверх device identity: `accountId`, `displayName`, список устройств и QR/deep link `peerlink://pair` для привязки второго устройства без изменения текущей device-based маршрутизации.
 - Overlay router + dedup cache.
 - HTTP relay-клиент с предварительным отбором живых relay, bounded active pool, quorum-write/quorum-ack и трекингом статусов.
+- Relay topology и object routing разделены: configured relay остаются
+  локальным Settings-owned pool, relay от peer хранятся в
+  TTL-ограниченном `PeerRelayDirectory`, а точные successful locations
+  messages/blob используются для targeted operations. Входящий Chat metadata
+  не merge-ит чужие relay в persistent configured pool.
 - Reliable-envelope пайплайн декомпозирован на facade/service, inbound/session/poll controller-ы, pending store/retry scheduler и codec helpers.
 - Group relay path для групповых чатов.
 - Доставка personal media через relay blob + зашифрованный direct blob-reference payload.

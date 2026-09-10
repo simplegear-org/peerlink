@@ -177,6 +177,16 @@ class RelayWriteReceipt {
   bool get isEmpty => serverUrls.isEmpty;
 }
 
+class RelayBlobStoreReceipt {
+  const RelayBlobStoreReceipt({
+    required this.blobId,
+    required this.relayServers,
+  });
+
+  final String blobId;
+  final List<String> relayServers;
+}
+
 class RelayBlobUploadEnvelope {
   final String id;
   final String from;

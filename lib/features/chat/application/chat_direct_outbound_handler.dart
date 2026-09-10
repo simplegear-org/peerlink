@@ -185,6 +185,7 @@ class ChatDirectOutboundHandler {
         mimeType: mimeType,
         fileSizeBytes: fileSizeBytes,
         blobId: blobId,
+        blobRelayServers: upload.relayServers,
       );
       await rememberOutgoingRelayMediaState(
         OutgoingRelayMediaState(

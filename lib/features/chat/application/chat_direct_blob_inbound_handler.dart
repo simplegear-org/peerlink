@@ -25,6 +25,7 @@ class ChatDirectBlobInboundHandler {
       required String peerId,
       required String messageId,
       required String blobId,
+      List<String> blobRelayServers,
     })
     directBlobTransferId,
     required void Function(String peerId) notifyMessageUpdated,
@@ -98,6 +99,7 @@ class ChatDirectBlobInboundHandler {
             peerId: peerId,
             messageId: messageId,
             blobId: blobId,
+            blobRelayServers: blobRef.blobRelayServers,
           ),
           fileSizeBytes: blobRef.fileSizeBytes,
           replyToMessageId: msg.replyToMessageId,

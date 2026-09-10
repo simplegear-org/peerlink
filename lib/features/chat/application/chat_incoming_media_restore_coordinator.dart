@@ -208,10 +208,14 @@ class ChatIncomingMediaRestoreCoordinator {
   Future<String?> restoreGroupBlobText({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   }) async {
     try {
-      final blob = await _facade.downloadBlob(blobId);
+      final blob = await _facade.downloadBlob(
+        blobId,
+        relayServers: relayServers,
+      );
       if (blob.isNotFound) {
         return fallback;
       }
@@ -245,8 +249,11 @@ class ChatIncomingMediaRestoreCoordinator {
       messageId: route.messageId,
       blobId: route.blobId,
       fileName: message.fileName,
-      downloadBlob: (onProgress) =>
-          _facade.downloadBlob(route.blobId, onProgress: onProgress),
+      downloadBlob: (onProgress) => _facade.downloadBlob(
+        route.blobId,
+        relayServers: route.blobRelayServers,
+        onProgress: onProgress,
+      ),
       transformStatus: RelayMediaTransferService.incomingDecryptStatus,
       transformPayload: (blob) {
         return _decodeGroupBlobBytes(
@@ -278,8 +285,11 @@ class ChatIncomingMediaRestoreCoordinator {
       messageId: route.messageId,
       blobId: route.blobId,
       fileName: message.fileName,
-      downloadBlob: (onProgress) =>
-          _facade.downloadBlob(route.blobId, onProgress: onProgress),
+      downloadBlob: (onProgress) => _facade.downloadBlob(
+        route.blobId,
+        relayServers: route.blobRelayServers,
+        onProgress: onProgress,
+      ),
       transformStatus: RelayMediaTransferService.incomingDecryptStatus,
       transformPayload: (blob) {
         return _decodeDirectBlobBytes(

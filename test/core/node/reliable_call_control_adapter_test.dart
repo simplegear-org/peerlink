@@ -13,6 +13,23 @@ class _FakeChatService implements ChatService {
   final sentControlMessages = <({String peerId, String kind, String text})>[];
 
   @override
+  Future<RelayBlobStoreReceipt> uploadBlobWithReceipt({
+    required RelayBlobScopeKind scopeKind,
+    required String targetId,
+    required String fileName,
+    required String? mimeType,
+    required Uint8List bytes,
+    String? blobId,
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  }) async =>
+      RelayBlobStoreReceipt(blobId: blobId ?? 'blob', relayServers: const []);
+
+  @override
   void setControlHandler(ChatServiceControlHandler? handler) {
     controlHandler = handler;
   }
@@ -91,6 +108,7 @@ class _FakeChatService implements ChatService {
   @override
   Future<RelayBlobDownload> downloadBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,

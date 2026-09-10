@@ -558,6 +558,7 @@ class ChatGroupContentInboundHandler {
     required Future<String?> Function({
       required String groupId,
       required String blobId,
+      List<String>? relayServers,
       String? fallback,
     })
     restoreGroupBlobText,
@@ -579,6 +580,7 @@ class ChatGroupContentInboundHandler {
       required String groupId,
       required String messageId,
       required String blobId,
+      List<String> blobRelayServers,
     })
     groupBlobTransferId,
     required Future<void> Function(String peerId, Message message)
@@ -628,6 +630,7 @@ class ChatGroupContentInboundHandler {
       final text = await restoreGroupBlobText(
         groupId: groupId,
         blobId: blobRef.blobId,
+        relayServers: blobRef.blobRelayServers,
         fallback: blobRef.textPreview,
       );
       if (text == null || text.isEmpty) {
@@ -725,6 +728,7 @@ class ChatGroupContentInboundHandler {
         groupId: groupId,
         messageId: blobRef.messageId,
         blobId: blobRef.blobId,
+        blobRelayServers: blobRef.blobRelayServers,
       ),
       fileSizeBytes: blobRef.fileSizeBytes,
       replyToMessageId: msg.replyToMessageId,

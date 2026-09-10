@@ -14,7 +14,8 @@ import '../relay/relay_models.dart';
 import '../runtime/file_read_isolate.dart';
 import '../runtime/network_event_bus.dart';
 import '../runtime/network_event.dart';
-import '../runtime/runtime_servers_merge_orchestrator.dart';
+import '../runtime/server_update_parser.dart';
+import '../relay/peer_relay_directory.dart';
 
 typedef ChatServiceControlHandler =
     FutureOr<bool> Function(ChatMessage message);
@@ -132,7 +133,8 @@ enum ChatPayloadTargetKind { direct, group }
 class ChatService {
   final ReliableMessagingService _messaging;
   final NetworkEventBus _eventBus;
-  final RuntimeServersMergeOrchestrator _serversMergeOrchestrator;
+  final PeerRelayDirectory? _peerRelayDirectory;
+  final ServerUpdateParser _serverUpdateParser;
   late final StreamSubscription<ReliableSendStatus> _sendStatusSubscription;
   int _logSeq = 0;
   Map<String, dynamic>? Function()? _serverMetadataProvider;
@@ -142,8 +144,10 @@ class ChatService {
   ChatService(
     this._messaging,
     this._eventBus, {
-    required RuntimeServersMergeOrchestrator serversMergeOrchestrator,
-  }) : _serversMergeOrchestrator = serversMergeOrchestrator {
+    PeerRelayDirectory? peerRelayDirectory,
+    ServerUpdateParser serverUpdateParser = const ServerUpdateParser(),
+  }) : _peerRelayDirectory = peerRelayDirectory,
+       _serverUpdateParser = serverUpdateParser {
     _messaging.setIncomingHandler(_handleIncoming);
     _messaging.setInboundReadyProvider(() => _eventBus.hasAwaitableHandlers);
     _sendStatusSubscription = _messaging.onSendStatus.listen(_handleSendStatus);
@@ -324,8 +328,32 @@ class ChatService {
     );
   }
 
+  Future<RelayBlobStoreReceipt> uploadBlobWithReceipt({
+    required RelayBlobScopeKind scopeKind,
+    required String targetId,
+    required String fileName,
+    required String? mimeType,
+    required Uint8List bytes,
+    String? blobId,
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  }) => _messaging.storeBlobWithReceipt(
+    scopeKind: scopeKind,
+    targetId: targetId,
+    fileName: fileName,
+    mimeType: mimeType,
+    bytes: bytes,
+    blobId: blobId,
+    onProgress: onProgress,
+  );
+
   Future<RelayBlobDownload> downloadBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,
@@ -333,7 +361,11 @@ class ChatService {
     })?
     onProgress,
   }) {
-    return _messaging.fetchBlob(blobId, onProgress: onProgress);
+    return _messaging.fetchBlob(
+      blobId,
+      relayServers: relayServers,
+      onProgress: onProgress,
+    );
   }
 
   Future<void> sendFile(
@@ -448,14 +480,17 @@ class ChatService {
       throw const FormatException('Invalid chat payload fields');
     }
 
-    _serversMergeOrchestrator.scheduleIfPresent(
-      payload,
-      source: groupId != null && groupId.isNotEmpty
-          ? 'relay-group-message'
-          : 'relay-direct-message',
-      logName: 'chat',
-      logPrefix: '[chat][servers]',
-    );
+    final relayUpdate = _serverUpdateParser.parse(payload);
+    if (relayUpdate != null && relayUpdate.relay.isNotEmpty) {
+      unawaited(
+        _peerRelayDirectory?.updateRelayServers(
+              sourcePeerId,
+              relayUpdate.relay,
+              updatedAt: DateTime.now(),
+            ) ??
+            Future<void>.value(),
+      );
+    }
 
     final message = ChatMessage(
       id: id,

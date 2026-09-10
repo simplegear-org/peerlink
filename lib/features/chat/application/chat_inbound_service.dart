@@ -589,6 +589,7 @@ class ChatInboundService {
     required Future<String?> Function({
       required String groupId,
       required String blobId,
+      List<String>? relayServers,
       String? fallback,
     })
     restoreGroupBlobText,
@@ -610,6 +611,7 @@ class ChatInboundService {
       required String groupId,
       required String messageId,
       required String blobId,
+      List<String> blobRelayServers,
     })
     groupBlobTransferId,
     required Future<void> Function(String peerId, Message message)
@@ -659,6 +661,7 @@ class ChatInboundService {
       required String peerId,
       required String messageId,
       required String blobId,
+      List<String> blobRelayServers,
     })
     directBlobTransferId,
     required void Function(String peerId) notifyMessageUpdated,

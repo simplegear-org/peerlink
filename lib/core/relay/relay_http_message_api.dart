@@ -11,6 +11,7 @@ import 'relay_http_server_pool.dart';
 import 'relay_http_transport.dart';
 import 'relay_http_types.dart';
 import 'relay_models.dart';
+import 'relay_replication_policy.dart';
 
 class RelayHttpMessageApi {
   final RelayHttpServerPool serverPool;
@@ -31,12 +32,16 @@ class RelayHttpMessageApi {
     required this.ackQuorum,
   });
 
-  Future<RelayWriteReceipt> store(RelayEnvelope envelope) {
+  Future<RelayWriteReceipt> store(
+    RelayEnvelope envelope, {
+    List<String> preferredServers = const <String>[],
+  }) {
     return postToQuorum(
       '/relay/store',
       envelope.toJson(),
       operationName: 'store',
       quorum: writeQuorum,
+      preferredServers: preferredServers,
     );
   }
 
@@ -96,6 +101,7 @@ class RelayHttpMessageApi {
     Map<String, dynamic> payload, {
     required String operationName,
     required int quorum,
+    Iterable<String> preferredServers = const <String>[],
   }) async {
     if (serverPool.isEmpty) {
       log('relay $operationName skip reason=no relay servers');
@@ -106,7 +112,9 @@ class RelayHttpMessageApi {
     final errors = <String>[];
     var successCount = 0;
     final successfulServers = <String>[];
-    final targets = await serverPool.writeTargets();
+    final targets = await serverPool.writeTargets(
+      preferredServers: preferredServers,
+    );
     if (targets.isEmpty) {
       log('relay $operationName skip reason=relay servers unavailable');
       throw RelayUnavailableException(
@@ -397,13 +405,10 @@ class RelayHttpMessageApi {
   }
 
   int effectiveQuorum(int available, int requested) {
-    if (available <= 0) {
-      return 0;
-    }
     if (requested <= 1) {
-      return 1;
+      return available <= 0 ? 0 : 1;
     }
-    return requested > available ? available : requested;
+    return RelayReplicationPolicy.requiredSuccessfulReplicas(available);
   }
 
   Future<RelayFetchResult> _fetchAcrossTargets(

@@ -414,6 +414,7 @@ class ChatGroupOutboundHandler {
         mimeType: mimeType,
         fileSizeBytes: fileSizeBytes,
         blobId: uploadedBlobId,
+        blobRelayServers: upload.relayServers,
       );
       final securePayload = await encryptGroupText(
         groupId: groupChat.peerId,

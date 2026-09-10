@@ -7,7 +7,19 @@
 import 'relay_models.dart';
 
 abstract class RelayClient {
-  Future<RelayWriteReceipt> store(RelayEnvelope envelope);
+  Future<RelayBlobStoreReceipt> storeBlobWithReceipt(
+    RelayBlobUploadEnvelope envelope, {
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  }) => throw UnsupportedError('Blob store receipts are not supported');
+  Future<RelayWriteReceipt> store(
+    RelayEnvelope envelope, {
+    List<String> preferredServers = const <String>[],
+  });
   Future<RelayWriteReceipt> storeGroup(RelayGroupEnvelope envelope);
   Future<void> updateGroupMembers(RelayGroupMembersUpdateEnvelope envelope);
   Future<void> registerPushToken({
@@ -29,6 +41,7 @@ abstract class RelayClient {
   });
   Future<RelayBlobDownload> fetchBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,

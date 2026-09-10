@@ -100,6 +100,7 @@ abstract interface class ChatMediaStatePort {
   Future<String?> restoreGroupBlobText({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   });
 }

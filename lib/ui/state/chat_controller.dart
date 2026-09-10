@@ -724,11 +724,13 @@ class ChatController with WidgetsBindingObserver {
   Future<String?> _restoreGroupBlobText({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   }) async {
     return _mediaApi.restoreGroupBlobText(
       groupId: groupId,
       blobId: blobId,
+      relayServers: relayServers,
       fallback: fallback,
     );
   }
@@ -965,11 +967,13 @@ final class _ChatControllerMediaStatePort implements ChatMediaStatePort {
   Future<String?> restoreGroupBlobText({
     required String groupId,
     required String blobId,
+    List<String>? relayServers,
     String? fallback,
   }) {
     return _controller._restoreGroupBlobText(
       groupId: groupId,
       blobId: blobId,
+      relayServers: relayServers,
       fallback: fallback,
     );
   }

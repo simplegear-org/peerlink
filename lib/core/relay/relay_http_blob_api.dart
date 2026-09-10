@@ -13,6 +13,7 @@ import 'relay_http_server_pool.dart';
 import 'relay_http_transport.dart';
 import 'relay_http_types.dart';
 import 'relay_models.dart';
+import 'relay_replication_policy.dart';
 import 'relay_transfer_status.dart';
 
 class RelayHttpBlobApi {
@@ -21,6 +22,7 @@ class RelayHttpBlobApi {
   final RelayHttpMessageApi messageApi;
   final void Function(String message) log;
   final Duration blobTimeout;
+  final Duration blobChunkUploadTimeout;
   final int blobChunkSizeBytes;
   final int blobChunkUploadConcurrency;
   final int chunkedUploadThresholdBytes;
@@ -31,6 +33,7 @@ class RelayHttpBlobApi {
     required this.messageApi,
     required this.log,
     required this.blobTimeout,
+    required this.blobChunkUploadTimeout,
     required this.blobChunkSizeBytes,
     required this.blobChunkUploadConcurrency,
     required this.chunkedUploadThresholdBytes,
@@ -40,18 +43,25 @@ class RelayHttpBlobApi {
     RelayBlobUploadEnvelope envelope, {
     RelayUploadProgressCallback? onProgress,
   }) async {
+    await storeBlobWithReceipt(envelope, onProgress: onProgress);
+  }
+
+  Future<RelayBlobStoreReceipt> storeBlobWithReceipt(
+    RelayBlobUploadEnvelope envelope, {
+    RelayUploadProgressCallback? onProgress,
+  }) async {
     if (envelope.payload.length >= chunkedUploadThresholdBytes) {
       onProgress?.call(
         sentBytes: 0,
         totalBytes: envelope.payload.length,
         status: RelayTransferStatus.outgoingUploadingRelay,
       );
-      final chunkedOk = await storeBlobChunked(
+      final chunkedReceipt = await storeBlobChunked(
         envelope,
         onProgress: onProgress,
       );
-      if (chunkedOk) {
-        return;
+      if (chunkedReceipt != null) {
+        return chunkedReceipt;
       }
       log('blob-upload chunked unavailable, fallback to single upload');
     }
@@ -60,20 +70,24 @@ class RelayHttpBlobApi {
       totalBytes: envelope.payload.length,
       status: RelayTransferStatus.outgoingUploadingRelay,
     );
-    await messageApi.postToQuorum(
+    final receipt = await messageApi.postToQuorum(
       '/relay/blob/upload',
       envelope.toJson(),
       operationName: 'blob-upload',
-      quorum: serverPool.maxActiveRelayPool,
+      quorum: RelayReplicationPolicy.desiredSuccessfulReplicas,
     );
     onProgress?.call(
       sentBytes: envelope.payload.length,
       totalBytes: envelope.payload.length,
       status: RelayTransferStatus.outgoingFinalizing,
     );
+    return RelayBlobStoreReceipt(
+      blobId: envelope.id,
+      relayServers: receipt.serverUrls,
+    );
   }
 
-  Future<bool> storeBlobChunked(
+  Future<RelayBlobStoreReceipt?> storeBlobChunked(
     RelayBlobUploadEnvelope envelope, {
     RelayUploadProgressCallback? onProgress,
   }) async {
@@ -83,7 +97,7 @@ class RelayHttpBlobApi {
     }
     final totalBytes = envelope.payload.length;
     if (totalBytes == 0) {
-      return false;
+      return null;
     }
     final totalChunks = (totalBytes / blobChunkSizeBytes).ceil();
 
@@ -101,6 +115,7 @@ class RelayHttpBlobApi {
       'chunkSize=$blobChunkSizeBytes servers=${targets.length}',
     );
     var successfulServers = 0;
+    final successfulRelayServers = <String>[];
     var unavailableServers = 0;
     void reportReplicatedProgress({
       required int sentBytes,
@@ -169,7 +184,8 @@ class RelayHttpBlobApi {
             final chunkResponse = await transport.sendPost(
               server.resolve('/relay/blob/upload/chunk'),
               body: jsonEncode(chunkRequest),
-              timeout: blobTimeout,
+              timeout: blobChunkUploadTimeout,
+              maxAttempts: 1,
             );
             if (chunkResponse == null) {
               firstError ??= HttpException('blob chunk timeout');
@@ -266,6 +282,7 @@ class RelayHttpBlobApi {
           'bytes=$totalBytes chunks=$totalChunks',
         );
         successfulServers += 1;
+        successfulRelayServers.add(server.toString());
         final activeReplicaCount = targets.length - unavailableServers;
         onProgress?.call(
           sentBytes: successfulServers * totalBytes ~/ activeReplicaCount,
@@ -286,31 +303,41 @@ class RelayHttpBlobApi {
         continue;
       }
     }
-    final requiredSuccesses = targets.length - unavailableServers;
-    if (successfulServers > 0 && successfulServers >= requiredSuccesses) {
-      return true;
+    final requiredSuccesses = RelayReplicationPolicy.requiredSuccessfulReplicas(
+      targets.length,
+    );
+    if (successfulServers >= requiredSuccesses) {
+      return RelayBlobStoreReceipt(
+        blobId: envelope.id,
+        relayServers: successfulRelayServers.toSet().toList(growable: false)
+          ..sort(),
+      );
     }
     log(
       'blob-upload chunked quorum failed success=$successfulServers/'
       '${targets.length} unavailable=$unavailableServers '
       'required=$requiredSuccesses',
     );
-    return false;
+    return null;
   }
 
   Future<RelayBlobDownload> fetchBlob(
     String blobId, {
+    List<String>? relayServers,
     RelayDownloadProgressCallback? onProgress,
   }) async {
-    if (serverPool.isEmpty) {
+    final targeted = relayServers == null || relayServers.isEmpty
+        ? const <Uri>[]
+        : serverPool.resolveServers(relayServers);
+    if (targeted.isEmpty && serverPool.isEmpty) {
       log('blob-fetch skip blobId=$blobId reason=no relay servers');
       throw RelayUnavailableException();
     }
     final attempted = <String>{};
     final errors = <String>[];
-    final initialTargets = await serverPool.liveServers(
-      limit: serverPool.maxActiveRelayPool,
-    );
+    final initialTargets = targeted.isNotEmpty
+        ? targeted
+        : await serverPool.liveServers(limit: serverPool.maxActiveRelayPool);
     if (initialTargets.isEmpty) {
       log('blob-fetch skip blobId=$blobId reason=relay servers unavailable');
       throw RelayUnavailableException(
@@ -333,8 +360,7 @@ class RelayHttpBlobApi {
     final initialNotFoundErrors = initialBatch.errors
         .where((error) => error.startsWith('blob-fetch 404'))
         .toList(growable: false);
-    if (initialNotFoundErrors.isNotEmpty &&
-        attempted.length < serverPool.totalServers) {
+    if (initialNotFoundErrors.isNotEmpty && !serverPool.isEmpty) {
       final fallbackTargets = serverPool
           .prioritizedServers(limit: serverPool.totalServers)
           .where((server) => !attempted.contains(server.toString()))

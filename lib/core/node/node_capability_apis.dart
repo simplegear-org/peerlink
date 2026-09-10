@@ -113,8 +113,24 @@ abstract interface class MessagingApi {
     onProgress,
   });
 
+  Future<RelayBlobStoreReceipt> uploadBlobWithReceipt({
+    required RelayBlobScopeKind scopeKind,
+    required String targetId,
+    required String fileName,
+    required String? mimeType,
+    required Uint8List bytes,
+    String? blobId,
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  });
+
   Future<RelayBlobDownload> downloadBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,

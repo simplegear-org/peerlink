@@ -19,6 +19,7 @@ import 'reliable_session_controller.dart';
 import '../overlay/message_cache.dart';
 import '../relay/relay_client.dart';
 import '../relay/relay_models.dart';
+import '../relay/peer_relay_directory.dart';
 import '../runtime/storage_service.dart';
 import '../security/session_manager.dart';
 
@@ -86,6 +87,7 @@ class ReliableMessagingService {
       'reliable.pending_operations.v1';
 
   final RelayClient _relay;
+  final PeerRelayDirectory? _peerRelayDirectory;
   final SessionManager _sessions;
   final String _selfId;
   final Duration _maxFutureClockSkew;
@@ -173,9 +175,11 @@ class ReliableMessagingService {
     Duration maxClockSkew = const Duration(minutes: 2),
     bool enableEncryption = true,
     SecureStorageBox? stateBox,
+    PeerRelayDirectory? peerRelayDirectory,
   }) : _maxFutureClockSkew = maxClockSkew,
        _encryptionEnabled = enableEncryption,
-       _stateBox = stateBox {
+       _stateBox = stateBox,
+       _peerRelayDirectory = peerRelayDirectory {
     _sessionController = ReliableSessionController(
       relay: _relay,
       sessions: _sessions,
@@ -639,6 +643,29 @@ class ReliableMessagingService {
       required String status,
     })?
     onProgress,
+  }) async => (await storeBlobWithReceipt(
+    scopeKind: scopeKind,
+    targetId: targetId,
+    fileName: fileName,
+    mimeType: mimeType,
+    bytes: bytes,
+    blobId: blobId,
+    onProgress: onProgress,
+  )).blobId;
+
+  Future<RelayBlobStoreReceipt> storeBlobWithReceipt({
+    required RelayBlobScopeKind scopeKind,
+    required String targetId,
+    required String fileName,
+    required String? mimeType,
+    required Uint8List bytes,
+    String? blobId,
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
   }) async {
     if (!_messageRelayEnabled) {
       _log(
@@ -686,12 +713,12 @@ class ReliableMessagingService {
       signature: signature,
       senderSigningPublicKey: signingPub,
     );
-    await _relay.storeBlob(envelope, onProgress: onProgress);
-    return envelopeId;
+    return _relay.storeBlobWithReceipt(envelope, onProgress: onProgress);
   }
 
   Future<RelayBlobDownload> fetchBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,
@@ -705,7 +732,11 @@ class ReliableMessagingService {
         details: 'no message relay server configured',
       );
     }
-    return _relay.fetchBlob(blobId, onProgress: onProgress);
+    return _relay.fetchBlob(
+      blobId,
+      relayServers: relayServers,
+      onProgress: onProgress,
+    );
   }
 
   Future<void> _publishPrekeyBundle() {
@@ -836,7 +867,11 @@ class ReliableMessagingService {
       senderSigningPublicKey: signingPub,
     );
 
-    final receipt = await _relay.store(relayEnvelope);
+    final receipt = await _relay.store(
+      relayEnvelope,
+      preferredServers:
+          _peerRelayDirectory?.freshRelayServersFor(peerId) ?? const <String>[],
+    );
     final sendReceipt = ReliableSendReceipt(
       sent: true,
       relayServers: receipt.serverUrls,

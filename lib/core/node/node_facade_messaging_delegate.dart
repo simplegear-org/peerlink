@@ -88,8 +88,32 @@ class NodeFacadeMessagingDelegate {
     );
   }
 
+  Future<RelayBlobStoreReceipt> uploadBlobWithReceipt({
+    required RelayBlobScopeKind scopeKind,
+    required String targetId,
+    required String fileName,
+    required String? mimeType,
+    required Uint8List bytes,
+    String? blobId,
+    void Function({
+      required int sentBytes,
+      required int totalBytes,
+      required String status,
+    })?
+    onProgress,
+  }) => _chat.uploadBlobWithReceipt(
+    scopeKind: scopeKind,
+    targetId: targetId,
+    fileName: fileName,
+    mimeType: mimeType,
+    bytes: bytes,
+    blobId: blobId,
+    onProgress: onProgress,
+  );
+
   Future<RelayBlobDownload> downloadBlob(
     String blobId, {
+    List<String>? relayServers,
     void Function({
       required int receivedBytes,
       required int totalBytes,
@@ -97,7 +121,11 @@ class NodeFacadeMessagingDelegate {
     })?
     onProgress,
   }) {
-    return _chat.downloadBlob(blobId, onProgress: onProgress);
+    return _chat.downloadBlob(
+      blobId,
+      relayServers: relayServers,
+      onProgress: onProgress,
+    );
   }
 
   Future<Uint8List> encryptDirectBytes(String peerId, Uint8List plainBytes) {

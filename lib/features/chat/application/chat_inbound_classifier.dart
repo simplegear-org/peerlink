@@ -367,6 +367,7 @@ class ChatInboundClassifier {
       groupName: (raw['groupName'] as String?)?.trim(),
       memberPeerIds: _readStringList(raw['memberPeerIds']),
       ownerPeerId: (raw['ownerPeerId'] as String?)?.trim(),
+      blobRelayServers: _readStringList(raw['blobRelayServers']),
       raw: raw,
     );
   }

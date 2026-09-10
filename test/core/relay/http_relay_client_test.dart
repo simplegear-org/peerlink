@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:peerlink/core/relay/http_relay_client.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
+import 'package:peerlink/core/runtime/server_availability.dart';
 
 void main() {
   late RelayEnvelope sampleEnvelope;
@@ -104,6 +105,32 @@ void main() {
       'second.example',
       'third.example',
     });
+  });
+
+  test('store prioritizes fresh peer relay intersection', () async {
+    final calls = <String>[];
+    final client = HttpRelayClient(
+      servers: [
+        'http://sender1.example',
+        'http://shared.example',
+        'http://sender2.example',
+      ],
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/health') return http.Response('', 200);
+        if (request.url.path == '/relay/store') {
+          calls.add(request.url.host);
+          return http.Response('', 200);
+        }
+        return http.Response('unexpected', 500);
+      }),
+    );
+
+    await client.store(
+      sampleEnvelope,
+      preferredServers: const ['http://shared.example'],
+    );
+
+    expect(calls.first, 'shared.example');
   });
 
   test('fetch returns parsed envelope and cursor', () async {
@@ -267,6 +294,39 @@ void main() {
     },
   );
 
+  test('fetchBlob uses relay locations from a blob reference first', () async {
+    final requestedHosts = <String>[];
+    final client = HttpRelayClient(
+      servers: ['http://local-relay.example'],
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/relay/blob/blob-123') {
+          requestedHosts.add(request.url.host);
+          if (request.url.host == 'sender-relay.example') {
+            return http.Response(
+              jsonEncode({
+                'id': 'blob-123',
+                'fileName': 'hello.txt',
+                'payload': base64Encode(utf8.encode('hello')),
+                'sizeBytes': 5,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+        }
+        return http.Response('unexpected', 500);
+      }),
+    );
+
+    final result = await client.fetchBlob(
+      'blob-123',
+      relayServers: const ['http://sender-relay.example'],
+    );
+
+    expect(result.id, 'blob-123');
+    expect(requestedHosts, <String>['sender-relay.example']);
+  });
+
   test(
     'fetchBlob falls back to remaining relays after mixed timeout and 404',
     () async {
@@ -362,7 +422,7 @@ void main() {
     expect(progress, isEmpty);
   });
 
-  test('storeBlob requires every available relay', () async {
+  test('storeBlob succeeds with two of three relay replicas', () async {
     final uploads = <String>[];
     final client = HttpRelayClient(
       servers: [
@@ -396,7 +456,7 @@ void main() {
       senderSigningPublicKey: Uint8List.fromList([33, 44]),
     );
 
-    await expectLater(client.storeBlob(blob), throwsA(isA<Exception>()));
+    await client.storeBlob(blob);
 
     expect(
       uploads,
@@ -406,6 +466,105 @@ void main() {
         'relay3.example',
       ]),
     );
+  });
+
+  test(
+    'storeBlobWithReceipt returns only successful relay locations',
+    () async {
+      final client = HttpRelayClient(
+        servers: [
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/health') return http.Response('', 200);
+          if (request.url.path == '/relay/blob/upload') {
+            return request.url.host == 'relay3.example'
+                ? http.Response('offline', 503)
+                : http.Response('', 200);
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+      final receipt = await client.storeBlobWithReceipt(
+        RelayBlobUploadEnvelope(
+          id: 'blob-123',
+          from: 'alice',
+          groupId: 'dm:alice|bob',
+          fileName: 'a',
+          mimeType: null,
+          timestampMs: 1,
+          ttlSeconds: 1,
+          payload: Uint8List(1),
+          signature: Uint8List(1),
+          senderSigningPublicKey: Uint8List(1),
+        ),
+      );
+      expect(receipt.blobId, 'blob-123');
+      expect(receipt.relayServers, [
+        'http://relay1.example',
+        'http://relay2.example',
+      ]);
+    },
+  );
+
+  test('store fails when two of three relay replicas fail', () async {
+    final client = HttpRelayClient(
+      servers: [
+        'http://relay1.example',
+        'http://relay2.example',
+        'http://relay3.example',
+      ],
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/health') {
+          return http.Response('', 200);
+        }
+        if (request.url.path == '/relay/store') {
+          return request.url.host == 'relay1.example'
+              ? http.Response('', 200)
+              : http.Response('offline', 503);
+        }
+        return http.Response('unexpected', 500);
+      }),
+    );
+
+    await expectLater(client.store(sampleEnvelope), throwsA(isA<Exception>()));
+  });
+
+  test('storeBlob fails when two of three relay replicas fail', () async {
+    final client = HttpRelayClient(
+      servers: [
+        'http://relay1.example',
+        'http://relay2.example',
+        'http://relay3.example',
+      ],
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/health') {
+          return http.Response('', 200);
+        }
+        if (request.url.path == '/relay/blob/upload') {
+          return request.url.host == 'relay1.example'
+              ? http.Response('', 200)
+              : http.Response('offline', 503);
+        }
+        return http.Response('unexpected', 500);
+      }),
+    );
+    final blob = RelayBlobUploadEnvelope(
+      id: 'blob-123',
+      from: 'alice',
+      groupId: 'dm:alice|bob',
+      fileName: 'hello.txt',
+      mimeType: 'text/plain',
+      timestampMs: 1000,
+      ttlSeconds: 3600,
+      payload: Uint8List.fromList(utf8.encode('hello')),
+      signature: Uint8List.fromList([11, 22]),
+      senderSigningPublicKey: Uint8List.fromList([33, 44]),
+    );
+
+    await expectLater(client.storeBlob(blob), throwsA(isA<Exception>()));
   });
 
   test(
@@ -500,6 +659,51 @@ void main() {
       await client.storeBlob(blob);
 
       expect(completedServers, <String>['relay2.example', 'relay3.example']);
+    },
+  );
+
+  test(
+    'chunked storeBlob temporarily skips a relay after an upload failure',
+    () async {
+      var failedChunkRequests = 0;
+      final available = ServerAvailability.available(checkedAt: DateTime.now());
+      final client = HttpRelayClient(
+        servers: [
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+        availabilityLookup: (_) => available,
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/relay/blob/upload/chunk' &&
+              request.url.host == 'relay1.example') {
+            failedChunkRequests += 1;
+            throw const SocketException('timed out');
+          }
+          if (request.url.path == '/relay/blob/upload/chunk' ||
+              request.url.path == '/relay/blob/upload/complete') {
+            return http.Response('', 200);
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+      RelayBlobUploadEnvelope blob(String id) => RelayBlobUploadEnvelope(
+        id: id,
+        from: 'alice',
+        groupId: 'dm:alice|bob',
+        fileName: 'large.bin',
+        mimeType: 'application/octet-stream',
+        timestampMs: 1000,
+        ttlSeconds: 3600,
+        payload: Uint8List(512 * 1024),
+        signature: Uint8List.fromList([11, 22]),
+        senderSigningPublicKey: Uint8List.fromList([33, 44]),
+      );
+
+      await client.storeBlob(blob('blob-1'));
+      await client.storeBlob(blob('blob-2'));
+
+      expect(failedChunkRequests, 1);
     },
   );
 }

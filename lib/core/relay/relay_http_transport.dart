@@ -23,12 +23,19 @@ class RelayHttpTransport {
     Uri uri, {
     required String body,
     required Duration timeout,
+    int maxAttempts = 3,
   }) async {
     if (httpClient == null) {
-      return sendPostDirect(uri, body: body, timeout: timeout);
+      return sendPostDirect(
+        uri,
+        body: body,
+        timeout: timeout,
+        maxAttempts: maxAttempts,
+      );
     }
+    final attempts = maxAttempts < 1 ? 1 : maxAttempts;
     Object? lastError;
-    for (var attempt = 0; attempt < 3; attempt++) {
+    for (var attempt = 0; attempt < attempts; attempt++) {
       try {
         final request = http.Request('POST', uri)
           ..persistentConnection = false
@@ -49,7 +56,7 @@ class RelayHttpTransport {
         if (streamedResult.hasError) {
           lastError = streamedResult.error;
           final transient = isTransientHttpError(streamedResult.error);
-          if (!transient || attempt >= 2) {
+          if (!transient || attempt >= attempts - 1) {
             break;
           }
           await Future<void>.delayed(
@@ -72,7 +79,7 @@ class RelayHttpTransport {
         if (responseResult.hasError) {
           lastError = responseResult.error;
           final transient = isTransientHttpError(responseResult.error);
-          if (!transient || attempt >= 2) {
+          if (!transient || attempt >= attempts - 1) {
             break;
           }
           await Future<void>.delayed(
@@ -84,7 +91,7 @@ class RelayHttpTransport {
       } catch (e) {
         lastError = e;
         final transient = isTransientHttpError(e);
-        if (!transient || attempt >= 2) {
+        if (!transient || attempt >= attempts - 1) {
           break;
         }
         await Future<void>.delayed(Duration(milliseconds: 100 * (attempt + 1)));
@@ -217,9 +224,11 @@ class RelayHttpTransport {
     Uri uri, {
     required String body,
     required Duration timeout,
+    int maxAttempts = 3,
   }) async {
+    final attempts = maxAttempts < 1 ? 1 : maxAttempts;
     Object? lastError;
-    for (var attempt = 0; attempt < 3; attempt++) {
+    for (var attempt = 0; attempt < attempts; attempt++) {
       final client = createRawHttpClientForUri(uri, timeout: timeout);
       try {
         final requestResult = await awaitHttpOperation(
@@ -233,7 +242,7 @@ class RelayHttpTransport {
         if (requestResult.hasError) {
           lastError = requestResult.error;
           final transient = isTransientHttpError(requestResult.error);
-          if (!transient || attempt >= 2) {
+          if (!transient || attempt >= attempts - 1) {
             break;
           }
           await Future<void>.delayed(
@@ -262,7 +271,7 @@ class RelayHttpTransport {
         if (responseResult.hasError) {
           lastError = responseResult.error;
           final transient = isTransientHttpError(responseResult.error);
-          if (!transient || attempt >= 2) {
+          if (!transient || attempt >= attempts - 1) {
             break;
           }
           await Future<void>.delayed(
@@ -285,7 +294,7 @@ class RelayHttpTransport {
         if (bodyResult.hasError) {
           lastError = bodyResult.error;
           final transient = isTransientHttpError(bodyResult.error);
-          if (!transient || attempt >= 2) {
+          if (!transient || attempt >= attempts - 1) {
             break;
           }
           await Future<void>.delayed(
@@ -297,7 +306,7 @@ class RelayHttpTransport {
       } catch (e) {
         lastError = e;
         final transient = isTransientHttpError(e);
-        if (!transient || attempt >= 2) {
+        if (!transient || attempt >= attempts - 1) {
           break;
         }
         await Future<void>.delayed(Duration(milliseconds: 100 * (attempt + 1)));
