@@ -17,6 +17,9 @@ import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import android.provider.CallLog
+import com.android.installreferrer.api.InstallReferrerClient
+import com.android.installreferrer.api.InstallReferrerStateListener
+import com.android.installreferrer.api.InstallReferrerClient.InstallReferrerResponse
 import java.io.File
 import java.io.FileOutputStream
 import io.flutter.embedding.android.FlutterActivity
@@ -33,6 +36,9 @@ class MainActivity : FlutterActivity() {
     private val pushPayloadMethodChannelName = "peerlink/push_payload/methods"
     private val accessControlMethodChannelName = "peerlink/access_control/methods"
     private val writeCallLogRequestCode = 7301
+    private val installReferrerPreferences = "peerlink.install_referrer.v1"
+    private val installReferrerTokenKey = "invite_token"
+    private val installReferrerHandledKey = "handled"
     private var initialLink: String? = null
     private var eventSink: EventChannel.EventSink? = null
     private var pendingLink: String? = null
@@ -45,6 +51,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getInitialLink" -> result.success(initialLink)
+                    "getInstallReferrerInviteToken" -> getInstallReferrerInviteToken(result)
+                    "markInstallReferrerInviteTokenHandled" -> markInstallReferrerInviteTokenHandled(call.arguments, result)
                     else -> result.notImplemented()
                 }
             }
@@ -174,6 +182,59 @@ class MainActivity : FlutterActivity() {
         return null
     }
 
+    private fun getInstallReferrerInviteToken(result: MethodChannel.Result) {
+        val preferences = getSharedPreferences(installReferrerPreferences, MODE_PRIVATE)
+        if (preferences.getBoolean(installReferrerHandledKey, false)) {
+            result.success(null)
+            return
+        }
+        preferences.getString(installReferrerTokenKey, null)?.let {
+            result.success(it)
+            return
+        }
+        val client = InstallReferrerClient.newBuilder(this).build()
+        client.startConnection(object : InstallReferrerStateListener {
+            override fun onInstallReferrerSetupFinished(responseCode: Int) {
+                val token = if (responseCode == InstallReferrerResponse.OK) {
+                    extractInviteToken(client.installReferrer.installReferrer)
+                } else {
+                    null
+                }
+                client.endConnection()
+                if (token != null) {
+                    preferences.edit().putString(installReferrerTokenKey, token).apply()
+                }
+                runOnUiThread { result.success(token) }
+            }
+
+            override fun onInstallReferrerServiceDisconnected() {
+                // A later startup can safely retry without fingerprinting.
+            }
+        })
+    }
+
+    private fun markInstallReferrerInviteTokenHandled(
+        arguments: Any?,
+        result: MethodChannel.Result,
+    ) {
+        val token = arguments as? String
+        val preferences = getSharedPreferences(installReferrerPreferences, MODE_PRIVATE)
+        if (token != null && token == preferences.getString(installReferrerTokenKey, null)) {
+            preferences.edit()
+                .putBoolean(installReferrerHandledKey, true)
+                .remove(installReferrerTokenKey)
+                .apply()
+        }
+        result.success(null)
+    }
+
+    private fun extractInviteToken(referrer: String?): String? {
+        val token = Uri.parse("https://peerlink.local/?${referrer.orEmpty()}")
+            .getQueryParameter("invite_token")
+            ?: return null
+        return token.takeIf { it.matches(Regex("^[A-Za-z0-9_-]{22,128}\\$")) }
+    }
+
     private fun isSupportedPeerlinkUri(uri: Uri): Boolean {
         if (uri.scheme != "peerlink") {
             return false
@@ -201,7 +262,7 @@ class MainActivity : FlutterActivity() {
 
     private fun hasSupportedDeepLinkPath(pathSegments: List<String>): Boolean {
         return pathSegments.any {
-            it == "invite" || it == "pair" || it == "config"
+            it == "invite" || it == "pair" || it == "config" || it == "i"
         }
     }
 

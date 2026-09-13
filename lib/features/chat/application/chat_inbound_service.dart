@@ -64,7 +64,8 @@ class ChatInboundService {
         IncomingInteractionType.messageReceipt,
       IncomingProfileAvatarDispatch() ||
       IncomingProfileAvatarRemoveDispatch() ||
-      IncomingProfileAvatarQueryDispatch() => IncomingInteractionType.profile,
+      IncomingProfileAvatarQueryDispatch() ||
+      IncomingProfileUsernameDispatch() => IncomingInteractionType.profile,
       IncomingGroupInviteDispatch() => IncomingInteractionType.groupInvite,
       IncomingGroupKeyDispatch() ||
       IncomingGroupKeyRequestDispatch() ||
@@ -209,6 +210,9 @@ class ChatInboundService {
         return;
       case IncomingProfileAvatarQueryDispatch():
         await avatarService.handleIncomingAvatarQuery(msg.peerId, msg.text);
+        return;
+      case IncomingProfileUsernameDispatch():
+        await avatarService.handleIncomingUsernameUpdate(msg.peerId, msg.text);
         return;
       case IncomingGroupInviteDispatch(payload: final payload):
         await handleIncomingGroupInvite(msg, payload);

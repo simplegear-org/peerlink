@@ -27,6 +27,7 @@ class AppFileLogger {
   static const List<String> _diagnosticPrefixes = <String>[
     '[chat_media]',
     '[relay_media]',
+    '[invite]',
   ];
 
   static final AppFileLogger instance = AppFileLogger._();

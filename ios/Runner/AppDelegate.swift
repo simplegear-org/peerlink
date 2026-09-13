@@ -128,6 +128,7 @@ final class DeepLinkChannel: NSObject, FlutterStreamHandler {
     if url.scheme == "https",
       (url.host == "simplegear.org" || url.host == "simplegear-org.github.io"),
       (url.pathComponents.contains("invite")
+        || url.pathComponents.contains("i")
         || url.pathComponents.contains("pair")
         || url.pathComponents.contains("config"))
     {

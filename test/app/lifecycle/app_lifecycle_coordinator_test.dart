@@ -8,6 +8,7 @@ void main() {
     final callkit = _FakeIosCallkitService();
     var restrictionRefreshes = 0;
     var moderationRetries = 0;
+    var pendingInviteRetries = 0;
     final coordinator = AppLifecycleCoordinator(
       iosCallkitService: callkit,
       refreshRestrictionStatus: ({required reason}) async {
@@ -15,6 +16,7 @@ void main() {
         expect(reason, 'resume');
       },
       retryModerationReports: () => moderationRetries++,
+      retryPendingInvite: () async => pendingInviteRetries++,
     );
 
     coordinator.handleLifecycleState(AppLifecycleState.paused);
@@ -22,6 +24,7 @@ void main() {
     expect(callkit.refreshes, 0);
     expect(restrictionRefreshes, 0);
     expect(moderationRetries, 0);
+    expect(pendingInviteRetries, 0);
 
     coordinator.handleLifecycleState(AppLifecycleState.resumed);
     await Future<void>.delayed(Duration.zero);
@@ -29,6 +32,7 @@ void main() {
     expect(callkit.lastReason, 'resume');
     expect(restrictionRefreshes, 1);
     expect(moderationRetries, 1);
+    expect(pendingInviteRetries, 1);
   });
 }
 

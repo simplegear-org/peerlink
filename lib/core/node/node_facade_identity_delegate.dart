@@ -23,6 +23,10 @@ class NodeFacadeIdentityDelegate {
   Map<String, dynamic> get identityBundleV3Json =>
       _identity.identityBundleV3Json;
 
+  Future<String> signInviteManifest(Map<String, dynamic> manifest) {
+    return _identity.signInviteManifest(manifest);
+  }
+
   Future<AccountIdentity> mergeAccountIdentity(AccountIdentity incoming) {
     return _identity.mergeAccountIdentity(incoming);
   }

@@ -79,11 +79,13 @@ Current design combines:
   - add actions for bootstrap/relay/turn were moved to those dedicated list screens,
   - server rows remain health-sorted and support swipe-to-delete with confirmation.
 - Invite and server-configuration links:
-  - invites use `peerlink://invite?payload=...` for QR/direct-open,
-  - localized invite share text includes two links with the same payload: `peerlink://invite?payload=...` and fallback `https://simplegear.org/invite?payload=...`,
+  - ordinary contact invites use one-tap sharing of a signed short URL: `https://simplegear.org/i/<token>`,
+  - `peerlink://invite?payload=...` and `https://simplegear.org/invite?payload=...` remain legacy QR/direct-import compatibility formats,
   - localized server-configuration share text includes `peerlink://config?payload=...` plus fallback `https://simplegear.org/config?payload=...`,
-  - both link types include only currently available server configuration,
+  - legacy payload links include only currently available server configuration; short invites carry optional server metadata inside the signed manifest,
   - QR payloads refresh when availability changes,
+  - User QR carries an optional PeerLink name and pre-fills the contact-name
+    field on scan; the name is not identity or login data,
   - app-side deep links merge imported servers into existing settings; config links merge directly, while QR/manual config import still offers merge/replace,
   - when startup has no local bootstrap/relay/TURN/push servers, the app best-effort fetches `https://simplegear.org/config/initial-server-config.json` and imports the public QR configuration; site unavailability does not block startup.
 - Android/macOS native runners forward `peerlink://invite|pair|config|call` and supported `https://simplegear.org/...` links into Flutter; macOS keeps pending links during cold start so website-to-app transitions are not lost.

@@ -14,6 +14,7 @@ import 'storage_service.dart';
 class AppDataCleanerService {
   static const _pendingAccountPairingRequestKey =
       'pending_account_pairing_request.v1';
+  static const _pendingInviteTokenKey = 'peerlink.invites.pending_token.v1';
   static const _localAvatarPathKey = 'local_avatar_path_v1';
   static const _localAvatarUpdatedAtKey = 'local_avatar_updated_at_ms_v1';
   static const _localAvatarBytesB64Key = 'local_avatar_bytes_b64_v1';
@@ -80,6 +81,7 @@ class AppDataCleanerService {
 
   static const List<String> _accountScopedSettingKeys = <String>[
     _pendingAccountPairingRequestKey,
+    _pendingInviteTokenKey,
     accountPairingIncomingRequestsStorageKey,
     accountPairingOutgoingRequestStorageKey,
     accountPairingApprovedPayloadStorageKey,

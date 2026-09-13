@@ -7,6 +7,7 @@
 import 'dart:async';
 
 import 'package:peerlink/core/calls/call_models.dart';
+import 'package:peerlink/app/invites/invite_flow_coordinator.dart';
 import 'package:peerlink/core/firebase/firebase_push_payload.dart';
 import 'package:peerlink/core/node/node_capability_apis.dart';
 import 'package:peerlink/core/runtime/app_file_logger.dart';
@@ -37,6 +38,7 @@ class AppDeepLinkCoordinator {
     required void Function() onAccountPairingRequestSent,
     required void Function(String displayName) onContactAdded,
     required void Function(String error) onError,
+    InviteFlowCoordinator? inviteFlowCoordinator,
     DeepLinkService? deepLinkService,
   }) : _calls = calls,
        _identity = identity,
@@ -52,6 +54,7 @@ class AppDeepLinkCoordinator {
        _onAccountPairingRequestSent = onAccountPairingRequestSent,
        _onContactAdded = onContactAdded,
        _onError = onError,
+       _inviteFlowCoordinator = inviteFlowCoordinator,
        _deepLinkService = deepLinkService ?? DeepLinkService.instance;
 
   final CallsApi _calls;
@@ -68,6 +71,7 @@ class AppDeepLinkCoordinator {
   final void Function() _onAccountPairingRequestSent;
   final void Function(String displayName) _onContactAdded;
   final void Function(String error) _onError;
+  final InviteFlowCoordinator? _inviteFlowCoordinator;
   final DeepLinkService _deepLinkService;
   final Set<String> _handledDeepLinks = <String>{};
   StreamSubscription<String>? _subscription;
@@ -125,6 +129,19 @@ class AppDeepLinkCoordinator {
         await _handleCallDeepLink(uri);
         return;
       }
+      final shortInviteUri = uri == null ? null : resolveShortInviteUri(uri);
+      if (shortInviteUri != null) {
+        if (_shouldDropExternalInteraction('deep_link_invite')) return;
+        final result = await _inviteFlowCoordinator?.handleInviteUrl(
+          shortInviteUri,
+        );
+        if (result?.isCompleted == true) {
+          _onContactAdded(result!.displayName!);
+        } else if (result?.error != null) {
+          throw result!.error!;
+        }
+        return;
+      }
       if (!_handledDeepLinks.add(link)) {
         AppFileLogger.log(
           '[ui] deepLink warning duplicate ignored length=${link.length}',
@@ -156,6 +173,20 @@ class AppDeepLinkCoordinator {
       _onError(error.toString());
     }
   }
+
+  /// Accepts both the primary HTTPS link and the website fallback scheme.
+  static Uri? resolveShortInviteUri(Uri uri) {
+    if (_isShortInviteUri(uri)) return uri;
+    if (uri.scheme != 'peerlink' || uri.host != 'invite') return null;
+    final target = Uri.tryParse(uri.queryParameters['url'] ?? '');
+    return target != null && _isShortInviteUri(target) ? target : null;
+  }
+
+  static bool _isShortInviteUri(Uri uri) =>
+      uri.scheme == 'https' &&
+      uri.host == 'simplegear.org' &&
+      uri.pathSegments.length == 2 &&
+      uri.pathSegments.first == 'i';
 
   Future<void> _handleCallDeepLink(Uri uri) async {
     if (_shouldDropExternalInteraction('deep_link_call')) {
@@ -255,10 +286,13 @@ class AppDeepLinkCoordinator {
     }
     final identityBundle = invite.identityBundleV3;
     if (identityBundle != null) {
-      await _identity.trustPeerIdentityBundleV3(
+      final trusted = await _identity.trustPeerIdentityBundleV3(
         identityBundle,
         expectedPeerId: invite.peerId,
       );
+      if (!trusted) {
+        throw const FormatException('Identity пригласившего не подтверждена');
+      }
     }
     final displayName = invite.displayName?.trim().isNotEmpty == true
         ? invite.displayName!.trim()

@@ -21,6 +21,9 @@ const appStringsRu = <String, String>{
   'approve': 'Разрешить',
   'reject': 'Отклонить',
   'name': 'Имя',
+  'peerlinkName': 'Имя в PeerLink',
+  'peerlinkNameHint': 'Это имя будут видеть ваши контакты.',
+  'notSpecified': 'Не указано',
   'language': 'Язык интерфейса',
   'languageDescription':
       'Переключите язык интерфейса. Выбор сохранится на этом устройстве.',

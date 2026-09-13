@@ -94,6 +94,17 @@ class ServerHealthCoordinator with WidgetsBindingObserver {
     );
   }
 
+  /// Ensures initial defaults for an invite without changing startup's
+  /// best-effort failure policy.
+  Future<void> ensureInitialServerConfigForInvite() async {
+    await InitialServerConfigBootstrapper(
+      bootstrap: bootstrap,
+      relay: relay,
+      turn: turn,
+      push: push,
+    ).importIfEmpty(throwOnFailure: true);
+  }
+
   Future<void> refreshAll() async {
     final inFlight = _refreshFuture;
     if (inFlight != null) {

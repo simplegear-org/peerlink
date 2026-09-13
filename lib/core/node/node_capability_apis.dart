@@ -31,6 +31,8 @@ abstract interface class IdentityApi {
   String? get fcmTokenHash;
   Map<String, dynamic> get identityBundleV3Json;
 
+  Future<String> signInviteManifest(Map<String, dynamic> manifest);
+
   Future<bool> trustPeerIdentityBundleV3(
     Map<String, dynamic> bundle, {
     String? expectedPeerId,

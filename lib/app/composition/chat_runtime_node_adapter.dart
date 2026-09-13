@@ -47,6 +47,10 @@ class ChatRuntimeNodeAdapter implements ChatRuntimeApi {
   Map<String, dynamic> get identityBundleV3Json => _facade.identityBundleV3Json;
 
   @override
+  Future<String> signInviteManifest(Map<String, dynamic> manifest) =>
+      _facade.signInviteManifest(manifest);
+
+  @override
   Future<bool> trustPeerIdentityBundleV3(
     Map<String, dynamic> bundle, {
     String? expectedPeerId,

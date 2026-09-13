@@ -72,6 +72,9 @@ class AppStrings implements SettingsServerStatusStrings {
   String get approve => _text('approve');
   String get reject => _text('reject');
   String get name => _text('name');
+  String get peerlinkName => _text('peerlinkName');
+  String get peerlinkNameHint => _text('peerlinkNameHint');
+  String get notSpecified => _text('notSpecified');
   String get peerId => _text('peerId');
   String get language => _text('language');
   String get languageDescription => _text('languageDescription');

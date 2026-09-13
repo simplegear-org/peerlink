@@ -19,4 +19,15 @@ void main() {
       'https://simplegear.org/invite?payload=abc',
     );
   });
+
+  test('resolves website short-invite fallback scheme', () {
+    expect(
+      AppDeepLinkCoordinator.resolveShortInviteUri(
+        Uri.parse(
+          'peerlink://invite?url=https%3A%2F%2Fsimplegear.org%2Fi%2Fabcdefghijklmnopqrstuv',
+        ),
+      ),
+      Uri.parse('https://simplegear.org/i/abcdefghijklmnopqrstuv'),
+    );
+  });
 }

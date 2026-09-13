@@ -71,6 +71,10 @@ class NodeFacade
   Map<String, dynamic> get identityBundleV3Json =>
       _identity.identityBundleV3Json;
 
+  Future<String> signInviteManifest(Map<String, dynamic> manifest) {
+    return _identity.signInviteManifest(manifest);
+  }
+
   Future<bool> trustPeerIdentityBundleV3(
     Map<String, dynamic> bundle, {
     String? expectedPeerId,

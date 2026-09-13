@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'qr_payload_encoder.dart';
@@ -41,6 +42,10 @@ import '../localization/app_strings.dart';
 
 /// Контроллер экрана настроек: peerId и bootstrap-серверы.
 class SettingsController {
+  static const String _inviteUsernameKey =
+      'peerlink.profile.invite_username.v1';
+  static const String _pendingInviteTokenKey =
+      'peerlink.invites.pending_token.v1';
   static const String _inviteWebBaseUrl = String.fromEnvironment(
     'PEERLINK_INVITE_WEB_BASE_URL',
     defaultValue: 'https://simplegear.org/invite',
@@ -59,6 +64,9 @@ class SettingsController {
   final NetworkApi network;
   final MessagingApi messaging;
   final StorageService storage;
+  final Future<void> Function(String username)? onInviteUsernameUpdated;
+  final Future<void> Function(String peerId, String username)?
+  onInviteUsernamePeerRequested;
   late final ServerHealthCoordinator _health;
   late final AppDataCleanerService _dataCleaner;
   late final PushTokenService _pushTokens;
@@ -79,6 +87,8 @@ class SettingsController {
     required this.messaging,
     required this.storage,
     required SettingsControllerDependenciesFactory dependenciesFactory,
+    this.onInviteUsernameUpdated,
+    this.onInviteUsernamePeerRequested,
   }) {
     final dependencies = dependenciesFactory(
       identity: identity,
@@ -127,6 +137,66 @@ class SettingsController {
   List<BlockedPeer> get blockedPeers => _accessControl.blockedPeers();
   int get blockedPeersCount => blockedPeers.length;
   String get termsVersion => TermsAcceptanceService.currentTermsVersion;
+  String get inviteUsername {
+    final value = readSettingValue(_inviteUsernameKey);
+    return value is String ? value.trim() : '';
+  }
+
+  Future<void> updateInviteUsername(String value) async {
+    final normalized = value.trim();
+    if (normalized.length > 64 ||
+        RegExp(r'[\x00-\x1F\x7F]').hasMatch(normalized)) {
+      throw const FormatException('Недопустимое имя в PeerLink');
+    }
+    await writeSettingValue(_inviteUsernameKey, normalized);
+    final notifyUsernameUpdated = onInviteUsernameUpdated;
+    if (notifyUsernameUpdated != null) {
+      unawaited(
+        _notifyInviteUsernameUpdated(notifyUsernameUpdated, normalized),
+      );
+    }
+  }
+
+  Future<void> _notifyInviteUsernameUpdated(
+    Future<void> Function(String username) notify,
+    String username,
+  ) async {
+    try {
+      await notify(username);
+    } catch (_) {
+      // Рассылка профиля best-effort и не должна влиять на сохранение имени.
+    }
+  }
+
+  Future<void> sendInviteUsernameToPeer(String peerId) async {
+    final normalizedPeerId = peerId.trim();
+    if (normalizedPeerId.isEmpty) return;
+    await onInviteUsernamePeerRequested?.call(normalizedPeerId, inviteUsername);
+  }
+
+  Future<String?> loadPendingInviteToken() async {
+    final value = readSettingValue(_pendingInviteTokenKey);
+    if (value is! String ||
+        !RegExp(r'^[A-Za-z0-9_-]{22,128}$').hasMatch(value)) {
+      if (value != null) await deleteSettingValue(_pendingInviteTokenKey);
+      return null;
+    }
+    return value;
+  }
+
+  Future<void> savePendingInviteToken(String token) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]{22,128}$').hasMatch(token)) {
+      throw const FormatException('Недопустимый token приглашения');
+    }
+    await writeSettingValue(_pendingInviteTokenKey, token);
+  }
+
+  Future<void> clearPendingInviteToken(String token) async {
+    if (readSettingValue(_pendingInviteTokenKey) == token) {
+      await deleteSettingValue(_pendingInviteTokenKey);
+    }
+  }
+
   bool get isCurrentTermsAccepted => _termsAcceptance.isCurrentVersionAccepted;
   TermsAcceptanceState get termsAcceptanceState => _termsAcceptance.state;
 
@@ -195,6 +265,7 @@ class SettingsController {
       'peerId': peerId,
       'endpointId': endpointId,
       'fcmTokenHash': fcmTokenHash,
+      if (inviteUsername.isNotEmpty) 'displayName': inviteUsername,
       'identityBundleV3': identity.identityBundleV3Json,
     });
   }
@@ -520,6 +591,23 @@ class SettingsController {
     }
   }
 
+  String? extractDisplayNameFromUserQr(String raw) {
+    try {
+      final decoded = jsonDecode(raw.trim());
+      if (decoded is! Map<String, dynamic>) return null;
+      final displayName = decoded['displayName']?.toString().trim();
+      if (displayName == null ||
+          displayName.isEmpty ||
+          displayName.length > 64 ||
+          RegExp(r'[\x00-\x1F\x7F]').hasMatch(displayName)) {
+        return null;
+      }
+      return displayName;
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<String> get bootstrapPeers => _readModelService.bootstrapPeers;
   List<String> get relayServers => _readModelService.relayServers;
   List<TurnServerConfig> get turnServers => _readModelService.turnServers;
@@ -682,6 +770,11 @@ class SettingsController {
     await _pairingStateService.cleanupExpiredIncomingAccountPairingRequests();
     await applyIncomingAccountMembershipUpdatesIfAvailable();
     await _readModelService.loadAppVersion();
+  }
+
+  /// Invite flow needs an explicit retryable failure when defaults are absent.
+  Future<void> ensureInitialServerConfigForInvite() {
+    return _health.ensureInitialServerConfigForInvite();
   }
 
   void dispose() {}

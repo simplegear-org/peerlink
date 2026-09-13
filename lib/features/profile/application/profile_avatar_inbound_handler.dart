@@ -19,4 +19,9 @@ abstract interface class ProfileAvatarInboundHandler {
     String senderPeerId,
     String payloadRaw,
   );
+
+  Future<void> handleIncomingUsernameUpdate(
+    String senderPeerId,
+    String payloadRaw,
+  );
 }

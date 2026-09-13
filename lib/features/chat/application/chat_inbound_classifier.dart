@@ -67,6 +67,9 @@ class ChatInboundClassifier {
     if (msg.kind == 'profileAvatarQuery') {
       return const IncomingProfileAvatarQueryDispatch();
     }
+    if (msg.kind == 'profileUsername') {
+      return const IncomingProfileUsernameDispatch();
+    }
     final groupInvite = normalizeGroupInvitePayload(msg.text);
     if (groupInvite != null) {
       return IncomingGroupInviteDispatch(groupInvite);

@@ -85,11 +85,13 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
   - добавление bootstrap/relay/turn перенесено на отдельные экраны соответствующих списков,
   - удаление по-прежнему выполняется свайпом влево с подтверждением.
 - Ссылки приглашения и конфигурации серверов:
-  - invite использует `peerlink://invite?payload=...` для QR/direct-open,
-  - текст шаринга invite мультиязычный и содержит две ссылки с одинаковым payload: `peerlink://invite?payload=...` и fallback `https://simplegear.org/invite?payload=...`,
+  - обычный invite контакта одним tap шарит подписанную короткую ссылку `https://simplegear.org/i/<token>`,
+  - `peerlink://invite?payload=...` и `https://simplegear.org/invite?payload=...` остаются legacy-форматами совместимости для QR/direct-import,
   - текст шаринга конфигурации серверов мультиязычный и содержит `peerlink://config?payload=...` плюс fallback `https://simplegear.org/config?payload=...`,
-  - оба типа ссылок содержат только текущую доступную конфигурацию серверов,
+  - legacy payload-ссылки содержат только текущую доступную конфигурацию серверов; short invite несёт optional server metadata внутри подписанного manifest,
   - QR payload обновляется при изменении доступности серверов,
+  - User QR содержит optional имя PeerLink и при сканировании заполняет поле
+    имени контакта; имя не является identity или login,
   - app-side deep links merge-ят серверы в существующие настройки; config-ссылки merge-ятся напрямую, а QR/manual import конфигурации сохраняет выбор `Объединить` / `Заменить`,
   - если при старте нет ни одного локального bootstrap/relay/TURN/push сервера, приложение best-effort скачивает `https://simplegear.org/config/initial-server-config.json` и импортирует публичную конфигурацию из QR; недоступность сайта не блокирует запуск.
 - Android/macOS native runners передают во Flutter `peerlink://invite|pair|config|call` и поддерживаемые `https://simplegear.org/...` ссылки; macOS хранит pending links при cold start, чтобы переход с сайта в приложение не терял payload.

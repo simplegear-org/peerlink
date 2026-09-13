@@ -21,6 +21,9 @@ const appStringsEn = <String, String>{
   'approve': 'Approve',
   'reject': 'Reject',
   'name': 'Name',
+  'peerlinkName': 'Name in PeerLink',
+  'peerlinkNameHint': 'Your contacts will see this name.',
+  'notSpecified': 'Not set',
   'peerId': 'Peer ID',
   'language': 'Interface language',
   'languageDescription':

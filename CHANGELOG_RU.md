@@ -3,6 +3,34 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.13.1+2026091002] - 2026-09-10
+
+### Изменено
+
+- Обычные приглашения контактов стали one-action flow: Contacts создаёт
+  подписанную короткую ссылку и сразу открывает системный Share Sheet.
+- В Settings добавлено редактирование локального имени PeerLink. Имя передаётся
+  только как optional display metadata invite, а вручную заданные имена
+  контактов сохраняются.
+- Обработка invite теперь валидирует версию, срок, invite ID и identity binding
+  до применения server configuration, контакта и direct chat.
+- Создание invite теперь обращается к публичному API `tangash.org`, а shared
+  ссылка по-прежнему использует `simplegear.org`.
+- Website fallback short invite теперь открывает установленное приложение без
+  показа legacy payload.
+- Добавлены integration-проверки invite-клиента/coordinator и persistence на
+  backend.
+- Username теперь передаётся известным peer через существующий profile
+  control-message, а QR-сканирование сразу отправляет профиль сканирующего
+  владельцу QR. Ручные имена сохраняются; старое имя, равное Peer ID,
+  обновляется как fallback.
+- User QR содержит optional имя PeerLink и подставляет его в поле «Имя» после
+  сканирования.
+- Добавлены Android App Links, iOS Universal Links, durable pending-invite
+  resume, Android Install Referrer recovery, безопасный iOS fallback и
+  redacted invite lifecycle diagnostics.
+
+
 ## [3.13.0+2026091001] - 2026-09-10
 
 ### Изменено

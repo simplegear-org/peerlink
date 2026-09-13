@@ -17,6 +17,7 @@ void main() {
       AppFileLogger.shouldLog('[relay_media] relay-download-progress'),
       isTrue,
     );
+    expect(AppFileLogger.shouldLog('[invite] event=invite_completed'), isTrue);
     expect(AppFileLogger.shouldLog('[chat] ordinary success'), isFalse);
   });
 }

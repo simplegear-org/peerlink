@@ -70,6 +70,7 @@ class ContactsController extends ChangeNotifier {
     final normalized = Contact(
       peerId: peerId,
       name: incomingName.isEmpty ? peerId : incomingName,
+      displayNameSource: contact.displayNameSource,
     );
     final index = _contacts.indexWhere((c) => c.peerId == peerId);
     if (index == -1) {
@@ -85,7 +86,9 @@ class ContactsController extends ChangeNotifier {
         incomingName.isNotEmpty && incomingName != peerId;
     final existingIsFallback =
         existingName.isEmpty || existingName == existing.peerId;
-    if (!incomingHasDisplayName || !existingIsFallback) {
+    if (!incomingHasDisplayName ||
+        !existingIsFallback ||
+        existing.displayNameSource == ContactDisplayNameSource.manual) {
       return false;
     }
 
@@ -102,7 +105,11 @@ class ContactsController extends ChangeNotifier {
       return false;
     }
 
-    final renamed = Contact(peerId: normalizedPeerId, name: normalizedName);
+    final renamed = Contact(
+      peerId: normalizedPeerId,
+      name: normalizedName,
+      displayNameSource: ContactDisplayNameSource.manual,
+    );
     final index = _contacts.indexWhere((c) => c.peerId == normalizedPeerId);
     if (index == -1) {
       _contacts.add(renamed);
@@ -120,9 +127,114 @@ class ContactsController extends ChangeNotifier {
       return false;
     }
 
-    final contact = Contact(peerId: peerId, name: peerId);
+    final contact = Contact(
+      peerId: peerId,
+      name: peerId,
+      displayNameSource: ContactDisplayNameSource.peerIdFallback,
+    );
     _contacts.add(contact);
     await saveContact(contact);
+    notifyListeners();
+    return true;
+  }
+
+  /// Applies verified invite display metadata without overwriting a local name.
+  Future<bool> upsertInviteContact({
+    required String peerId,
+    String? username,
+  }) async {
+    final normalizedPeerId = peerId.trim();
+    final normalizedUsername = username?.trim();
+    if (normalizedPeerId.isEmpty) {
+      return false;
+    }
+    final hasUsername =
+        normalizedUsername != null && normalizedUsername.isNotEmpty;
+    final index = _contacts.indexWhere(
+      (contact) => contact.peerId == normalizedPeerId,
+    );
+    if (index == -1) {
+      final contact = Contact(
+        peerId: normalizedPeerId,
+        name: hasUsername ? normalizedUsername : normalizedPeerId,
+        displayNameSource: hasUsername
+            ? ContactDisplayNameSource.inviteUsername
+            : ContactDisplayNameSource.peerIdFallback,
+      );
+      _contacts.add(contact);
+      await saveContact(contact);
+      notifyListeners();
+      return true;
+    }
+    final existing = _contacts[index];
+    if (!hasUsername ||
+        existing.displayNameSource == ContactDisplayNameSource.manual) {
+      return false;
+    }
+    if (existing.name == normalizedUsername &&
+        existing.displayNameSource == ContactDisplayNameSource.inviteUsername) {
+      return false;
+    }
+    final updated = Contact(
+      peerId: normalizedPeerId,
+      name: normalizedUsername,
+      displayNameSource: ContactDisplayNameSource.inviteUsername,
+    );
+    _contacts[index] = updated;
+    await saveContact(updated);
+    notifyListeners();
+    return true;
+  }
+
+  /// Applies a remote profile name while preserving an explicit local name.
+  Future<bool> applyRemoteUsername({
+    required String peerId,
+    required String username,
+  }) async {
+    final normalizedPeerId = peerId.trim();
+    final normalizedUsername = username.trim();
+    final index = _contacts.indexWhere(
+      (contact) => contact.peerId == normalizedPeerId,
+    );
+    if (normalizedPeerId.isEmpty) {
+      return false;
+    }
+    if (index == -1) {
+      final created = Contact(
+        peerId: normalizedPeerId,
+        name: normalizedUsername.isEmpty
+            ? normalizedPeerId
+            : normalizedUsername,
+        displayNameSource: normalizedUsername.isEmpty
+            ? ContactDisplayNameSource.peerIdFallback
+            : ContactDisplayNameSource.inviteUsername,
+      );
+      _contacts.add(created);
+      await saveContact(created);
+      notifyListeners();
+      return true;
+    }
+    final existing = _contacts[index];
+    final legacyPeerIdName =
+        existing.name.trim().isEmpty ||
+        existing.name.trim() == normalizedPeerId;
+    if (existing.displayNameSource == ContactDisplayNameSource.manual &&
+        !legacyPeerIdName) {
+      return false;
+    }
+    final updated = Contact(
+      peerId: normalizedPeerId,
+      name: normalizedUsername.isEmpty ? normalizedPeerId : normalizedUsername,
+      displayNameSource: normalizedUsername.isEmpty
+          ? ContactDisplayNameSource.peerIdFallback
+          : ContactDisplayNameSource.inviteUsername,
+    );
+    if (existing.name == updated.name &&
+        existing.displayNameSource == updated.displayNameSource) {
+      return false;
+    }
+    _contacts[index] = updated;
+    await saveContact(updated);
     notifyListeners();
     return true;
   }

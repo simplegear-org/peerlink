@@ -325,6 +325,10 @@ final class IncomingProfileAvatarQueryDispatch extends IncomingChatDispatch {
   const IncomingProfileAvatarQueryDispatch();
 }
 
+final class IncomingProfileUsernameDispatch extends IncomingChatDispatch {
+  const IncomingProfileUsernameDispatch();
+}
+
 final class IncomingGroupInviteDispatch extends IncomingChatDispatch {
   final IncomingGroupInvitePayload payload;
 

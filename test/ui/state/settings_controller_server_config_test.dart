@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,94 @@ import 'package:peerlink/ui/localization/app_strings.dart';
 import 'package:peerlink/ui/state/settings_controller.dart';
 
 void main() {
+  test(
+    'invite username is optional, normalized and validated in settings',
+    () async {
+      final controller = _TestSettingsController(
+        bootstrapPeers: const <String>[],
+        relayServers: const <String>[],
+        turnServers: const <TurnServerConfig>[],
+        bootstrapStates: const <String, SettingsServerState>{},
+        relayStates: const <String, SettingsServerState>{},
+        turnStates: const <String, SettingsServerState>{},
+      );
+
+      expect(controller.inviteUsername, isEmpty);
+      await controller.updateInviteUsername('  Alice  ');
+      expect(controller.inviteUsername, 'Alice');
+      await controller.updateInviteUsername('');
+      expect(controller.inviteUsername, isEmpty);
+      await expectLater(
+        controller.updateInviteUsername('bad\u0000name'),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test('user QR carries a valid configured username', () async {
+    final controller = _TestSettingsController(
+      peerId: 'peer-self',
+      bootstrapPeers: const <String>[],
+      relayServers: const <String>[],
+      turnServers: const <TurnServerConfig>[],
+      bootstrapStates: const <String, SettingsServerState>{},
+      relayStates: const <String, SettingsServerState>{},
+      turnStates: const <String, SettingsServerState>{},
+    );
+    await controller.updateInviteUsername(' Alice ');
+
+    final payload = controller.exportUserQrPayload();
+    expect(controller.extractDisplayNameFromUserQr(payload), 'Alice');
+  });
+
+  test(
+    'invite username save does not wait for background propagation',
+    () async {
+      final propagation = Completer<void>();
+      final controller = _TestSettingsController(
+        bootstrapPeers: const <String>[],
+        relayServers: const <String>[],
+        turnServers: const <TurnServerConfig>[],
+        bootstrapStates: const <String, SettingsServerState>{},
+        relayStates: const <String, SettingsServerState>{},
+        turnStates: const <String, SettingsServerState>{},
+        onInviteUsernameUpdated: (_) => propagation.future,
+      );
+
+      await controller.updateInviteUsername('Alice');
+
+      expect(controller.inviteUsername, 'Alice');
+      expect(propagation.isCompleted, isFalse);
+      propagation.complete();
+    },
+  );
+
+  test(
+    'pending invite token is validated and cleared through settings',
+    () async {
+      final controller = _TestSettingsController(
+        bootstrapPeers: const <String>[],
+        relayServers: const <String>[],
+        turnServers: const <TurnServerConfig>[],
+        bootstrapStates: const <String, SettingsServerState>{},
+        relayStates: const <String, SettingsServerState>{},
+        turnStates: const <String, SettingsServerState>{},
+      );
+      const token = 'abcdefghijklmnopqrstuv';
+
+      await controller.savePendingInviteToken(token);
+      expect(await controller.loadPendingInviteToken(), token);
+      await controller.clearPendingInviteToken('another-token');
+      expect(await controller.loadPendingInviteToken(), token);
+      await controller.clearPendingInviteToken(token);
+      expect(await controller.loadPendingInviteToken(), isNull);
+      await expectLater(
+        controller.savePendingInviteToken('invalid'),
+        throwsFormatException,
+      );
+    },
+  );
+
   test('server config QR exports only connected servers', () {
     const turnAvailable = TurnServerConfig(
       url: 'turn:available.example:3478?transport=tcp',
@@ -637,6 +726,7 @@ class _TestSettingsController extends SettingsController {
     String peerId = 'test-peer',
     AccountIdentity? accountIdentity,
     Map<String, dynamic>? seedSettings,
+    Future<void> Function(String username)? onInviteUsernameUpdated,
     required List<String> bootstrapPeers,
     required List<String> relayServers,
     required List<TurnServerConfig> turnServers,
@@ -675,6 +765,7 @@ class _TestSettingsController extends SettingsController {
          messaging: _FakeNodeFacade(),
          storage: StorageService(),
          dependenciesFactory: SettingsControllerComposition.create,
+         onInviteUsernameUpdated: onInviteUsernameUpdated,
        );
 
   @override

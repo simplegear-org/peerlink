@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:crypto/crypto.dart';
 
@@ -104,6 +105,25 @@ class IdentityService {
   String get homeAccountId => _homeAccountIdentity.accountId;
   String get deviceId => nodeId;
   Map<String, dynamic> get identityBundleV3Json => _identityBundleV3.toJson();
+
+  Future<String> signInviteManifest(Map<String, dynamic> manifest) async {
+    final signature = await _ed25519.sign(
+      Uint8List.fromList(utf8.encode(_canonicalJson(manifest))),
+      keyPair: _signingKeyPair,
+    );
+    return base64Encode(signature.bytes);
+  }
+
+  String _canonicalJson(Object? value) {
+    if (value is List) {
+      return '[${value.map(_canonicalJson).join(',')}]';
+    }
+    if (value is Map) {
+      final keys = value.keys.map((key) => key.toString()).toList()..sort();
+      return '{${keys.map((key) => '${jsonEncode(key)}:${_canonicalJson(value[key])}').join(',')}}';
+    }
+    return jsonEncode(value);
+  }
 
   Future<AccountIdentity> resetToNewLocalAccount() async {
     if (!_initialized) {

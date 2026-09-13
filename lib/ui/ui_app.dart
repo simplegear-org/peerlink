@@ -12,17 +12,20 @@ import 'package:flutter/material.dart';
 import '../app/calls/app_call_coordinator.dart';
 import '../app/composition/app_dependencies.dart';
 import '../app/deep_links/app_deep_link_coordinator.dart';
+import '../app/invites/invite_flow_coordinator.dart';
 import '../app/lifecycle/app_lifecycle_coordinator.dart';
 import '../app/push/app_push_coordinator.dart';
 import '../core/calls/call_models.dart';
 import '../core/firebase/firebase_push_payload.dart';
 import '../core/node/node_capability_apis.dart';
+import '../core/runtime/android_install_referrer_service.dart';
 import '../features/calls/platform/ios_callkit_service.dart';
 import '../core/runtime/peer_access_control_service.dart';
 import 'screens/account_restricted_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/call_screen.dart';
 import 'screens/chats_screen.dart';
+import 'screens/chat_screen.dart';
 import 'screens/calls_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/terms_gate_screen.dart';
@@ -63,6 +66,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   late final UiAppController _appController;
   late final AppCallCoordinator _callCoordinator;
   late final AppDeepLinkCoordinator _deepLinkCoordinator;
+  late final InviteFlowCoordinator _inviteFlowCoordinator;
   late final AppLifecycleCoordinator _lifecycleCoordinator;
   late final AppPushCoordinator _pushCoordinator;
   late final AppRestrictionController _restrictionController;
@@ -188,9 +192,34 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       },
     );
     _callCoordinator.start();
+    _inviteFlowCoordinator = InviteFlowCoordinator(
+      localPeerId: widget.facade.peerId,
+      verifyIdentity: (bundle, {required expectedPeerId}) => widget.facade
+          .trustPeerIdentityBundleV3(bundle, expectedPeerId: expectedPeerId),
+      ensureInitialServerConfig:
+          _settingsController.ensureInitialServerConfigForInvite,
+      mergeServers: (config) => _settingsController.importServerConfigPayload(
+        config,
+        mode: ServerConfigImportMode.merge,
+      ),
+      upsertContact: ({required peerId, username}) => _contactsController
+          .upsertInviteContact(peerId: peerId, username: username),
+      ensureDirectChat: ({required peerId, required name}) =>
+          _chatController.createDirectChat(peerId: peerId, name: name),
+      openChat: _openInviteChat,
+      localIdentityBundle: widget.facade.identityBundleV3Json,
+      signInviteManifest: widget.facade.signInviteManifest,
+      localUsername: () => _settingsController.inviteUsername,
+      currentServerConfig:
+          _settingsController.currentConfiguredServerConfigPayload,
+      loadPendingInviteToken: _settingsController.loadPendingInviteToken,
+      savePendingInviteToken: _settingsController.savePendingInviteToken,
+      clearPendingInviteToken: _settingsController.clearPendingInviteToken,
+    );
     _lifecycleCoordinator = AppLifecycleCoordinator(
       refreshRestrictionStatus: _refreshRestrictionStatus,
       retryModerationReports: ui.moderationLifecycleService.handleAppResumed,
+      retryPendingInvite: _resumePendingInvite,
     );
     _deepLinkCoordinator = AppDeepLinkCoordinator(
       calls: widget.facade,
@@ -213,6 +242,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         _showSnackBar(context.strings.contactAdded(displayName));
       },
       onError: _showSnackBar,
+      inviteFlowCoordinator: _inviteFlowCoordinator,
     );
     _deepLinkCoordinator.start();
     unawaited(_refreshMissedCallsBadge(markSeen: index == 2));
@@ -221,6 +251,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         return;
       }
       unawaited(_settingsController.initialize());
+      unawaited(_restoreDeferredAndroidInvite());
       unawaited(_refreshRestrictionStatus(reason: 'startup'));
       unawaited(_deepLinkCoordinator.handleInitial());
       unawaited(_syncCallRoute(_callState));
@@ -258,6 +289,30 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       name: 'ui',
     );
     return true;
+  }
+
+  Future<void> _resumePendingInvite() async {
+    await _settingsController.initialize();
+    final result = await _inviteFlowCoordinator.resumePendingInvite();
+    if (result?.isCompleted == true && mounted) {
+      _showSnackBar(context.strings.contactAdded(result!.displayName!));
+    }
+  }
+
+  Future<void> _restoreDeferredAndroidInvite() async {
+    await _settingsController.initialize();
+    final token = await AndroidInstallReferrerService.instance
+        .readInviteToken();
+    if (token != null) {
+      final existing = await _settingsController.loadPendingInviteToken();
+      if (existing == null) {
+        await _settingsController.savePendingInviteToken(token);
+      }
+      await AndroidInstallReferrerService.instance.markInviteTokenHandled(
+        token,
+      );
+    }
+    await _resumePendingInvite();
   }
 
   @override
@@ -304,6 +359,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         settingsController: _settingsController,
         presenceService: _presenceService,
         avatarService: _avatarService,
+        createInviteUrl: _inviteFlowCoordinator.createInviteUrl,
       ),
       ChatsScreen(
         controller: _chatController,
@@ -492,6 +548,21 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     setState(() {
       index = nextIndex;
     });
+  }
+
+  void _openInviteChat(String peerId, String name) {
+    if (!mounted) return;
+    final chat = _chatController.openChat(peerId, name);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(
+          chat: chat,
+          controller: _chatController,
+          presenceService: _presenceService,
+          avatarService: _avatarService,
+        ),
+      ),
+    );
   }
 
   void _showSnackBar(String text) {

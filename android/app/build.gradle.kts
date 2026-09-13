@@ -73,5 +73,6 @@ flutter {
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
+    implementation("com.android.installreferrer:installreferrer:2.2")
     implementation("com.google.firebase:firebase-messaging")
 }

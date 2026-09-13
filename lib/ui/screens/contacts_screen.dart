@@ -102,6 +102,7 @@ class ContactsScreen extends StatefulWidget {
   final SettingsController settingsController;
   final PresenceService presenceService;
   final AvatarService avatarService;
+  final Future<String> Function() createInviteUrl;
 
   const ContactsScreen({
     super.key,
@@ -110,6 +111,7 @@ class ContactsScreen extends StatefulWidget {
     required this.settingsController,
     required this.presenceService,
     required this.avatarService,
+    required this.createInviteUrl,
   });
 
   @override
@@ -205,6 +207,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             .extractPeerIdFromUserQr(result);
                         final identityBundle = widget.settingsController
                             .extractIdentityBundleV3FromUserQr(result);
+                        final displayName = widget.settingsController
+                            .extractDisplayNameFromUserQr(result);
                         if (parsedPeerId != null &&
                             parsedPeerId.isNotEmpty &&
                             identityBundle != null) {
@@ -218,6 +222,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                             (parsedPeerId != null && parsedPeerId.isNotEmpty)
                             ? parsedPeerId
                             : result;
+                        if (displayName != null) {
+                          nameCtrl.text = displayName;
+                        }
                       }
                     },
                   ),
@@ -504,6 +511,20 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _showInviteSheet() async {
+    try {
+      final inviteUrl = await widget.createInviteUrl();
+      if (!mounted) return;
+      await SharePlus.instance.share(ShareParams(text: inviteUrl));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  // ignore: unused_element
+  Future<void> _showLegacyInviteSheet() async {
     await widget.settingsController.initialize();
     if (!mounted) {
       return;
@@ -627,17 +648,28 @@ class _ContactsScreenState extends State<ContactsScreen> {
       );
       final identityBundle = invite.identityBundleV3;
       if (identityBundle != null) {
-        await settingsController.identity.trustPeerIdentityBundleV3(
-          identityBundle,
-          expectedPeerId: invite.peerId,
-        );
+        final trusted = await settingsController.identity
+            .trustPeerIdentityBundleV3(
+              identityBundle,
+              expectedPeerId: invite.peerId,
+            );
+        if (!trusted) {
+          return false;
+        }
       }
       final displayName = invite.displayName?.trim().isNotEmpty == true
           ? invite.displayName!.trim()
           : invite.peerId;
       await controller.addOrUpdateContact(
-        Contact(peerId: invite.peerId, name: displayName),
+        Contact(
+          peerId: invite.peerId,
+          name: displayName,
+          displayNameSource: invite.displayName?.trim().isNotEmpty == true
+              ? ContactDisplayNameSource.inviteUsername
+              : ContactDisplayNameSource.peerIdFallback,
+        ),
       );
+      await settingsController.sendInviteUsernameToPeer(invite.peerId);
       if (!mounted) {
         return true;
       }

@@ -3,6 +3,31 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.13.1+2026091002] - 2026-09-10
+
+### Changed
+
+- Ordinary contact invitations are now a one-action flow: Contacts creates a
+  signed short URL and opens the system share sheet immediately.
+- Added local PeerLink display name editing in Settings. The optional name is
+  included as invite display metadata, while manual contact names are kept.
+- Invite resolution now validates version, expiry, invite ID and identity
+  binding before applying server configuration, contact and direct-chat state.
+- Fixed invite creation to use the public invite API at `tangash.org` while
+  shared links continue to use `simplegear.org`.
+- The website fallback for a short invite now opens the installed app without
+  exposing a legacy payload.
+- Added invite client/coordinator and backend persistence integration coverage.
+- Usernames now use the existing profile control-message flow for known peers;
+  a QR scan immediately sends the scanner profile to the QR owner. Manual
+  names are preserved, while legacy names equal to a peer ID update as fallback.
+- User QR carries the optional PeerLink name and pre-fills the `Name` field on
+  scan.
+- Added Android App Links, iOS Universal Links, durable pending-invite resume,
+  Android Install Referrer recovery, a safe iOS fallback, and redacted invite
+  lifecycle diagnostics.
+
+
 ## [3.13.0+2026091001] - 2026-09-10
 
 ### Changed

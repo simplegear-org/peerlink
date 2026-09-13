@@ -21,6 +21,9 @@ const appStringsFr = <String, String>{
   'approve': 'Autoriser',
   'reject': 'Refuser',
   'name': 'Nom',
+  'peerlinkName': 'Nom dans PeerLink',
+  'peerlinkNameHint': 'Vos contacts verront ce nom.',
+  'notSpecified': 'Non défini',
   'language': 'Langue de l’interface',
   'languageDescription':
       'Changez la langue de l’interface. Le choix est enregistré sur cet appareil.',

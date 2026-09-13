@@ -124,6 +124,7 @@ const _approvedRuntimeFiles = [
   'account_pairing_payload.dart',
   'android_call_log_service.dart',
   'android_call_notification_service.dart',
+  'android_install_referrer_service.dart',
   'app_bootstrap_coordinator.dart',
   'app_data_cleaner_service.dart',
   'app_file_logger.dart',

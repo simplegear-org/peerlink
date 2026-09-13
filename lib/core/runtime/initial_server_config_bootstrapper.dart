@@ -44,7 +44,7 @@ class InitialServerConfigBootstrapper {
   }) : configUri = configUri ?? Uri.parse(_defaultConfigUrl),
        _httpClientFactory = httpClientFactory ?? HttpClient.new;
 
-  Future<void> importIfEmpty() async {
+  Future<void> importIfEmpty({bool throwOnFailure = false}) async {
     if (!_hasNoConfiguredServers) {
       _log('skip reason=configured_servers_present');
       return;
@@ -67,6 +67,7 @@ class InitialServerConfigBootstrapper {
       );
     } catch (error, stackTrace) {
       _log('failed url=$configUri error=$error', stackTrace: stackTrace);
+      if (throwOnFailure) rethrow;
     }
   }
 

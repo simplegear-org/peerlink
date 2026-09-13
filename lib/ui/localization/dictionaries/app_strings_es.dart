@@ -21,6 +21,9 @@ const appStringsEs = <String, String>{
   'approve': 'Aprobar',
   'reject': 'Rechazar',
   'name': 'Nombre',
+  'peerlinkName': 'Nombre en PeerLink',
+  'peerlinkNameHint': 'Tus contactos verán este nombre.',
+  'notSpecified': 'No indicado',
   'language': 'Idioma',
   'languageDescription':
       'Cambia el idioma de la interfaz. La elección se guarda en este dispositivo.',

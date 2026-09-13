@@ -18,7 +18,7 @@ import '../widgets/peer_avatar.dart';
 import 'settings_screen_formatters.dart';
 import 'settings_screen_shared_widgets.dart';
 
-class SettingsIdentitySection extends StatelessWidget {
+class SettingsIdentitySection extends StatefulWidget {
   final SettingsController controller;
   final AvatarService avatarService;
   final ModerationPolicySnapshot moderationPolicy;
@@ -33,8 +33,57 @@ class SettingsIdentitySection extends StatelessWidget {
   });
 
   @override
+  State<SettingsIdentitySection> createState() =>
+      _SettingsIdentitySectionState();
+}
+
+class _SettingsIdentitySectionState extends State<SettingsIdentitySection> {
+  Future<void> _editInviteUsername() async {
+    final strings = context.strings;
+    final textController = TextEditingController(
+      text: widget.controller.inviteUsername,
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.peerlinkName),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          maxLength: 64,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(hintText: strings.peerlinkNameHint),
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(textController.text),
+            child: Text(strings.save),
+          ),
+        ],
+      ),
+    );
+    textController.dispose();
+    if (value == null) return;
+    try {
+      await widget.controller.updateInviteUsername(value);
+      if (mounted) setState(() {});
+    } on FormatException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.peerlinkNameHint)));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final controller = widget.controller;
     final isApplePlatform = Platform.isIOS || Platform.isMacOS;
     final pushTokenLabel = isApplePlatform ? 'APNS token' : 'FCM token';
     final pushTokenValue =
@@ -53,6 +102,15 @@ class SettingsIdentitySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _SettingsIdentityValueRow(
+            label: context.strings.peerlinkName,
+            value: controller.inviteUsername.isEmpty
+                ? context.strings.notSpecified
+                : controller.inviteUsername,
+            onTap: _editInviteUsername,
+            trailing: const Icon(Icons.edit_outlined, size: 18),
+          ),
+          const SizedBox(height: 12),
           _SettingsIdentityValueRow(label: 'Peer ID', value: peerIdLabel),
           const SizedBox(height: 12),
           _SettingsIdentityValueRow(
@@ -70,12 +128,12 @@ class SettingsIdentitySection extends StatelessWidget {
           Row(
             children: [
               InkWell(
-                onTap: () => onShowAvatarActions(),
+                onTap: () => widget.onShowAvatarActions(),
                 borderRadius: BorderRadius.circular(999),
                 child: PeerAvatar(
                   peerId: controller.peerId,
                   displayName: controller.peerId,
-                  avatarService: avatarService,
+                  avatarService: widget.avatarService,
                   size: 56,
                   showInitialWhenNoAvatar: false,
                   backgroundColor: AppTheme.pineSoft,
@@ -94,9 +152,10 @@ class SettingsIdentitySection extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _SettingsUserQrCode(controller: controller),
-          if (moderationPolicy.isWarning || moderationPolicy.isBanned) ...[
+          if (widget.moderationPolicy.isWarning ||
+              widget.moderationPolicy.isBanned) ...[
             const SizedBox(height: 12),
-            _SettingsModerationStatus(policy: moderationPolicy),
+            _SettingsModerationStatus(policy: widget.moderationPolicy),
           ],
         ],
       ),
@@ -199,20 +258,27 @@ class _SettingsUserQrCodeState extends State<_SettingsUserQrCode> {
   String _buildSignature() {
     final controller = widget.controller;
     return '${controller.peerId}|${controller.endpointId ?? ''}|'
-        '${controller.fcmTokenHash ?? ''}';
+        '${controller.fcmTokenHash ?? ''}|${controller.inviteUsername}';
   }
 }
 
 class _SettingsIdentityValueRow extends StatelessWidget {
   final String label;
   final String value;
+  final VoidCallback? onTap;
+  final Widget? trailing;
 
-  const _SettingsIdentityValueRow({required this.label, required this.value});
+  const _SettingsIdentityValueRow({
+    required this.label,
+    required this.value,
+    this.onTap,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
+    final row = Row(
       children: [
         Text(label, style: theme.textTheme.labelMedium),
         const SizedBox(width: 12),
@@ -227,7 +293,14 @@ class _SettingsIdentityValueRow extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing != null) ...[const SizedBox(width: 8), trailing!],
       ],
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: row,
     );
   }
 }

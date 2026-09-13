@@ -62,11 +62,6 @@ class AppUiDependencies {
       storage: storage,
       loadUnreadMessagesCount: chatSummaryStore.unreadMessagesCount,
     );
-    final avatarService = AvatarService(
-      transport: ProfileAvatarNodeAdapter(facade),
-      storage: storage,
-      chatSummaryStore: chatSummaryStore,
-    );
     final contactsRepository = ContactsRepository(storage: storage);
     final accessControl = PeerAccessControlService(
       settingsBox: storage.getSettings(),
@@ -97,12 +92,20 @@ class AppUiDependencies {
       },
     );
     contactsController.loadIntoMemory();
+    final avatarService = AvatarService(
+      transport: ProfileAvatarNodeAdapter(facade),
+      storage: storage,
+      chatSummaryStore: chatSummaryStore,
+      contactsController: contactsController,
+    );
     final settingsController = SettingsController(
       identity: facade,
       network: facade,
       messaging: facade,
       storage: storage,
       dependenciesFactory: SettingsControllerComposition.create,
+      onInviteUsernameUpdated: avatarService.broadcastLocalUsername,
+      onInviteUsernamePeerRequested: avatarService.sendLocalUsernameToPeer,
     );
     final badgeCoordinator = AppBadgeCoordinator(
       appBadgeService: appBadgeService,
