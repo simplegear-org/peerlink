@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Last updated: 2026-09-10
+Last updated: 2026-09-16
 
 ## 1. Purpose
 
@@ -47,7 +47,8 @@ Working now:
 - `PushAccessPolicySyncService` sends the privacy/block snapshot (`allowMessagesOnlyFromContacts`, `contactPeerIds`, `blockedPeerIds`, `policyVersion`, `updatedAt`, `snapshotHash`) to `push.js` through `/devices/access-policy`; on a `stale` response it retries the snapshot above the server `effectivePolicyVersion`, so the server-side blocklist cannot remain stuck after a local policy-version rollback. The push server filters fanout before APNs/FCM. iOS Notification Service Extension and App Group are not used for this scheme.
 - `AccountIdentity` above device identity: `accountId`, `displayName`, device list, and a `peerlink://pair` QR/deep link for pairing a second device without changing the current device-based routing.
 - Overlay router + message dedup cache.
-- HTTP relay client with live-relay preselection, bounded active pool, quorum write/quorum ack, and status tracking.
+- HTTP relay client with live-relay preselection, bounded active pool, quorum
+  writes, exact-replica best-effort ACK, and status tracking.
 - Relay topology and object routing are separate: configured relays remain the
   local Settings-owned pool, peer-advertised relays are held in the
   TTL-bounded `PeerRelayDirectory`, and exact successful message/blob locations
@@ -226,8 +227,16 @@ UI
 - Contacts ordinary sharing is a single tap: `InviteFlowCoordinator.createInviteUrl()` signs a manifest with the local identity, posts it to `https://tangash.org/invites`, and the UI immediately opens the system share sheet with `https://simplegear.org/i/<token>`. Payload links remain only for backward-compatible QR/import.
 - Profile usernames reuse the avatar/profile control-message transport: Settings fans updates out to known peers and a QR scan sends the scanner profile to the QR owner. Inbound updates persist through ContactsRepository, replace invite/fallback and legacy names equal to the peer ID, but preserve manual names different from the peer ID. User QR carries username as display metadata for the `Name` field.
 - `InviteFlowCoordinator` is the single application owner for both creation and application: it creates a manifest from local identity/name/server metadata, and on `/i/<token>` resolves the validated manifest → ensures default configuration through `InitialServerConfigBootstrapper` → merges optional custom servers → verifies `peerId + identityBundle` → upserts contact → ensures direct chat → emits navigation intent. `AppDeepLinkCoordinator` remains transport-only; UI owns only the share-sheet presentation.
-- Retryable invite failures persist only the validated token in settings and resume at startup/app resume. Android receives a validated Play Install Referrer token; iOS uses a safe one-action return-to-link fallback. `[invite]` diagnostics record lifecycle event names without tokens, identities, manifests, or error details.
+- Invite ownership is explicit: `InviteManifest` validation is domain,
+  `InviteApi` and `PendingInviteStore` are application contracts, and HTTP plus
+  Android Install Referrer are infrastructure. Retryable failures persist only
+  a validated token through the Invite-owned store and resume at startup/app
+  resume. `[invite]` diagnostics record lifecycle event names without tokens,
+  identities, manifests, or error details.
 - `username` is display metadata only. Contacts persist name provenance (`manual`, `inviteUsername`, `peerIdFallback`) so manual names are preserved and an invite username can replace/update non-manual names.
+- On successful short-invite acceptance, the accepting peer best-effort sends
+  its configured username and avatar to the inviter over the profile transport;
+  profile sync failure never rolls back the accepted invite.
 - The Settings `Share configuration` action produces text with direct app link `peerlink://config?payload=...` plus fallback `https://simplegear.org/config?payload=...`, containing only currently available server config. App-side config deep links merge `bootstrap/relay/turn/push` directly, while QR scan/import still uses the explicit import-mode dialog.
 - macOS deep-link delivery is native: `MainFlutterWindow` configures `DeepLinkChannel` with the created `FlutterViewController`, `AppDelegate` registers URL handlers early, and both custom scheme (`peerlink://invite|pair|config|call`) and supported web links are forwarded to Flutter. Android handles the same custom/web link families through the native runner and app links.
 - The Settings `Account and devices` block shows the current `accountId`, known device count, a `peerlink://pair` QR for pairing another owned device, and a scan flow for importing a pairing payload.
@@ -309,14 +318,19 @@ UI
 ### 4.4 Messaging (`lib/core/messaging`, `lib/core/relay`)
 
 - `ReliableMessagingService`: envelope encode/decode, replay checks, relay polling.
-- Relay ack is tied to durable delivery: direct/group chat envelopes are acknowledged only after the awaitable `NetworkEventBus` path lets `ChatController` persist the local message or media placeholder.
+- Relay ack is tied to durable delivery: direct/group chat envelopes are
+  acknowledged only after the awaitable `NetworkEventBus` path lets
+  `ChatController` persist the local message or media placeholder. Each ACK is
+  targeted to all exact fetched replicas; partial cleanup is retried and never
+  marks the delivered envelope failed.
 - `HttpRelayClient`: `/relay/store`, `/relay/group/store`, `/relay/group/members/update`, `/relay/fetch`, `/relay/ack`, blob APIs.
 - `RelayMediaTransferService` and `RelayMediaRetryCoordinator` now live in `lib/core/relay`: relay media upload/download, restore result models, and persisted retry orchestration no longer live in `ui/state`.
 - Relay strategy:
   - active relay pool is capped,
   - runtime operations preselect only live relays and use at most 3 servers,
-  - writes and ack use quorum,
-  - fetch aggregates across the active pool with per-relay cursors,
+  - writes use quorum; ACK is best-effort to all exact message replicas,
+  - fetch aggregates across the active pool and commits its cursor only after
+    durable local processing,
   - dead relays are excluded from the active path whenever healthy relays are available.
 - Push fanout path:
   - all app push events are emitted as signed `/events/push` requests,
@@ -343,6 +357,9 @@ UI
     failures may retry, while decrypt, save, and message-update failures expose
     distinct terminal statuses,
   - relay media upload/download mechanics and incoming retry state/timers are isolated in `lib/core/relay/relay_media_transfer_service.dart`; `ChatController` owns message state and UI orchestration.
+  - message ACK never deletes a referenced media blob; blob retention is owned
+    by its own TTL so repeat opening, a second device and cache recovery remain
+    possible.
 - Group media/text blob strategy:
   - preferred for large payloads: chunked upload (`/relay/blob/upload/chunk`, `/relay/blob/upload/complete`),
   - fallback: single-shot upload (`/relay/blob/upload`),

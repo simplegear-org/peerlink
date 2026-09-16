@@ -1,6 +1,6 @@
 # SECURITY_MODEL
 
-Обновлено: 2026-08-28
+Обновлено: 2026-09-16
 
 Документ фиксирует, что PeerLink по безопасности уже может честно заявлять сейчас, а что еще остается зоной усиления.
 
@@ -49,6 +49,8 @@
 - Relay-сервер валидирует Ed25519-подпись на `/relay/group/store`.
 - Relay-сервер валидирует Ed25519-подпись на `/relay/group/members/update`.
 - Relay-сервер валидирует Ed25519-подпись на `/relay/ack`.
+- ACK идемпотентен через bounded durable tombstone и удаляет только matching
+  message envelope, но никогда не зашифрованный media blob.
 - Relay-сервер валидирует Ed25519-подпись на blob upload/finalize endpoint-ах.
 - Relay-сервер применяет server-side проверку членства на group write endpoint-ах.
 - В reliable-envelope обработке применяются replay-window проверки.

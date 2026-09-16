@@ -184,7 +184,10 @@ class HttpRelayClient implements RelayClient {
   }
 
   @override
-  Future<void> ack(RelayAck ack) => _messageApi.ack(ack);
+  Future<RelayAckReceipt> ack(
+    RelayAck ack, {
+    List<String> relayServers = const <String>[],
+  }) => _messageApi.ack(ack, relayServers: relayServers);
 
   @override
   void configureServers(List<String> servers) {

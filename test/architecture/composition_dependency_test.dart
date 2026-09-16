@@ -77,6 +77,38 @@ void main() {
     );
   });
 
+  test(
+    'InviteFlowCoordinator depends on InviteApi, not HTTP infrastructure',
+    () {
+      final source = dartSourcesUnder(const ['lib/app/invites']).singleWhere(
+        (source) =>
+            source.path == 'lib/app/invites/invite_flow_coordinator.dart',
+      );
+      final imports = source
+          .imports()
+          .map((import) => import.resolvePeerlinkPath())
+          .whereType<String>()
+          .toSet();
+
+      expect(imports, contains('features/invites/application/invite_api.dart'));
+      expect(
+        imports,
+        isNot(
+          contains(
+            'features/invites/infrastructure/invite_manifest_client.dart',
+          ),
+        ),
+      );
+      expect(
+        imports.where((path) => path.startsWith('ui/')),
+        isEmpty,
+        reason:
+            'InviteFlowCoordinator is app orchestration and must receive UI '
+            'workflows through narrow commands, not UI implementations.',
+      );
+    },
+  );
+
   test('ChatControllerComposition uses narrow ports instead of callbacks', () {
     final composition = dartSourcesUnder(const ['lib/app/composition'])
         .singleWhere(

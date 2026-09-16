@@ -129,6 +129,8 @@ Current design combines:
     persists foreign endpoints into that pool,
   - writes use a 1/1, 2/2, or 2/3 durable quorum and return exact successful
     object locations.
+  - after durable local handling, message ACK targets every exact fetched
+    replica. Partial cleanup retries later and never deletes a media blob.
 - Personal media delivery now also uses relay blob transport:
   - direct chat media is uploaded once into relay blob storage,
   - up to 3 live relays are selected for each blob; it is replicated to every
@@ -321,8 +323,9 @@ APNS_USE_SANDBOX=true
 - Relay client uses a bounded, health-aware pool plus quorum strategy:
   - active relay usage is capped,
   - runtime operations choose only live relays first and use at most 3 servers,
-  - writes and ack use quorum,
-  - fetch aggregates across the working relay set with per-relay cursors,
+  - writes use quorum; ACK is best-effort to all exact message replicas,
+  - fetch aggregates across the working relay set and commits its cursor only
+    after durable local processing,
   - selected relay operations run in parallel to avoid cumulative delays when some configured servers are unavailable.
 - Reliable envelope parsing/validation and relay polling pipeline.
 - Relay signatures are validated both client-side (receive path) and server-side (`/relay/store`, `/relay/group/store`, `/relay/group/members/update`, `/relay/ack`, blob upload/finalize endpoints).

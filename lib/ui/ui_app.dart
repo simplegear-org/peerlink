@@ -18,7 +18,7 @@ import '../app/push/app_push_coordinator.dart';
 import '../core/calls/call_models.dart';
 import '../core/firebase/firebase_push_payload.dart';
 import '../core/node/node_capability_apis.dart';
-import '../core/runtime/android_install_referrer_service.dart';
+import '../features/invites/infrastructure/android_install_referrer_service.dart';
 import '../features/calls/platform/ios_callkit_service.dart';
 import '../core/runtime/peer_access_control_service.dart';
 import 'screens/account_restricted_screen.dart';
@@ -40,6 +40,8 @@ import 'state/ui_app_controller.dart';
 
 import '../core/node/node_facade.dart';
 import '../features/profile/application/avatar_service.dart';
+import '../features/invites/application/invite_api.dart';
+import '../features/invites/application/pending_invite_store.dart';
 import '../core/runtime/self_hosted_deploy_service.dart';
 import '../core/firebase/firebase_messaging_service.dart';
 
@@ -62,6 +64,8 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   late final SettingsController _settingsController;
   late final SelfHostedDeployService _selfHostedDeployService;
   late final AvatarService _avatarService;
+  late final InviteApi _inviteApi;
+  late final PendingInviteStore _pendingInviteStore;
   late final PresenceService _presenceService;
   late final UiAppController _appController;
   late final AppCallCoordinator _callCoordinator;
@@ -91,6 +95,8 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     _restrictionController = ui.restrictionController;
     _selfHostedDeployService = ui.selfHostedDeployService;
     _avatarService = ui.avatarService;
+    _inviteApi = ui.inviteApi;
+    _pendingInviteStore = ui.pendingInviteStore;
     _presenceService = ui.presenceService;
     _appController = ui.appController;
     _accessControl = ui.accessControl;
@@ -212,9 +218,12 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
       localUsername: () => _settingsController.inviteUsername,
       currentServerConfig:
           _settingsController.currentConfiguredServerConfigPayload,
-      loadPendingInviteToken: _settingsController.loadPendingInviteToken,
-      savePendingInviteToken: _settingsController.savePendingInviteToken,
-      clearPendingInviteToken: _settingsController.clearPendingInviteToken,
+      inviteApi: _inviteApi,
+      syncLocalProfileToPeer: (peerId) async {
+        await _settingsController.sendInviteUsernameToPeer(peerId);
+        await _avatarService.sendLocalAvatarToPeer(peerId);
+      },
+      pendingInviteStore: _pendingInviteStore,
     );
     _lifecycleCoordinator = AppLifecycleCoordinator(
       refreshRestrictionStatus: _refreshRestrictionStatus,
@@ -304,9 +313,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     final token = await AndroidInstallReferrerService.instance
         .readInviteToken();
     if (token != null) {
-      final existing = await _settingsController.loadPendingInviteToken();
+      final existing = await _pendingInviteStore.load();
       if (existing == null) {
-        await _settingsController.savePendingInviteToken(token);
+        await _pendingInviteStore.save(token);
       }
       await AndroidInstallReferrerService.instance.markInviteTokenHandled(
         token,

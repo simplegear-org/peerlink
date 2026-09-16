@@ -3,6 +3,24 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.13.2+2026091601] - 2026-09-16
+
+### Changed
+
+- One-tap sharing now creates a signed short invite link.
+- Relay ACK is now targeted to every exact message replica after durable
+  delivery. Partial cleanup retries later without failing delivery; ACK never
+  deletes a media blob, whose retention is controlled by its own TTL.
+- Relay ACK tombstones now persist recipient/message/acknowledgement/expiry
+  metadata and are bounded by durable TTL garbage collection.
+- Invite architecture is now split into `features/invites` domain,
+  application and infrastructure; `InviteApi` and `PendingInviteStore` keep
+  the coordinator independent from HTTP and Settings UI. Android Install
+  Referrer is Invite-owned platform infrastructure.
+- After accepting a short invite, the accepting peer now best-effort sends its
+  configured username and avatar to the inviter.
+
+
 ## [3.13.1+2026091002] - 2026-09-10
 
 ### Changed

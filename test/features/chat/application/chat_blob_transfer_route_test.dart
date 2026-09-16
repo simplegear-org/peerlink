@@ -44,4 +44,13 @@ void main() {
     expect(route, isNotNull);
     expect(route!.blobRelayServers, isEmpty);
   });
+
+  test('legacy group blob transfer routes retain an empty relay list', () {
+    final route = codec.parseGroupBlobTransferId(
+      'grpblob:group-a|message-a|blob-a',
+    );
+
+    expect(route, isNotNull);
+    expect(route!.blobRelayServers, isEmpty);
+  });
 }

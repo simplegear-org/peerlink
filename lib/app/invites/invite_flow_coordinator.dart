@@ -4,9 +4,10 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import 'package:peerlink/app/invites/invite_manifest_client.dart';
 import 'package:peerlink/core/runtime/app_file_logger.dart';
 import 'package:peerlink/core/runtime/server_config_payload.dart';
+import 'package:peerlink/features/invites/application/invite_api.dart';
+import 'package:peerlink/features/invites/application/pending_invite_store.dart';
 
 enum InviteFlowResultType {
   completed,
@@ -66,8 +67,6 @@ typedef InviteContactUpserter =
 typedef InviteDirectChatEnsurer =
     Future<void> Function({required String peerId, required String name});
 
-typedef PendingInviteTokenLoader = Future<String?> Function();
-typedef PendingInviteTokenWriter = Future<void> Function(String token);
 typedef InviteDiagnosticLogger = void Function(String event);
 
 /// Emits lifecycle names only: no token, peer ID, manifest, or error details.
@@ -96,10 +95,9 @@ class InviteFlowCoordinator {
     required InviteManifestSigner signInviteManifest,
     required String Function() localUsername,
     required ServerConfigPayload Function() currentServerConfig,
-    PendingInviteTokenLoader? loadPendingInviteToken,
-    PendingInviteTokenWriter? savePendingInviteToken,
-    PendingInviteTokenWriter? clearPendingInviteToken,
-    InviteManifestClient? manifestClient,
+    PendingInviteStore? pendingInviteStore,
+    required InviteApi inviteApi,
+    Future<void> Function(String peerId)? syncLocalProfileToPeer,
     InviteDiagnosticLogger? logDiagnostic,
   }) : _localPeerId = localPeerId,
        _verifyIdentity = verifyIdentity,
@@ -112,10 +110,9 @@ class InviteFlowCoordinator {
        _signInviteManifest = signInviteManifest,
        _localUsername = localUsername,
        _currentServerConfig = currentServerConfig,
-       _loadPendingInviteToken = loadPendingInviteToken,
-       _savePendingInviteToken = savePendingInviteToken,
-       _clearPendingInviteToken = clearPendingInviteToken,
-       _manifestClient = manifestClient ?? InviteManifestClient(),
+       _pendingInviteStore = pendingInviteStore,
+       _inviteApi = inviteApi,
+       _syncLocalProfileToPeer = syncLocalProfileToPeer,
        _logDiagnostic = logDiagnostic ?? InviteFlowDiagnostics.log;
 
   final String _localPeerId;
@@ -129,19 +126,20 @@ class InviteFlowCoordinator {
   final InviteManifestSigner _signInviteManifest;
   final String Function() _localUsername;
   final ServerConfigPayload Function() _currentServerConfig;
-  final PendingInviteTokenLoader? _loadPendingInviteToken;
-  final PendingInviteTokenWriter? _savePendingInviteToken;
-  final PendingInviteTokenWriter? _clearPendingInviteToken;
-  final InviteManifestClient _manifestClient;
+  final PendingInviteStore? _pendingInviteStore;
+  final InviteApi _inviteApi;
+  final Future<void> Function(String peerId)? _syncLocalProfileToPeer;
   final InviteDiagnosticLogger _logDiagnostic;
   final Set<String> _handledTokens = <String>{};
 
-  Future<String> createInviteUrl() => _manifestClient.create(
-    peerId: _localPeerId,
-    identityBundle: _localIdentityBundle,
-    sign: _signInviteManifest,
-    username: _localUsername(),
-    servers: _currentServerConfig(),
+  Future<String> createInviteUrl() => _inviteApi.create(
+    InviteCreateRequest(
+      peerId: _localPeerId,
+      identityBundle: _localIdentityBundle,
+      sign: _signInviteManifest,
+      username: _localUsername(),
+      serverConfig: _currentServerConfig(),
+    ),
   );
 
   Future<InviteFlowResult> handleInviteUrl(Uri uri) async {
@@ -163,7 +161,7 @@ class InviteFlowCoordinator {
     }
     try {
       _logDiagnostic('invite_resolve_start');
-      final invite = await _manifestClient.resolve(token);
+      final invite = await _inviteApi.resolve(token);
       _logDiagnostic('invite_resolve_success');
       if (invite.peerId == _localPeerId) {
         throw const FormatException('Нельзя принять собственное приглашение');
@@ -190,9 +188,14 @@ class InviteFlowCoordinator {
       final name = invite.username ?? invite.peerId;
       await _ensureDirectChat(peerId: invite.peerId, name: name);
       _logDiagnostic('chat_ready');
+      try {
+        await _syncLocalProfileToPeer?.call(invite.peerId);
+      } catch (_) {
+        // Profile metadata sync must not roll back an accepted invite.
+      }
       _openChat(invite.peerId, name);
       _logDiagnostic('chat_opened');
-      await _clearPendingInviteToken?.call(token);
+      await _pendingInviteStore?.clear(token);
       _logDiagnostic('invite_completed');
       return InviteFlowResult.completed(
         peerId: invite.peerId,
@@ -202,10 +205,10 @@ class InviteFlowCoordinator {
       _handledTokens.remove(token);
       final retryable = _isRetryable(error);
       if (retryable) {
-        await _savePendingInviteToken?.call(token);
+        await _pendingInviteStore?.save(token);
         _logDiagnostic('pending_invite_stored');
       } else {
-        await _clearPendingInviteToken?.call(token);
+        await _pendingInviteStore?.clear(token);
       }
       _logDiagnostic(
         retryable ? 'invite_failed_retryable' : 'invite_failed_terminal',
@@ -216,7 +219,7 @@ class InviteFlowCoordinator {
 
   /// Replays the only persisted short-token invite after startup or resume.
   Future<InviteFlowResult?> resumePendingInvite() async {
-    final token = await _loadPendingInviteToken?.call();
+    final token = await _pendingInviteStore?.load();
     if (token == null || token.isEmpty) return null;
     _logDiagnostic('pending_invite_resumed');
     return handleInviteUrl(Uri.https('simplegear.org', '/i/$token'));

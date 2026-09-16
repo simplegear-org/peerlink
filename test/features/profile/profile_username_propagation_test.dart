@@ -83,7 +83,7 @@ void main() {
       transport: transport,
       storage: storage,
       chatSummaryStore: _EmptySummaries(),
-      contactsController: contacts,
+      contacts: contacts,
     );
     addTearDown(() async {
       await service.dispose();

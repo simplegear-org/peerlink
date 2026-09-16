@@ -60,6 +60,9 @@ abstract class RelayClient {
     String? cursor,
     int limit,
   });
-  Future<void> ack(RelayAck ack);
+  Future<RelayAckReceipt> ack(
+    RelayAck ack, {
+    List<String> relayServers = const <String>[],
+  });
   void configureServers(List<String> servers);
 }

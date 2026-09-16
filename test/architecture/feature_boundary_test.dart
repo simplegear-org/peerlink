@@ -282,6 +282,64 @@ void main() {
     );
   });
 
+  test('profile avatar application uses Contacts contract, not UI state', () {
+    final source = dartSourcesUnder(const ['lib/features/profile/application'])
+        .singleWhere(
+          (source) =>
+              source.path ==
+              'lib/features/profile/application/avatar_service.dart',
+        );
+    final imports = source
+        .imports()
+        .map((import) => import.resolvePeerlinkPath())
+        .whereType<String>()
+        .toSet();
+
+    expect(imports, isNot(contains('lib/ui/state/contacts_controller.dart')));
+    expect(
+      imports,
+      contains('features/contacts/application/contact_profile_api.dart'),
+    );
+  });
+
+  test('Invite domain does not import dart:io', () {
+    final violations = dartSourcesUnder(const ['lib/features/invites/domain'])
+        .where((source) => source.content.contains("import 'dart:io'"))
+        .map((source) => source.path)
+        .toList();
+
+    expect(violations, isEmpty);
+  });
+
+  test(
+    'Invite feature layers keep UI and concrete feature dependencies out',
+    () {
+      final sources = dartSourcesUnder(const ['lib/features/invites']);
+      final violations = <String>[];
+      for (final source in sources) {
+        for (final import in source.imports()) {
+          final target = import.resolvePeerlinkPath() ?? '';
+          final isUi = target.startsWith('ui/');
+          final isConcreteCrossFeature =
+              source.path.contains('/application/') &&
+              (target.startsWith('features/contacts/') ||
+                  target.startsWith('features/chat/'));
+          if (isUi || isConcreteCrossFeature) {
+            violations.add('${import.location} -> ${import.uri}');
+          }
+        }
+      }
+
+      expect(
+        violations,
+        isEmpty,
+        reason:
+            'Invite domain/application/infrastructure must use contracts and '
+            'must not depend on UI or concrete Contacts/Chat feature code.',
+      );
+    },
+  );
+
   test('feature modules do not import other feature concrete code', () {
     final imports = dartSourcesUnder(const [
       'lib/features',
@@ -366,6 +424,7 @@ String? _featureName(String? path) {
 }
 
 const _approvedCrossFeatureContracts = {
+  'features/contacts/application/contact_profile_api.dart',
   'lib/features/contacts/domain/contact.dart',
   'lib/features/moderation/application/access_policy_api.dart',
   'lib/features/moderation/application/moderation_reports_api.dart',

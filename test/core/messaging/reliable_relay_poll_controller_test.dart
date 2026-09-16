@@ -33,6 +33,8 @@ class _FakeRelayClient implements RelayClient {
   final List<RelayFetchResult> _fetchResults;
   final List<String?> fetchCursors = <String?>[];
   final List<RelayAck> acked = <RelayAck>[];
+  final List<List<String>> ackRelayServers = <List<String>>[];
+  final List<RelayAckReceipt> ackReceipts = <RelayAckReceipt>[];
   int _fetchIndex = 0;
 
   @override
@@ -50,8 +52,19 @@ class _FakeRelayClient implements RelayClient {
   }
 
   @override
-  Future<void> ack(RelayAck ack) async {
+  Future<RelayAckReceipt> ack(
+    RelayAck ack, {
+    List<String> relayServers = const <String>[],
+  }) async {
     acked.add(ack);
+    ackRelayServers.add(relayServers);
+    if (ackReceipts.isNotEmpty) {
+      return ackReceipts.removeAt(0);
+    }
+    return const RelayAckReceipt(
+      successfulServerUrls: <String>[],
+      failedServerUrls: <String>[],
+    );
   }
 
   @override
@@ -181,49 +194,183 @@ Future<RelayEnvelope> _buildEnvelope({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('poll retains cursor until envelope is acked', () async {
-    final recipient = await _buildSessionManager();
-    final sender = await _buildSessionManager();
-    final envelope = await _buildEnvelope(sender: sender, recipient: recipient);
-    final relay = _FakeRelayClient(<RelayFetchResult>[
-      RelayFetchResult(messages: <RelayEnvelope>[envelope], cursor: 'cursor-1'),
-      RelayFetchResult(messages: <RelayEnvelope>[envelope], cursor: 'cursor-1'),
-    ]);
+  test(
+    'poll retains committed cursor until durable delivery and ACK succeed',
+    () async {
+      final recipient = await _buildSessionManager();
+      final sender = await _buildSessionManager();
+      final envelope = await _buildEnvelope(
+        sender: sender,
+        recipient: recipient,
+      );
+      final relay = _FakeRelayClient(<RelayFetchResult>[
+        RelayFetchResult(
+          messages: <RelayEnvelope>[envelope],
+          cursor: 'cursor-1',
+        ),
+        RelayFetchResult(
+          messages: <RelayEnvelope>[envelope],
+          cursor: 'cursor-1',
+        ),
+      ]);
 
-    var deliveryAttempts = 0;
-    final controller = ReliableRelayPollController(
-      relay: relay,
-      sessions: recipient,
-      selfId: recipient.identity.nodeId,
-      activePollInterval: const Duration(seconds: 1),
-      idlePollInterval: const Duration(seconds: 2),
-      isDisposed: () => false,
-      isRelayEnabled: () => true,
-      isInboundReady: () => true,
-      buildSignaturePayload: buildReliableSignaturePayload,
-      buildAckSignaturePayload: buildReliableAckSignaturePayload,
-      handleReliableEnvelope:
-          ({
-            required String envelopeId,
-            required String fromPeerId,
-            String? groupId,
-            required int timestampMs,
-            required Uint8List bytes,
-          }) async {
-            deliveryAttempts += 1;
-            return deliveryAttempts > 1;
-          },
-      log: (_) {},
-    );
+      var deliveryAttempts = 0;
+      final controller = ReliableRelayPollController(
+        relay: relay,
+        sessions: recipient,
+        selfId: recipient.identity.nodeId,
+        activePollInterval: const Duration(seconds: 1),
+        idlePollInterval: const Duration(seconds: 2),
+        isDisposed: () => false,
+        isRelayEnabled: () => true,
+        isInboundReady: () => true,
+        buildSignaturePayload: buildReliableSignaturePayload,
+        buildAckSignaturePayload: buildReliableAckSignaturePayload,
+        handleReliableEnvelope:
+            ({
+              required String envelopeId,
+              required String fromPeerId,
+              String? groupId,
+              required int timestampMs,
+              required Uint8List bytes,
+            }) async {
+              deliveryAttempts += 1;
+              return deliveryAttempts > 1;
+            },
+        log: (_) {},
+      );
 
-    await controller.poll();
-    await controller.poll();
+      await controller.poll();
+      await controller.poll();
 
-    expect(relay.fetchCursors, <String?>[null, null]);
-    expect(deliveryAttempts, 2);
-    expect(relay.acked, hasLength(1));
-    expect(relay.acked.single.id, envelope.id);
-  });
+      expect(relay.fetchCursors, <String?>[null, null]);
+      expect(deliveryAttempts, 2);
+      expect(relay.acked, hasLength(1));
+      expect(relay.acked.single.id, envelope.id);
+    },
+  );
+
+  test(
+    'poll commits candidate cursor after durable delivery and ACK',
+    () async {
+      final recipient = await _buildSessionManager();
+      final sender = await _buildSessionManager();
+      final envelope = await _buildEnvelope(
+        sender: sender,
+        recipient: recipient,
+      );
+      final relay = _FakeRelayClient(<RelayFetchResult>[
+        RelayFetchResult(
+          messages: <RelayEnvelope>[envelope],
+          cursor: 'cursor-1',
+        ),
+        RelayFetchResult(messages: const <RelayEnvelope>[], cursor: 'cursor-2'),
+      ]);
+      final controller = ReliableRelayPollController(
+        relay: relay,
+        sessions: recipient,
+        selfId: recipient.identity.nodeId,
+        activePollInterval: const Duration(seconds: 1),
+        idlePollInterval: const Duration(seconds: 2),
+        isDisposed: () => false,
+        isRelayEnabled: () => true,
+        isInboundReady: () => true,
+        buildSignaturePayload: buildReliableSignaturePayload,
+        buildAckSignaturePayload: buildReliableAckSignaturePayload,
+        handleReliableEnvelope:
+            ({
+              required String envelopeId,
+              required String fromPeerId,
+              String? groupId,
+              required int timestampMs,
+              required Uint8List bytes,
+            }) async => true,
+        log: (_) {},
+      );
+
+      await controller.poll();
+      await controller.poll();
+
+      expect(relay.fetchCursors, <String?>[null, 'cursor-1']);
+      expect(relay.acked, hasLength(1));
+    },
+  );
+
+  test(
+    'partial targeted ACK does not defer delivery and retries failed replicas',
+    () async {
+      final recipient = await _buildSessionManager();
+      final sender = await _buildSessionManager();
+      final envelope = await _buildEnvelope(
+        sender: sender,
+        recipient: recipient,
+      );
+      final relay = _FakeRelayClient(<RelayFetchResult>[
+        RelayFetchResult(
+          fetchedMessages: <RelayFetchedEnvelope>[
+            RelayFetchedEnvelope(
+              envelope: envelope,
+              relayServers: const <String>[
+                'http://relay1.example',
+                'http://relay2.example',
+                'http://relay3.example',
+              ],
+            ),
+          ],
+          cursor: 'cursor-1',
+        ),
+        RelayFetchResult(messages: const <RelayEnvelope>[], cursor: 'cursor-2'),
+      ]);
+      relay.ackReceipts.addAll(const <RelayAckReceipt>[
+        RelayAckReceipt(
+          successfulServerUrls: <String>[
+            'http://relay1.example',
+            'http://relay3.example',
+          ],
+          failedServerUrls: <String>['http://relay2.example'],
+        ),
+        RelayAckReceipt(
+          successfulServerUrls: <String>['http://relay2.example'],
+          failedServerUrls: <String>[],
+        ),
+      ]);
+      final controller = ReliableRelayPollController(
+        relay: relay,
+        sessions: recipient,
+        selfId: recipient.identity.nodeId,
+        activePollInterval: const Duration(seconds: 1),
+        idlePollInterval: const Duration(seconds: 2),
+        isDisposed: () => false,
+        isRelayEnabled: () => true,
+        isInboundReady: () => true,
+        buildSignaturePayload: buildReliableSignaturePayload,
+        buildAckSignaturePayload: buildReliableAckSignaturePayload,
+        handleReliableEnvelope:
+            ({
+              required String envelopeId,
+              required String fromPeerId,
+              String? groupId,
+              required int timestampMs,
+              required Uint8List bytes,
+            }) async => true,
+        log: (_) {},
+      );
+
+      await controller.poll();
+      await controller.poll();
+
+      expect(relay.fetchCursors, <String?>[null, 'cursor-1']);
+      expect(relay.acked, hasLength(2));
+      expect(relay.ackRelayServers, <List<String>>[
+        <String>[
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+        <String>['http://relay2.example'],
+      ]);
+    },
+  );
 
   test(
     'empty poll must not advance cursor while deferred replay is pending',

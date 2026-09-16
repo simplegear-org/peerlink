@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:peerlink/core/runtime/android_install_referrer_service.dart';
+import 'package:peerlink/features/invites/infrastructure/android_install_referrer_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

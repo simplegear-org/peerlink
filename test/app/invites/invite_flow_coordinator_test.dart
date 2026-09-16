@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/app/invites/invite_flow_coordinator.dart';
 import 'package:peerlink/app/invites/invite_manifest_client.dart';
+import 'package:peerlink/features/invites/application/pending_invite_store.dart';
 import 'package:peerlink/core/security/peer_identity_bundle_v3.dart';
 
 void main() {
@@ -139,7 +140,7 @@ void main() {
         signInviteManifest: (manifest) async => 'signature',
         localUsername: () => 'Vladimir',
         currentServerConfig: () => invite.serverConfig,
-        manifestClient: _FakeInviteManifestClient(invite),
+        inviteApi: _FakeInviteManifestClient(invite),
       );
 
       final result = await coordinator.handleInviteUrl(
@@ -158,7 +159,7 @@ void main() {
         invite: invite,
         events: <String>[],
         pendingStore: store,
-        manifestClient: _ThrowingInviteManifestClient(
+        inviteApi: _ThrowingInviteManifestClient(
           const InviteResolveException('offline', retryable: true),
         ),
       );
@@ -188,7 +189,7 @@ void main() {
       invite: invite,
       events: <String>[],
       pendingStore: store,
-      manifestClient: _ThrowingInviteManifestClient(
+      inviteApi: _ThrowingInviteManifestClient(
         const FormatException('expired'),
       ),
     );
@@ -205,7 +206,7 @@ InviteFlowCoordinator _coordinator({
   bool identityResult = true,
   String localPeerId = 'recipient',
   _PendingInviteTokenStore? pendingStore,
-  InviteManifestClient? manifestClient,
+  InviteApi? inviteApi,
   List<String>? diagnostics,
 }) {
   return InviteFlowCoordinator(
@@ -225,10 +226,8 @@ InviteFlowCoordinator _coordinator({
     signInviteManifest: (manifest) async => 'signature',
     localUsername: () => 'Vladimir',
     currentServerConfig: () => invite.serverConfig,
-    loadPendingInviteToken: pendingStore?.load,
-    savePendingInviteToken: pendingStore?.save,
-    clearPendingInviteToken: pendingStore?.clear,
-    manifestClient: manifestClient ?? _FakeInviteManifestClient(invite),
+    pendingInviteStore: pendingStore,
+    inviteApi: inviteApi ?? _FakeInviteManifestClient(invite),
     logDiagnostic: diagnostics?.add,
   );
 }
@@ -252,15 +251,18 @@ class _ThrowingInviteManifestClient extends InviteManifestClient {
       Future<InviteManifest>.error(error);
 }
 
-class _PendingInviteTokenStore {
+class _PendingInviteTokenStore implements PendingInviteStore {
   String? token;
 
+  @override
   Future<String?> load() async => token;
 
+  @override
   Future<void> save(String value) async {
     token = value;
   }
 
+  @override
   Future<void> clear(String value) async {
     if (token == value) token = null;
   }

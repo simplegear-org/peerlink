@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Обновлено: 2026-09-10
+Обновлено: 2026-09-16
 
 ## 1. Назначение
 
@@ -52,7 +52,8 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - Если в `payload` присутствуют `servers` / `priority_servers`, они считаются runtime-метаданными приложения и обрабатываются только клиентом.
 - `AccountIdentity` поверх device identity: `accountId`, `displayName`, список устройств и QR/deep link `peerlink://pair` для привязки второго устройства без изменения текущей device-based маршрутизации.
 - Overlay router + dedup cache.
-- HTTP relay-клиент с предварительным отбором живых relay, bounded active pool, quorum-write/quorum-ack и трекингом статусов.
+- HTTP relay-клиент с предварительным отбором живых relay, bounded active pool,
+  quorum-write, best-effort ACK по точным replicas и трекингом статусов.
 - Relay topology и object routing разделены: configured relay остаются
   локальным Settings-owned pool, relay от peer хранятся в
   TTL-ограниченном `PeerRelayDirectory`, а точные successful locations
@@ -208,8 +209,15 @@ UI
 - Attachment sheet в чате показывает только реализованные действия `Галерея` и `Вставить` плюс `Отмена`; placeholder-пункты `Файл`/`Геопозиция` удалены из UI.
 - Строки контактов открывают action menu по долгому нажатию для переименования сохраненного display name без изменения peer ID.
 - Действие `Пригласить` в Contacts одним tap вызывает `InviteFlowCoordinator.createInviteUrl()`: coordinator подписывает manifest локальной identity, отправляет его на `https://tangash.org/invites`, а UI сразу открывает системный Share Sheet со ссылкой `https://simplegear.org/i/<token>`. `peerlink://invite?payload=...` и `https://simplegear.org/invite?payload=...` остаются только legacy-форматами QR/direct-import. При входящем short invite coordinator валидирует manifest, применяет нужную server configuration, затем проверяет identity, добавляет/обновляет контакт и открывает/reuse direct chat.
-- Retryable invite failure сохраняет в Settings только валидный token и возобновляется на startup/app resume. Android получает валидный Play Install Referrer token; iOS использует безопасный one-action fallback с повторным открытием ссылки. `[invite]` diagnostics фиксирует lifecycle event names без token, identity, manifest и текста ошибок.
+- Invite имеет явное ownership: validation `InviteManifest` — domain,
+  `InviteApi` и `PendingInviteStore` — application contracts, HTTP и Android
+  Install Referrer — infrastructure. Retryable failure сохраняет только
+  валидный token через Invite store и возобновляется на startup/app resume.
+  `[invite]` diagnostics не содержит token, identity, manifest или error.
 - Profile username использует существующий control-message transport avatar/profile: Settings рассылает обновление известным peers, QR-сканирование отправляет профиль сканирующего владельцу QR. Inbound update сохраняется через ContactsRepository, заменяет invite/fallback и старое имя, равное Peer ID, но не ручное имя, отличное от Peer ID. User QR содержит username как display metadata для поля «Имя».
+- После успешного принятия short invite принимающий peer best-effort отправляет
+  пригласившему своё настроенное имя и аватар через profile transport; ошибка
+  profile sync не отменяет создание контакта и direct chat.
 - Действие `Поделиться конфигурацией` в Settings создает текст с direct app link `peerlink://config?payload=...` и fallback `https://simplegear.org/config?payload=...` только с текущей доступной конфигурацией серверов. App-side config deep link напрямую merge-ит `bootstrap/relay/turn/push`, а QR scan/import сохраняет явный диалог выбора режима импорта.
 - Доставка deep links на macOS нативная: `MainFlutterWindow` конфигурирует `DeepLinkChannel` созданным `FlutterViewController`, `AppDelegate` рано регистрирует URL handler-ы, а custom scheme (`peerlink://invite|pair|config|call`) и поддерживаемые web-ссылки передаются во Flutter. Android runner поддерживает тот же набор custom/web ссылок через app links.
 - Блок `Аккаунт и устройства` в Settings показывает текущий `accountId`, количество известных устройств, QR `peerlink://pair` для привязки своего второго устройства и scan-flow для импорта pairing payload.
@@ -314,14 +322,18 @@ UI
   - `ReliableRetryScheduler` — retry timer и durable retry/backoff policy,
   - `ReliableCodec` — envelope type и signature/header payload builders,
   - `ReliableOperationId` — стабильное формирование id pending reliable-операций.
-- Relay ack привязан к durable delivery: direct/group chat envelope подтверждается только после awaitable-пути через `NetworkEventBus`, когда `ChatController` сохранил локальное сообщение или media placeholder.
+- Relay ack привязан к durable delivery: direct/group chat envelope
+  подтверждается только после awaitable-пути через `NetworkEventBus`, когда
+  `ChatController` сохранил локальное сообщение или media placeholder. ACK
+  адресно идёт во все exact fetched replicas; partial cleanup ретраится и не
+  делает доставленный envelope failed.
 - `HttpRelayClient`: интеграция `/relay/store`, `/relay/group/store`, `/relay/group/members/update`, `/relay/fetch`, `/relay/ack`, blob endpoint-ов.
 - `RelayMediaTransferService` и `RelayMediaRetryCoordinator` теперь живут в `lib/core/relay`: relay media upload/download, restore result-модели и persisted retry orchestration больше не находятся в `ui/state`.
 - Relay стратегия:
   - активный пул ограничен,
   - runtime-операции сначала выбирают только живые relay и используют не более 3 серверов,
-  - запись и ack выполняются в quorum,
-  - fetch агрегируется по активному пулу и использует отдельный cursor на каждый relay,
+  - запись использует quorum, а ACK best-effort идёт во все exact message replicas,
+  - fetch агрегируется по активному пулу и commit-ит cursor только после durable local processing,
   - если healthy relay доступны, dead relay исключаются из активного пути доставки.
 - Push fanout:
   - все push-события приложения отправляются подписанным `/events/push`,
@@ -343,6 +355,9 @@ UI
     thumbnail; успешный persistence очищает transfer status,
   - retry разрешён только для download/relay availability failures; decrypt,
     save и message-update failures имеют отдельные terminal UI statuses.
+  - message ACK не удаляет связанный media blob: retention blob определяется
+    отдельным TTL, поэтому возможны повторное открытие, второе устройство и
+    cache recovery.
 - Blob стратегия в группах:
   - при больших payload: chunked upload (`/relay/blob/upload/chunk`, `/relay/blob/upload/complete`),
   - fallback: `/relay/blob/upload`,

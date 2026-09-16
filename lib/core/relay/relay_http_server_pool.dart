@@ -21,7 +21,6 @@ class RelayHttpServerPool {
   final List<Uri> _servers = <Uri>[];
   final Map<String, RelayServerStatus> _statuses =
       <String, RelayServerStatus>{};
-  final Map<String, String?> _fetchCursorByServer = <String, String?>{};
   final Map<String, DateTime> _operationUnavailableUntil = <String, DateTime>{};
 
   ServerAvailability? Function(String endpoint)? _availabilityLookup;
@@ -99,7 +98,6 @@ class RelayHttpServerPool {
       ..addAll(normalizedServers);
     final activeKeys = _servers.map((server) => server.toString()).toSet();
     _statuses.removeWhere((key, _) => !activeKeys.contains(key));
-    _fetchCursorByServer.removeWhere((key, _) => !activeKeys.contains(key));
     _operationUnavailableUntil.removeWhere(
       (key, _) => !activeKeys.contains(key),
     );
@@ -113,7 +111,6 @@ class RelayHttpServerPool {
           lastError: 'ожидание проверки',
         ),
       );
-      _fetchCursorByServer.putIfAbsent(key, () => null);
     }
   }
 
@@ -192,14 +189,6 @@ class RelayHttpServerPool {
       lastError: error,
       lastSuccessAt: previous?.lastSuccessAt,
     );
-  }
-
-  String? fetchCursorFor(Uri server, {String? fallback}) {
-    return _fetchCursorByServer[server.toString()] ?? fallback;
-  }
-
-  void updateFetchCursor(Uri server, String? cursor) {
-    _fetchCursorByServer[server.toString()] = cursor;
   }
 
   ServerAvailability? sharedAvailabilityFor(Uri server) {

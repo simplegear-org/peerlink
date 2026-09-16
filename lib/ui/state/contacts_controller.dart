@@ -8,12 +8,13 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:peerlink/core/runtime/diagnostic_log.dart' as developer;
+import 'package:peerlink/features/contacts/application/contact_profile_api.dart';
 
 import '../../features/contacts/infrastructure/contacts_repository.dart';
 import '../../core/runtime/peer_access_control_service.dart';
 import '../models/contact.dart';
 
-class ContactsController extends ChangeNotifier {
+class ContactsController extends ChangeNotifier implements ContactProfileApi {
   final ContactsRepository repository;
   final PeerAccessControlService accessControl;
   final void Function(String reason)? onAccessPolicyChanged;
@@ -187,6 +188,7 @@ class ContactsController extends ChangeNotifier {
   }
 
   /// Applies a remote profile name while preserving an explicit local name.
+  @override
   Future<bool> applyRemoteUsername({
     required String peerId,
     required String username,

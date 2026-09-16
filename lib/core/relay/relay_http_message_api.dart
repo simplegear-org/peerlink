@@ -87,12 +87,64 @@ class RelayHttpMessageApi {
     );
   }
 
-  Future<void> ack(RelayAck ack) {
-    return postToQuorum(
-      '/relay/ack',
-      ack.toJson(),
-      operationName: 'ack',
-      quorum: ackQuorum,
+  Future<RelayAckReceipt> ack(
+    RelayAck ack, {
+    List<String> relayServers = const <String>[],
+  }) async {
+    if (relayServers.isEmpty) {
+      final receipt = await postToQuorum(
+        '/relay/ack',
+        ack.toJson(),
+        operationName: 'ack',
+        quorum: ackQuorum,
+      );
+      return RelayAckReceipt(
+        successfulServerUrls: receipt.serverUrls,
+        failedServerUrls: const <String>[],
+      );
+    }
+
+    final targets = serverPool.resolveServers(relayServers);
+    if (targets.isEmpty) {
+      log('relay ack targeted skip reason=no valid replica locations');
+      return RelayAckReceipt(
+        successfulServerUrls: const <String>[],
+        failedServerUrls: relayServers.toSet().toList(growable: false)..sort(),
+      );
+    }
+
+    final body = jsonEncode(ack.toJson());
+    final outcomes = await Future.wait(
+      targets.map(
+        (server) => postToServer(
+          server,
+          '/relay/ack',
+          body,
+          operationName: 'ack',
+          timeout: controlTimeout,
+        ),
+      ),
+    );
+    final successfulServerUrls = <String>[];
+    final failedServerUrls = <String>[];
+    for (var index = 0; index < outcomes.length; index++) {
+      if (outcomes[index].success) {
+        successfulServerUrls.add(targets[index].toString());
+      } else {
+        failedServerUrls.add(targets[index].toString());
+      }
+    }
+    successfulServerUrls.sort();
+    failedServerUrls.sort();
+    if (failedServerUrls.isNotEmpty) {
+      log(
+        'relay ack partial id=${ack.id} success=${successfulServerUrls.length}/${targets.length} '
+        'failed=${failedServerUrls.join(',')}',
+      );
+    }
+    return RelayAckReceipt(
+      successfulServerUrls: successfulServerUrls,
+      failedServerUrls: failedServerUrls,
     );
   }
 
@@ -283,9 +335,8 @@ class RelayHttpMessageApi {
       'to': recipientId,
       'limit': limit.toString(),
     };
-    final serverCursor = serverPool.fetchCursorFor(server, fallback: cursor);
-    if (serverCursor != null) {
-      queryParameters['cursor'] = serverCursor;
+    if (cursor != null) {
+      queryParameters['cursor'] = cursor;
     }
     final uri = server.replace(
       path: '/relay/fetch',
@@ -322,8 +373,7 @@ class RelayHttpMessageApi {
           messages.add(RelayEnvelope.fromJson(item));
         }
       }
-      final nextCursor = cursorRaw is String ? cursorRaw : serverCursor;
-      serverPool.updateFetchCursor(server, nextCursor);
+      final nextCursor = cursorRaw is String ? cursorRaw : cursor;
       final groupCount = messages
           .where((item) => (item.groupId ?? '').trim().isNotEmpty)
           .length;
@@ -335,6 +385,7 @@ class RelayHttpMessageApi {
       }
       return RelayFetchOutcome(
         success: true,
+        serverUrl: server.toString(),
         messages: messages,
         cursor: nextCursor,
       );
@@ -417,7 +468,7 @@ class RelayHttpMessageApi {
     required String? cursor,
     required int limit,
   }) async {
-    final envelopesById = <String, RelayEnvelope>{};
+    final envelopesById = <String, RelayFetchedEnvelope>{};
     final outcomes = await Future.wait(
       targets.map(
         (server) =>
@@ -437,15 +488,25 @@ class RelayHttpMessageApi {
         nextCursor = outcome.cursor;
       }
       for (final envelope in outcome.messages) {
-        envelopesById[envelope.id] = envelope;
+        final existing = envelopesById[envelope.id];
+        final relayServers = <String>{
+          ...?existing?.relayServers,
+          if (outcome.serverUrl != null) outcome.serverUrl!,
+        }.toList(growable: false)..sort();
+        envelopesById[envelope.id] = RelayFetchedEnvelope(
+          envelope: existing?.envelope ?? envelope,
+          relayServers: relayServers,
+        );
       }
     }
 
     if (successCount > 0) {
-      final messages = envelopesById.values.toList(growable: false)
-        ..sort((a, b) => a.timestampMs.compareTo(b.timestampMs));
+      final fetchedMessages = envelopesById.values.toList(growable: false)
+        ..sort(
+          (a, b) => a.envelope.timestampMs.compareTo(b.envelope.timestampMs),
+        );
       return RelayFetchResult(
-        messages: messages,
+        fetchedMessages: fetchedMessages,
         cursor: nextCursor,
         hadSuccessfulServer: true,
         allServersUnavailable: false,

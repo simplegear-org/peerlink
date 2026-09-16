@@ -1,6 +1,6 @@
 # SECURITY_MODEL
 
-Last updated: 2026-08-28
+Last updated: 2026-09-16
 
 This file captures what PeerLink security can honestly claim today and where hardening still needs to happen.
 
@@ -49,6 +49,8 @@ Assume:
 - Relay server validates Ed25519 signature on `/relay/group/store`.
 - Relay server validates Ed25519 signature on `/relay/group/members/update`.
 - Relay server validates Ed25519 signature on `/relay/ack`.
+- ACK is idempotent through a bounded durable tombstone and deletes only the
+  matching message envelope, never an encrypted media blob.
 - Relay server validates Ed25519 signatures on blob upload/finalize endpoints.
 - Relay enforces server-side membership on group write endpoints.
 - Replay-window style checks are applied in reliable envelope handling.

@@ -55,10 +55,12 @@ class ReliableRelayPollController {
   final void Function(String message) _log;
 
   Timer? _pollTimer;
-  String? _fetchCursor;
+  String? _committedFetchCursor;
   int _emptyPollStreak = 0;
   bool _pollInFlight = false;
   bool _hasDeferredReplayPending = false;
+  final Map<String, _PendingRelayAck> _pendingAcks =
+      <String, _PendingRelayAck>{};
 
   ReliableRelayPollController({
     required RelayClient relay,
@@ -115,18 +117,24 @@ class ReliableRelayPollController {
     final shouldLogEmptyPoll =
         _emptyPollStreak == 0 || _emptyPollStreak % 10 == 0;
     try {
+      await _retryPendingAcks();
       if (shouldLogEmptyPoll) {
         _log(
-          'messageRelay:poll start selfId=$_selfId cursor=$_fetchCursor '
+          'messageRelay:poll start selfId=$_selfId '
+          'committedCursor=$_committedFetchCursor '
           'emptyStreak=$_emptyPollStreak relayHint=${normalizedRelayServers.length}',
         );
       }
       final result = normalizedRelayServers.isEmpty
-          ? await _relay.fetch(_selfId, cursor: _fetchCursor, limit: 50)
+          ? await _relay.fetch(
+              _selfId,
+              cursor: _committedFetchCursor,
+              limit: 50,
+            )
           : await _relay.fetchFromServers(
               _selfId,
               servers: normalizedRelayServers,
-              cursor: _fetchCursor,
+              cursor: _committedFetchCursor,
               limit: 50,
             );
 
@@ -142,33 +150,37 @@ class ReliableRelayPollController {
 
       int processedCount = 0;
       var allMessagesAcked = true;
-      for (final envelope in result.messages) {
+      for (final fetchedEnvelope in result.fetchedMessages) {
+        final envelope = fetchedEnvelope.envelope;
         _log(
           'messageRelay:poll processing envelope id=${envelope.id} '
           'from=${envelope.from} to=${envelope.to} '
           'group=${envelope.groupId ?? ""} recipients=${envelope.recipients?.length ?? 0}',
         );
-        final acked = await _handleRelayEnvelope(envelope);
+        final acked = await _handleRelayEnvelope(fetchedEnvelope);
         if (!acked) {
           allMessagesAcked = false;
         }
         processedCount++;
       }
 
+      final candidateCursor = result.cursor;
       if (allMessagesAcked) {
         if (_hasDeferredReplayPending && !hasMessages) {
           _log(
-            'messageRelay:poll cursor retained previous=$_fetchCursor '
-            'emptyCursor=${result.cursor} reason=deferred-replay-pending',
+            'messageRelay:poll cursor retained '
+            'committed=$_committedFetchCursor '
+            'candidate=$candidateCursor reason=deferred-replay-pending',
           );
         } else {
-          _fetchCursor = result.cursor;
+          _committedFetchCursor = candidateCursor;
           _hasDeferredReplayPending = false;
         }
       } else {
         _hasDeferredReplayPending = true;
         _log(
-          'messageRelay:poll cursor retained previous=$_fetchCursor deferredCursor=${result.cursor}',
+          'messageRelay:poll cursor retained '
+          'committed=$_committedFetchCursor candidate=$candidateCursor',
         );
       }
 
@@ -211,7 +223,10 @@ class ReliableRelayPollController {
     _emptyPollStreak = 0;
   }
 
-  Future<bool> _handleRelayEnvelope(RelayEnvelope envelope) async {
+  Future<bool> _handleRelayEnvelope(
+    RelayFetchedEnvelope fetchedEnvelope,
+  ) async {
+    final envelope = fetchedEnvelope.envelope;
     final signaturePayload = _buildSignaturePayload(
       envelopeId: envelope.id,
       from: envelope.from,
@@ -274,20 +289,74 @@ class ReliableRelayPollController {
     final ackSigningPub = Uint8List.fromList(
       _sessions.identity.signingPublicKey.bytes,
     );
-    await _relay.ack(
-      RelayAck(
-        id: envelope.id,
-        from: _selfId,
-        to: _selfId,
-        timestampMs: ackTimestamp,
-        signature: ackSig,
-        senderSigningPublicKey: ackSigningPub,
-      ),
+    final ack = RelayAck(
+      id: envelope.id,
+      from: _selfId,
+      to: _selfId,
+      timestampMs: ackTimestamp,
+      signature: ackSig,
+      senderSigningPublicKey: ackSigningPub,
     );
+    try {
+      final receipt = await _relay.ack(
+        ack,
+        relayServers: fetchedEnvelope.relayServers,
+      );
+      _retainFailedAckReplicas(ack, receipt.failedServerUrls);
+      if (receipt.failedServerUrls.isNotEmpty) {
+        _log(
+          'messageRelay:ack partial id=${envelope.id} '
+          'failed=${receipt.failedServerUrls.join(',')}',
+        );
+      }
+    } catch (error, stack) {
+      _retainFailedAckReplicas(ack, fetchedEnvelope.relayServers);
+      _log(
+        'messageRelay:ack deferred id=${envelope.id} error=$error stack=$stack',
+      );
+    }
     _log(
       'messageRelay:ack ok id=${envelope.id} group=${envelope.groupId ?? ""}',
     );
     return true;
+  }
+
+  Future<void> _retryPendingAcks() async {
+    if (_pendingAcks.isEmpty) {
+      return;
+    }
+    for (final pending in List<_PendingRelayAck>.from(_pendingAcks.values)) {
+      try {
+        final receipt = await _relay.ack(
+          pending.ack,
+          relayServers: pending.relayServers,
+        );
+        _retainFailedAckReplicas(pending.ack, receipt.failedServerUrls);
+      } catch (error, stack) {
+        _log(
+          'messageRelay:ack retry deferred id=${pending.ack.id} '
+          'error=$error stack=$stack',
+        );
+      }
+    }
+  }
+
+  void _retainFailedAckReplicas(RelayAck ack, Iterable<String> relayServers) {
+    final failedServers =
+        relayServers
+            .map((server) => server.trim())
+            .where((server) => server.isNotEmpty)
+            .toSet()
+            .toList(growable: false)
+          ..sort();
+    if (failedServers.isEmpty) {
+      _pendingAcks.remove(ack.id);
+      return;
+    }
+    _pendingAcks[ack.id] = _PendingRelayAck(
+      ack: ack,
+      relayServers: failedServers,
+    );
   }
 
   void _retunePollTimer() {
@@ -312,4 +381,11 @@ class ReliableRelayPollController {
     currentTimer.cancel();
     _pollTimer = Timer.periodic(nextInterval, (_) => unawaited(poll()));
   }
+}
+
+class _PendingRelayAck {
+  const _PendingRelayAck({required this.ack, required this.relayServers});
+
+  final RelayAck ack;
+  final List<String> relayServers;
 }

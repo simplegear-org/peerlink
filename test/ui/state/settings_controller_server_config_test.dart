@@ -76,32 +76,6 @@ void main() {
     },
   );
 
-  test(
-    'pending invite token is validated and cleared through settings',
-    () async {
-      final controller = _TestSettingsController(
-        bootstrapPeers: const <String>[],
-        relayServers: const <String>[],
-        turnServers: const <TurnServerConfig>[],
-        bootstrapStates: const <String, SettingsServerState>{},
-        relayStates: const <String, SettingsServerState>{},
-        turnStates: const <String, SettingsServerState>{},
-      );
-      const token = 'abcdefghijklmnopqrstuv';
-
-      await controller.savePendingInviteToken(token);
-      expect(await controller.loadPendingInviteToken(), token);
-      await controller.clearPendingInviteToken('another-token');
-      expect(await controller.loadPendingInviteToken(), token);
-      await controller.clearPendingInviteToken(token);
-      expect(await controller.loadPendingInviteToken(), isNull);
-      await expectLater(
-        controller.savePendingInviteToken('invalid'),
-        throwsFormatException,
-      );
-    },
-  );
-
   test('server config QR exports only connected servers', () {
     const turnAvailable = TurnServerConfig(
       url: 'turn:available.example:3478?transport=tcp',
@@ -726,7 +700,7 @@ class _TestSettingsController extends SettingsController {
     String peerId = 'test-peer',
     AccountIdentity? accountIdentity,
     Map<String, dynamic>? seedSettings,
-    Future<void> Function(String username)? onInviteUsernameUpdated,
+    super.onInviteUsernameUpdated,
     required List<String> bootstrapPeers,
     required List<String> relayServers,
     required List<TurnServerConfig> turnServers,
@@ -765,7 +739,6 @@ class _TestSettingsController extends SettingsController {
          messaging: _FakeNodeFacade(),
          storage: StorageService(),
          dependenciesFactory: SettingsControllerComposition.create,
-         onInviteUsernameUpdated: onInviteUsernameUpdated,
        );
 
   @override

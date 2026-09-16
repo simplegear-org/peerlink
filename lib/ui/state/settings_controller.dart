@@ -44,8 +44,6 @@ import '../localization/app_strings.dart';
 class SettingsController {
   static const String _inviteUsernameKey =
       'peerlink.profile.invite_username.v1';
-  static const String _pendingInviteTokenKey =
-      'peerlink.invites.pending_token.v1';
   static const String _inviteWebBaseUrl = String.fromEnvironment(
     'PEERLINK_INVITE_WEB_BASE_URL',
     defaultValue: 'https://simplegear.org/invite',
@@ -172,29 +170,6 @@ class SettingsController {
     final normalizedPeerId = peerId.trim();
     if (normalizedPeerId.isEmpty) return;
     await onInviteUsernamePeerRequested?.call(normalizedPeerId, inviteUsername);
-  }
-
-  Future<String?> loadPendingInviteToken() async {
-    final value = readSettingValue(_pendingInviteTokenKey);
-    if (value is! String ||
-        !RegExp(r'^[A-Za-z0-9_-]{22,128}$').hasMatch(value)) {
-      if (value != null) await deleteSettingValue(_pendingInviteTokenKey);
-      return null;
-    }
-    return value;
-  }
-
-  Future<void> savePendingInviteToken(String token) async {
-    if (!RegExp(r'^[A-Za-z0-9_-]{22,128}$').hasMatch(token)) {
-      throw const FormatException('Недопустимый token приглашения');
-    }
-    await writeSettingValue(_pendingInviteTokenKey, token);
-  }
-
-  Future<void> clearPendingInviteToken(String token) async {
-    if (readSettingValue(_pendingInviteTokenKey) == token) {
-      await deleteSettingValue(_pendingInviteTokenKey);
-    }
   }
 
   bool get isCurrentTermsAccepted => _termsAcceptance.isCurrentVersionAccepted;

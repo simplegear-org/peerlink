@@ -4,4 +4,10 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-export 'package:peerlink/features/invites/infrastructure/android_install_referrer_service.dart';
+/// Applies profile metadata received from a remote peer to its contact.
+abstract interface class ContactProfileApi {
+  Future<bool> applyRemoteUsername({
+    required String peerId,
+    required String username,
+  });
+}

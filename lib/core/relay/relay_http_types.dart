@@ -64,11 +64,13 @@ class RelayPostOutcome {
 
 class RelayFetchOutcome {
   final bool success;
+  final String? serverUrl;
   final List<RelayEnvelope> messages;
   final String? cursor;
 
   const RelayFetchOutcome({
     this.success = false,
+    this.serverUrl,
     this.messages = const <RelayEnvelope>[],
     this.cursor,
   });

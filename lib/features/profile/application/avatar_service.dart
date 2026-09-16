@@ -12,9 +12,9 @@ import 'dart:typed_data';
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
+import 'package:peerlink/features/contacts/application/contact_profile_api.dart';
 import 'package:peerlink/features/profile/application/profile_avatar_inbound_handler.dart';
 import 'package:peerlink/features/profile/application/profile_avatar_transport.dart';
-import 'package:peerlink/ui/state/contacts_controller.dart';
 
 class AvatarService implements ProfileAvatarInboundHandler {
   static const String _settingsKey = 'peer_avatars_v1';
@@ -30,7 +30,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
   final ProfileAvatarTransport transport;
   final StorageService storage;
   final ChatSummaryStore chatSummaryStore;
-  final ContactsController contactsController;
+  final ContactProfileApi contacts;
   final StreamController<String> _updatesController =
       StreamController<String>.broadcast();
   final Map<String, _AvatarRecord> _peerAvatars = <String, _AvatarRecord>{};
@@ -39,7 +39,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
     required this.transport,
     required this.storage,
     required this.chatSummaryStore,
-    required this.contactsController,
+    required this.contacts,
   }) {
     _loadFromStorage();
     unawaited(_bootstrapSync());
@@ -152,6 +152,31 @@ class AvatarService implements ProfileAvatarInboundHandler {
     );
   }
 
+  /// Best-effort profile sync for a newly established direct relationship.
+  Future<void> sendLocalAvatarToPeer(String peerId) async {
+    final recipient = peerId.trim();
+    if (recipient.isEmpty || recipient == transport.peerId) return;
+    final local = _peerAvatars[transport.peerId];
+    final encoded =
+        storage.getSettings().get(_localAvatarBytesB64Key) as String?;
+    final mimeType =
+        (storage.getSettings().get(_localAvatarMimeTypeKey) as String?) ??
+        'image/png';
+    if (local == null || encoded == null || encoded.isEmpty) return;
+    try {
+      final bytes = base64Decode(encoded);
+      if (bytes.isEmpty || bytes.length > _maxAvatarBytes) return;
+      await _announceLocalAvatarToRecipients(
+        recipients: <String>[recipient],
+        bytes: bytes,
+        mimeType: mimeType,
+        updatedAtMs: local.updatedAtMs,
+      );
+    } catch (_) {
+      // Profile sync remains best effort.
+    }
+  }
+
   Future<void> broadcastLocalUsername(String username) async {
     final normalized = username.trim();
     if (normalized.length > 64 ||
@@ -222,10 +247,7 @@ class AvatarService implements ProfileAvatarInboundHandler {
           !_acceptUsernameUpdate(sender, updatedAtMs)) {
         return;
       }
-      await contactsController.applyRemoteUsername(
-        peerId: sender,
-        username: username,
-      );
+      await contacts.applyRemoteUsername(peerId: sender, username: username);
       await _persistUsernameUpdatedAt(sender, updatedAtMs);
     } catch (_) {
       // Ignore malformed profile metadata.

@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:peerlink/app/invites/invite_manifest_client.dart';
 import 'package:peerlink/core/runtime/server_config_payload.dart';
 import 'package:peerlink/core/security/peer_identity_bundle_v3.dart';
 import 'package:peerlink/core/turn/turn_server_config.dart';
+import 'package:peerlink/features/invites/application/invite_api.dart';
+import 'package:peerlink/features/invites/domain/invite_manifest.dart';
+import 'package:peerlink/features/invites/infrastructure/invite_manifest_client.dart';
 
 void main() {
   final now = DateTime.utc(2026, 9, 10, 12);
@@ -113,18 +115,20 @@ void main() {
         ),
       );
       final url = await client.create(
-        peerId: 'peer-local',
-        identityBundle: const <String, dynamic>{'type': 'test'},
-        sign: (manifest) async {
-          expect(manifest['manifestSignature'], isNull);
-          return 'signed-manifest';
-        },
-        username: ' Vladimir ',
-        servers: const ServerConfigPayload(
-          bootstrap: <String>['https://boot'],
-          relay: <String>[],
-          turn: <TurnServerConfig>[],
-          push: <String>[],
+        InviteCreateRequest(
+          peerId: 'peer-local',
+          identityBundle: const <String, dynamic>{'type': 'test'},
+          sign: (manifest) async {
+            expect(manifest['manifestSignature'], isNull);
+            return 'signed-manifest';
+          },
+          username: ' Vladimir ',
+          serverConfig: const ServerConfigPayload(
+            bootstrap: <String>['https://boot'],
+            relay: <String>[],
+            turn: <TurnServerConfig>[],
+            push: <String>[],
+          ),
         ),
       );
 

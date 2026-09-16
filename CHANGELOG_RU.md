@@ -3,6 +3,24 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.13.2+2026091601] - 2026-09-16
+
+### Изменено
+
+- Одно нажатие в Contacts теперь создает подписанную короткую invite-ссылку.
+- Relay ACK теперь адресно идёт во все exact message replicas после durable
+  delivery. Partial cleanup ретраится позже и не делает delivery failed; ACK
+  не удаляет media blob, retention которого определяется собственным TTL.
+- Relay ACK tombstone теперь сохраняет recipient/message/время ACK/expiry и
+  ограничен durable TTL garbage collection.
+- Архитектура Invite разделена на domain/application/infrastructure в
+  `features/invites`; `InviteApi` и `PendingInviteStore` отвязывают
+  coordinator от HTTP и Settings UI. Android Install Referrer принадлежит
+  Invite platform infrastructure.
+- После принятия short invite принимающий peer best-effort отправляет
+  пригласившему своё настроенное имя и аватар.
+
+
 ## [3.13.1+2026091002] - 2026-09-10
 
 ### Изменено

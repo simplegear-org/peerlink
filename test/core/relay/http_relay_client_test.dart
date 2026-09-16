@@ -133,6 +133,100 @@ void main() {
     expect(calls.first, 'shared.example');
   });
 
+  test(
+    'direct and group text replicate across one, two and three relays',
+    () async {
+      for (final relayCount in <int>[1, 2, 3]) {
+        final stores = <String>[];
+        final client = HttpRelayClient(
+          servers: List<String>.generate(
+            relayCount,
+            (index) => 'http://relay${index + 1}.example',
+          ),
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/health') return http.Response('', 200);
+            if (request.url.path == '/relay/store' ||
+                request.url.path == '/relay/group/store') {
+              stores.add('${request.url.path}:${request.url.host}');
+              return http.Response('', 200);
+            }
+            return http.Response('unexpected', 500);
+          }),
+        );
+
+        await client.store(sampleEnvelope);
+        await client.storeGroup(
+          RelayGroupEnvelope(
+            id: 'group-$relayCount',
+            from: 'alice',
+            groupId: 'group-a',
+            recipientIds: const <String>['bob'],
+            timestampMs: 1000,
+            ttlSeconds: 3600,
+            payload: Uint8List.fromList(<int>[1]),
+            signature: Uint8List.fromList(<int>[2]),
+            senderSigningPublicKey: Uint8List.fromList(<int>[3]),
+          ),
+        );
+
+        expect(
+          stores.where((call) => call.startsWith('/relay/store:')),
+          hasLength(relayCount),
+        );
+        expect(
+          stores.where((call) => call.startsWith('/relay/group/store:')),
+          hasLength(relayCount),
+        );
+      }
+    },
+  );
+
+  test(
+    'direct and group media replicate across one, two and three relays',
+    () async {
+      for (final relayCount in <int>[1, 2, 3]) {
+        final uploads = <String>[];
+        final client = HttpRelayClient(
+          servers: List<String>.generate(
+            relayCount,
+            (index) => 'http://relay${index + 1}.example',
+          ),
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/health') return http.Response('', 200);
+            if (request.url.path == '/relay/blob/upload') {
+              uploads.add(request.url.host);
+              return http.Response('', 200);
+            }
+            return http.Response('unexpected', 500);
+          }),
+        );
+        Future<RelayBlobStoreReceipt> upload(String groupId) {
+          return client.storeBlobWithReceipt(
+            RelayBlobUploadEnvelope(
+              id: '$groupId-$relayCount',
+              from: 'alice',
+              groupId: groupId,
+              fileName: 'media.bin',
+              mimeType: 'application/octet-stream',
+              timestampMs: 1000,
+              ttlSeconds: 3600,
+              payload: Uint8List.fromList(<int>[1]),
+              signature: Uint8List.fromList(<int>[2]),
+              senderSigningPublicKey: Uint8List.fromList(<int>[3]),
+            ),
+          );
+        }
+
+        final directReceipt = await upload('direct');
+        final groupReceipt = await upload('group-a');
+
+        expect(directReceipt.relayServers, hasLength(relayCount));
+        expect(groupReceipt.relayServers, hasLength(relayCount));
+        expect(uploads, hasLength(relayCount * 2));
+      }
+    },
+  );
+
   test('fetch returns parsed envelope and cursor', () async {
     final client = HttpRelayClient(
       servers: ['http://relay.example'],
@@ -155,6 +249,125 @@ void main() {
     expect(result.messages, hasLength(1));
     expect(result.messages.first.id, sampleEnvelope.id);
   });
+
+  test(
+    'fetch deduplicates envelopes and retains all replica locations',
+    () async {
+      final client = HttpRelayClient(
+        servers: [
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/health') {
+            return http.Response('', 200);
+          }
+          if (request.url.path == '/relay/fetch') {
+            return http.Response(
+              jsonEncode({
+                'messages': [sampleEnvelope.toJson()],
+                'cursor': 'next-cursor',
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+
+      final result = await client.fetch('bob');
+
+      expect(result.messages, hasLength(1));
+      expect(result.fetchedMessages, hasLength(1));
+      expect(result.fetchedMessages.single.envelope.id, sampleEnvelope.id);
+      expect(result.fetchedMessages.single.relayServers, <String>[
+        'http://relay1.example',
+        'http://relay2.example',
+        'http://relay3.example',
+      ]);
+    },
+  );
+
+  test(
+    'targeted ACK reaches every exact replica and tolerates partial failure',
+    () async {
+      final ackTargets = <String>[];
+      final client = HttpRelayClient(
+        servers: const <String>[],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/relay/ack') {
+            ackTargets.add(request.url.host);
+            return http.Response(
+              request.url.host == 'relay2.example' ? 'offline' : '',
+              request.url.host == 'relay2.example' ? 503 : 204,
+            );
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+
+      final receipt = await client.ack(
+        RelayAck(
+          id: sampleEnvelope.id,
+          from: 'bob',
+          to: 'bob',
+          timestampMs: 2000,
+          signature: Uint8List.fromList(<int>[1]),
+          senderSigningPublicKey: Uint8List.fromList(<int>[2]),
+        ),
+        relayServers: const <String>[
+          'http://relay1.example',
+          'http://relay2.example',
+          'http://relay3.example',
+        ],
+      );
+
+      expect(
+        ackTargets,
+        containsAll(<String>[
+          'relay1.example',
+          'relay2.example',
+          'relay3.example',
+        ]),
+      );
+      expect(receipt.successfulServerUrls, <String>[
+        'http://relay1.example',
+        'http://relay3.example',
+      ]);
+      expect(receipt.failedServerUrls, <String>['http://relay2.example']);
+    },
+  );
+
+  test(
+    'fetch never reuses an uncommitted cursor from an earlier response',
+    () async {
+      final fetchCursors = <String?>[];
+      final client = HttpRelayClient(
+        servers: ['http://relay.example'],
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/health') {
+            return http.Response('', 200);
+          }
+          if (request.url.path == '/relay/fetch') {
+            fetchCursors.add(request.url.queryParameters['cursor']);
+            return http.Response(
+              jsonEncode({'messages': const [], 'cursor': 'candidate-1'}),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('unexpected', 500);
+        }),
+      );
+
+      await client.fetch('bob');
+      await client.fetch('bob', cursor: 'committed-0');
+
+      expect(fetchCursors, <String?>[null, 'committed-0']);
+    },
+  );
 
   test('fetch without configured relays returns empty result', () async {
     final client = HttpRelayClient(servers: const <String>[]);

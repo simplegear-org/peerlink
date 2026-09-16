@@ -15,6 +15,10 @@ import 'package:peerlink/app/composition/settings_controller_composition.dart';
 import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/notification/app_badge_service.dart';
 import 'package:peerlink/features/calls/platform/android_call_notification_service.dart';
+import 'package:peerlink/features/invites/application/invite_api.dart';
+import 'package:peerlink/features/invites/application/pending_invite_store.dart';
+import 'package:peerlink/features/invites/infrastructure/invite_manifest_client.dart';
+import 'package:peerlink/features/invites/infrastructure/storage_pending_invite_store.dart';
 import 'package:peerlink/features/profile/application/avatar_service.dart';
 import 'package:peerlink/features/calls/infrastructure/call_log_repository.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
@@ -39,6 +43,8 @@ class AppUiDependencies {
     required this.badgeCoordinator,
     required this.androidCallNotifications,
     required this.avatarService,
+    required this.inviteApi,
+    required this.pendingInviteStore,
     required this.chatController,
     required this.contactsRepository,
     required this.accessControl,
@@ -96,8 +102,10 @@ class AppUiDependencies {
       transport: ProfileAvatarNodeAdapter(facade),
       storage: storage,
       chatSummaryStore: chatSummaryStore,
-      contactsController: contactsController,
+      contacts: contactsController,
     );
+    final inviteApi = InviteManifestClient();
+    final pendingInviteStore = StoragePendingInviteStore(storage);
     final settingsController = SettingsController(
       identity: facade,
       network: facade,
@@ -138,6 +146,8 @@ class AppUiDependencies {
       badgeCoordinator: badgeCoordinator,
       androidCallNotifications: const AndroidCallNotificationService(),
       avatarService: avatarService,
+      inviteApi: inviteApi,
+      pendingInviteStore: pendingInviteStore,
       chatController: chatController,
       contactsRepository: contactsRepository,
       accessControl: accessControl,
@@ -157,6 +167,8 @@ class AppUiDependencies {
   final AppBadgeCoordinator badgeCoordinator;
   final AndroidCallNotificationService androidCallNotifications;
   final AvatarService avatarService;
+  final InviteApi inviteApi;
+  final PendingInviteStore pendingInviteStore;
   final ChatController chatController;
   final ContactsRepository contactsRepository;
   final PeerAccessControlService accessControl;

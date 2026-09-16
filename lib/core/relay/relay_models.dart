@@ -154,17 +154,36 @@ class RelayAck {
 }
 
 class RelayFetchResult {
-  final List<RelayEnvelope> messages;
+  final List<RelayFetchedEnvelope> fetchedMessages;
   final String? cursor;
   final bool hadSuccessfulServer;
   final bool allServersUnavailable;
 
   RelayFetchResult({
-    required this.messages,
+    List<RelayEnvelope> messages = const <RelayEnvelope>[],
+    List<RelayFetchedEnvelope>? fetchedMessages,
     required this.cursor,
     this.hadSuccessfulServer = false,
     this.allServersUnavailable = false,
-  });
+  }) : fetchedMessages =
+           fetchedMessages ??
+           messages
+               .map((envelope) => RelayFetchedEnvelope(envelope: envelope))
+               .toList(growable: false);
+
+  List<RelayEnvelope> get messages => fetchedMessages
+      .map((fetchedEnvelope) => fetchedEnvelope.envelope)
+      .toList(growable: false);
+}
+
+class RelayFetchedEnvelope {
+  final RelayEnvelope envelope;
+  final List<String> relayServers;
+
+  RelayFetchedEnvelope({
+    required this.envelope,
+    List<String> relayServers = const <String>[],
+  }) : relayServers = relayServers.toSet().toList(growable: false)..sort();
 }
 
 class RelayWriteReceipt {
@@ -175,6 +194,18 @@ class RelayWriteReceipt {
   static const empty = RelayWriteReceipt(serverUrls: <String>[]);
 
   bool get isEmpty => serverUrls.isEmpty;
+}
+
+class RelayAckReceipt {
+  const RelayAckReceipt({
+    required this.successfulServerUrls,
+    required this.failedServerUrls,
+  });
+
+  final List<String> successfulServerUrls;
+  final List<String> failedServerUrls;
+
+  bool get isComplete => failedServerUrls.isEmpty;
 }
 
 class RelayBlobStoreReceipt {

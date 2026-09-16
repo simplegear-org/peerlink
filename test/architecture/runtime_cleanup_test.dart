@@ -185,6 +185,7 @@ const _approvedRuntimeFiles = [
 ];
 
 const _migratedFeatureRuntimeExports = [
+  'android_install_referrer_service.dart',
   'android_call_log_service.dart',
   'android_call_notification_service.dart',
   'avatar_service.dart',

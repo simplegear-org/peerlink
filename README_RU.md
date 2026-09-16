@@ -138,6 +138,8 @@ PeerLink X — кроссплатформенный Flutter-мессенджер
     и не сохраняет чужие endpoints в этом pool,
   - запись использует durable quorum 1/1, 2/2 или 2/3 и возвращает точные
     successful locations объекта.
+  - после durable local handling message ACK адресно идёт во все exact fetched
+    replicas. Partial cleanup ретраится позже и никогда не удаляет media blob.
 - Доставка медиа в личных чатах теперь тоже использует relay blob transport:
   - файл один раз загружается в relay blob storage,
   - для blob выбирается до 3 живых relay; файл реплицируется на все выбранные
@@ -333,8 +335,8 @@ APNS_USE_SANDBOX=true
 - HTTP relay клиент использует ограниченный health-aware пул и quorum-стратегию:
   - активное использование relay ограничено,
   - runtime-операции сначала выбирают только живые relay и используют не более 3 серверов,
-  - запись и ack идут в quorum,
-  - fetch агрегируется по рабочему набору relay с отдельным cursor на каждый сервер,
+  - запись использует quorum, а ACK best-effort идёт во все exact message replicas,
+  - fetch агрегируется по рабочему набору relay и commit-ит cursor только после durable local processing,
   - операции по выбранным relay выполняются параллельно, чтобы не накапливать задержки на частично недоступной конфигурации.
 - Reliable-envelope пайплайн с валидацией и polling relay.
 - Подписи relay валидируются как на клиенте (receive path), так и на сервере (`/relay/store`, `/relay/group/store`, `/relay/group/members/update`, `/relay/ack`, blob upload/finalize).
