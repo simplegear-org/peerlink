@@ -13,14 +13,16 @@ class ChatSafetyService {
   const ChatSafetyService({
     required this.accessControl,
     required this.reports,
-    required this.notifyVisibilityChanged,
+    required this.chats,
+    required this.notifyMessageUpdated,
     required this.syncPushPolicy,
     required this.log,
   });
 
   final AccessPolicyApi accessControl;
   final ModerationReportsApi reports;
-  final void Function(String peerId) notifyVisibilityChanged;
+  final Iterable<Chat> Function() chats;
+  final void Function(String peerId) notifyMessageUpdated;
   final Future<void> Function(String reason) syncPushPolicy;
   final void Function(String message) log;
 
@@ -31,7 +33,7 @@ class ChatSafetyService {
   }) async {
     if (peerId.trim().isEmpty) throw ArgumentError.value(peerId, 'peerId');
     await accessControl.blockPeer(peerId, reason: reason.name);
-    notifyVisibilityChanged(peerId);
+    _notifyVisibilityChanged(peerId);
     unawaited(_sync('block_peer'));
     await reports.createDirectReport(
       reportedPeerId: peerId,
@@ -42,7 +44,7 @@ class ChatSafetyService {
 
   Future<void> unblock(String peerId) async {
     await accessControl.unblockPeer(peerId);
-    notifyVisibilityChanged(peerId);
+    _notifyVisibilityChanged(peerId);
     await _sync('unblock_peer');
   }
 
@@ -51,6 +53,13 @@ class ChatSafetyService {
       await syncPushPolicy(reason);
     } catch (error) {
       log('access policy sync deferred: $error');
+    }
+  }
+
+  void _notifyVisibilityChanged(String peerId) {
+    notifyMessageUpdated(peerId);
+    for (final chat in chats()) {
+      if (chat.isGroup) notifyMessageUpdated(chat.peerId);
     }
   }
 

@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Last updated: 2026-09-16
+Last updated: 2026-09-19
 
 ## 1. Purpose
 
@@ -26,6 +26,9 @@ Working now:
   runtime graph. `NetworkDependencies.create` builds an owned graph per call and
   no longer keeps singleton runtime state.
 - App startup orchestration via `AppBootstrapCoordinator`.
+- Persisted server configuration is applied before the UI becomes available, but
+  bootstrap/relay/TURN/push availability probing is scheduled in the background
+  and cannot delay the first usable UI.
 - `NodeFacade` as the internal aggregate/core entrypoint during migration, with
   narrow capability contracts in `lib/core/node/node_capability_apis.dart`
   (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
@@ -44,7 +47,14 @@ Working now:
 - The internal push/call payload model is unified through `FirebasePushPayload`: the UI open path, FCM foreground/open/native-fallback handling, and the iOS CallKit path should not keep parallel call-payload DTOs.
 - `AppBadgeService` owns app icon badge state and combines unread messages with missed-call counts before syncing the platform badge.
 - `PeerAccessControlService` owns local privacy/block rules: contacts-only is enabled by default, `blockedPeers` is stored locally, and outgoing calls to blocked peers are denied in `CallService`.
-- `PushAccessPolicySyncService` sends the privacy/block snapshot (`allowMessagesOnlyFromContacts`, `contactPeerIds`, `blockedPeerIds`, `policyVersion`, `updatedAt`, `snapshotHash`) to `push.js` through `/devices/access-policy`; on a `stale` response it retries the snapshot above the server `effectivePolicyVersion`, so the server-side blocklist cannot remain stuck after a local policy-version rollback. The push server filters fanout before APNs/FCM. iOS Notification Service Extension and App Group are not used for this scheme.
+- `PushAccessPolicySyncService` sends the schema-v2 privacy/block and
+  notification-mute snapshot (`allowMessagesOnlyFromContacts`, contacts,
+  `blockedPeerIds`, four direct/group message/call mute lists, `policyVersion`,
+  `updatedAt`, `snapshotHash`) to `push.js` through `/devices/access-policy`.
+  Mute changes use the same sync path, but remain independent from block state.
+  On a `stale` response it retries above `effectivePolicyVersion`; the server
+  filters only matching push fanout before APNs/FCM and never relay delivery.
+  iOS Notification Service Extension and App Group are not used for this scheme.
 - `AccountIdentity` above device identity: `accountId`, `displayName`, device list, and a `peerlink://pair` QR/deep link for pairing a second device without changing the current device-based routing.
 - Overlay router + message dedup cache.
 - HTTP relay client with live-relay preselection, bounded active pool, quorum
@@ -225,7 +235,21 @@ UI
 - The chat attachment sheet shows only implemented actions `Gallery` and `Paste` plus `Cancel`; placeholder `File`/`Location` actions are removed from the UI.
 - Contact rows expose a long-press action menu for renaming the saved display name while preserving the peer ID.
 - Contacts ordinary sharing is a single tap: `InviteFlowCoordinator.createInviteUrl()` signs a manifest with the local identity, posts it to `https://tangash.org/invites`, and the UI immediately opens the system share sheet with `https://simplegear.org/i/<token>`. Payload links remain only for backward-compatible QR/import.
-- Profile usernames reuse the avatar/profile control-message transport: Settings fans updates out to known peers and a QR scan sends the scanner profile to the QR owner. Inbound updates persist through ContactsRepository, replace invite/fallback and legacy names equal to the peer ID, but preserve manual names different from the peer ID. User QR carries username as display metadata for the `Name` field.
+- Profile display name is owned by typed `Profile` / `ProfileStore` persistence;
+  `SettingsController` uses the narrow `ProfileMetadataApi` and no longer owns
+  the legacy username key. `SettingsProfileStore` migrates
+  `peerlink.profile.invite_username.v1` to `peerlink.profile.v1`. Display-name
+  updates reuse the shared Profile control-message transport: they fan out to
+  known peers, and QR scan sends the scanner profile to the QR owner. Inbound
+  updates preserve manual contact aliases. User QR carries display name only as
+  display metadata for the `Name` field.
+- Local Profile also owns the typed `about` field in the same store: its value
+  is trimmed, may be empty and is limited to 160 Unicode characters. The
+  existing `profileUsername` control message carries optional `about` metadata
+  additively; legacy username-only payloads remain valid.
+- Settings renders the editable local `About me` field immediately below the
+  display-name field through `ProfileMetadataApi`; the presentation path has no
+  direct storage dependency.
 - `InviteFlowCoordinator` is the single application owner for both creation and application: it creates a manifest from local identity/name/server metadata, and on `/i/<token>` resolves the validated manifest → ensures default configuration through `InitialServerConfigBootstrapper` → merges optional custom servers → verifies `peerId + identityBundle` → upserts contact → ensures direct chat → emits navigation intent. `AppDeepLinkCoordinator` remains transport-only; UI owns only the share-sheet presentation.
 - Invite ownership is explicit: `InviteManifest` validation is domain,
   `InviteApi` and `PendingInviteStore` are application contracts, and HTTP plus
@@ -235,8 +259,8 @@ UI
   identities, manifests, or error details.
 - `username` is display metadata only. Contacts persist name provenance (`manual`, `inviteUsername`, `peerIdFallback`) so manual names are preserved and an invite username can replace/update non-manual names.
 - On successful short-invite acceptance, the accepting peer best-effort sends
-  its configured username and avatar to the inviter over the profile transport;
-  profile sync failure never rolls back the accepted invite.
+  its configured display name, about and avatar to the inviter over the profile
+  transport; profile sync failure never rolls back the accepted invite.
 - The Settings `Share configuration` action produces text with direct app link `peerlink://config?payload=...` plus fallback `https://simplegear.org/config?payload=...`, containing only currently available server config. App-side config deep links merge `bootstrap/relay/turn/push` directly, while QR scan/import still uses the explicit import-mode dialog.
 - macOS deep-link delivery is native: `MainFlutterWindow` configures `DeepLinkChannel` with the created `FlutterViewController`, `AppDelegate` registers URL handlers early, and both custom scheme (`peerlink://invite|pair|config|call`) and supported web links are forwarded to Flutter. Android handles the same custom/web link families through the native runner and app links.
 - The Settings `Account and devices` block shows the current `accountId`, known device count, a `peerlink://pair` QR for pairing another owned device, and a scan flow for importing a pairing payload.
@@ -299,14 +323,48 @@ UI
 - `AvatarService` now lives in `lib/features/profile/application`: it owns
   local avatar cache, embedded backup/restore, blob download, and best-effort
   avatar announce/remove/query flow. The old `lib/core/runtime/avatar_service.dart`
-  path is a temporary compatibility export. Chat consumes avatar inbound
-  handling through the narrow `ProfileAvatarInboundHandler` contract, and
-  profile sync uses `ProfileAvatarTransport` / `ProfileAvatarNodeAdapter`
-  instead of depending on unrestricted `NodeFacade`.
+  path is a temporary compatibility export. Chat consumes combined inbound
+  profile handling through `ProfileInboundHandler`; profile sync uses
+  `ProfileTransport` / `ProfileAvatarNodeAdapter` instead of depending on
+  unrestricted `NodeFacade`. Remote display name/about cache lives in typed
+  `PeerProfileStore`, independently of Contacts, so an inbound update never
+  turns an unknown peer into a contact.
+- `PeerProfileReadService` composes remote profile, contact and moderation
+  contracts into a presentation-ready peer-card snapshot. `PeerProfileScreen`
+  consumes only that API and `AvatarService`; notification and add-contact
+  actions are injected by the entry point rather than assembled in the widget.
+  Its display-name precedence is local contact name, then remote PeerLink
+  profile, then a safe short Peer ID.
+- Direct chat headers open the reusable peer card. Its add-contact action
+  delegates to the established chat contact scenario, then re-reads the
+  snapshot so the action disappears without reopening the page.
+- Group chat headers open `GroupInfoScreen`, which presents the group avatar,
+  name and members. Member rows use `PeerProfileReadApi` plus `AvatarService`,
+  so presentation never reads or mutates Contacts directly. Their display-name
+  precedence is local contact name, then remote PeerLink profile, then a safe
+  short Peer ID. Rows reuse compact card/swipe-delete presentation from the
+  Chats/Contacts lists. Group owners and known admins can use the existing
+  participant add/remove workflows from this page; an owner and the local peer
+  cannot be removed through that action. A swipe removal requires explicit
+  confirmation before the workflow starts.
+- Selecting a group member opens the same `PeerProfileScreen` used by Direct
+  chat. Its non-contact action keeps delegating to the established chat contact
+  scenario, so group members do not introduce a second contact workflow.
+- Peer-profile reads recognize the current peer and use its local Profile name
+  and about; self cards omit peer-only notification/contact actions. Group
+  metadata persists additive `adminPeerIds`, and group rows render owner/admin
+  roles when present.
+- Profile metadata is sent after a local change as best-effort reliable
+  control traffic: an offline recipient can receive a queued update after
+  startup, but the profile layer has no end-to-end acknowledgement or automatic
+  full-profile re-send on every later startup.
 - Server-health services share the `ServerAvailabilityProvider` contract so future runtime orchestration can work with bootstrap/relay/turn probing through one interface.
 - `ServerHealthCoordinator` owns the shared bootstrap/relay/turn health services and starts them after app bootstrap, so runtime and Settings use the same availability state instead of duplicate probe loops. The coordinator and bootstrap/relay/TURN support services depend on `NetworkApi`, not unrestricted `NodeFacade`.
 - When local server configuration is completely empty, `ServerHealthCoordinator` runs `InitialServerConfigBootstrapper`: it best-effort fetches `https://simplegear.org/config/initial-server-config.json`, validates `ServerConfigPayload`, and merges bootstrap/relay/TURN/push. Site unavailability or malformed responses are logged and do not stop startup.
 - Those health services also share a common polling/backoff engine, so retry cadence is unified across bootstrap/relay/turn and repeated failures automatically widen the probe interval.
+- Initial configuration applies before the UI, while the explicit shared health
+  refresh runs in the background; unavailable endpoints therefore update
+  availability state without extending startup latency.
 - Bootstrap health refresh is single-flight and converts WebSocket connect timeouts into `unavailable` availability snapshots instead of bubbling timeout exceptions from periodic probes.
 - `HttpRelayClient` and `TurnAllocator` are wired to coordinator-backed relay/turn availability lookups, so runtime routing decisions can reuse the same shared health snapshots that drive Settings.
 - The coordinator also reacts to app resume and connectivity changes, triggering shared health refreshes without requiring Settings to be opened.
@@ -395,7 +453,7 @@ UI
 - `CallConnectionStateController` owns connected-state policy and the transition point to connected transport.
 - `IosCallkitService` should remain a native bridge layer and must not absorb server-merge orchestration or payload normalization back into itself.
 - Current call policy: TURN-only for all network types.
-- Android release policy: R8 minify and resource shrinking are enabled with explicit keep rules for `flutter_webrtc`, native `org.webrtc`, and `org.jni_zero`; AGP 9+ remains a separate migration after Flutter/Gradle/plugin compatibility checks.
+- Android release policy: R8 minify and resource shrinking are enabled with explicit keep rules for `flutter_webrtc`, native `org.webrtc`, and `org.jni_zero`. The build stack uses Flutter 3.47.5, AGP 9.0.1, and Gradle 9.1; `android.newDsl=false` and `android.builtInKotlin=false` remain temporary compatibility opt-outs until all plugins, notably `flutter_webrtc` and `url_launcher_android`, support the new AGP DSL and built-in Kotlin.
 
 ### 4.6 Signaling (`lib/core/signaling`)
 

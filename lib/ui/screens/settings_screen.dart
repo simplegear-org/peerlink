@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/self_hosted_deploy_service.dart';
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/profile_metadata_api.dart';
 import '../../core/runtime/moderation_policy_service.dart';
 import '../state/app_appearance_controller.dart';
 import '../state/app_locale_controller.dart';
@@ -25,6 +26,7 @@ import 'settings_screen_system_actions.dart';
 class SettingsScreen extends StatefulWidget {
   final SettingsController controller;
   final AvatarService avatarService;
+  final ProfileMetadataApi profileMetadata;
   final ChatController chatController;
   final SelfHostedDeployService selfHostedDeployService;
   final AppAppearanceController appearanceController;
@@ -35,6 +37,7 @@ class SettingsScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.avatarService,
+    required this.profileMetadata,
     required this.chatController,
     required this.selfHostedDeployService,
     required this.appearanceController,
@@ -138,6 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SettingsScreenContent(
         controller: controller,
         avatarService: widget.avatarService,
+        profileMetadata: widget.profileMetadata,
         moderationPolicy: widget.moderationPolicy,
         appearanceController: widget.appearanceController,
         localeController: widget.localeController,

@@ -6,15 +6,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
-import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/contacts/domain/contact.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
 import 'package:peerlink/features/moderation/application/peer_access_control_service.dart';
-import 'package:peerlink/features/profile/application/avatar_service.dart';
-import 'package:peerlink/features/profile/application/profile_avatar_transport.dart';
+import 'package:peerlink/features/profile/application/profile_metadata_service.dart';
+import 'package:peerlink/features/profile/application/profile_transport.dart';
+import 'package:peerlink/features/profile/infrastructure/settings_profile_peer_metadata_store.dart';
+import 'package:peerlink/features/profile/infrastructure/settings_peer_profile_store.dart';
+import 'package:peerlink/features/profile/infrastructure/settings_profile_store.dart';
 import 'package:peerlink/ui/state/contacts_controller.dart';
 
-class _Transport implements ProfileAvatarTransport {
+class _Transport implements ProfileTransport {
   _Transport(this.peerId);
 
   @override
@@ -45,25 +47,12 @@ class _Transport implements ProfileAvatarTransport {
   }) => Future<String>.error(UnimplementedError());
 }
 
-class _EmptySummaries implements ChatSummaryStore {
-  @override
-  Future<void> delete(String peerId) async {}
-  @override
-  Future<Map<String, dynamic>?> get(String peerId) async => null;
-  @override
-  Future<List<Map<String, dynamic>>> loadAll() async => const [];
-  @override
-  Future<int> unreadMessagesCount() async => 0;
-  @override
-  Future<void> save(String peerId, Map<String, dynamic> json) async {}
-}
-
 void main() {
   late Directory root;
   late StorageService storage;
   late ContactsController contacts;
   late _Transport transport;
-  late AvatarService service;
+  late ProfileMetadataService service;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('peerlink-profile-name-');
@@ -79,14 +68,14 @@ void main() {
       ),
     )..loadIntoMemory();
     transport = _Transport('local-peer');
-    service = AvatarService(
+    service = ProfileMetadataService(
+      store: SettingsProfileStore(storage: storage),
+      peerMetadataStore: SettingsProfilePeerMetadataStore(storage: storage),
+      peerProfiles: SettingsPeerProfileStore(storage: storage),
       transport: transport,
-      storage: storage,
-      chatSummaryStore: _EmptySummaries(),
       contacts: contacts,
     );
     addTearDown(() async {
-      await service.dispose();
       await StorageService.resetForTesting();
       await root.delete(recursive: true);
     });
@@ -97,12 +86,28 @@ void main() {
     () async {
       await contacts.upsertInviteContact(peerId: 'peer-a', username: 'Old');
 
-      await service.broadcastLocalUsername('Alice');
+      await service.updateDisplayName('Alice');
+
+      await Future<void>.delayed(Duration.zero);
 
       expect(transport.sent, hasLength(1));
       expect(transport.sent.single.peerId, 'peer-a');
       expect(transport.sent.single.kind, 'profileUsername');
       expect(jsonDecode(transport.sent.single.text)['username'], 'Alice');
+    },
+  );
+
+  test(
+    'broadcasts trimmed local about without changing contact names',
+    () async {
+      await contacts.upsertInviteContact(peerId: 'peer-a', username: 'Alice');
+
+      await service.updateAbout('  Local profile  ');
+
+      expect(service.about, 'Local profile');
+      expect(contacts.contacts.single.name, 'Alice');
+      await Future<void>.delayed(Duration.zero);
+      expect(jsonDecode(transport.sent.single.text)['about'], 'Local profile');
     },
   );
 
@@ -150,21 +155,56 @@ void main() {
     },
   );
 
-  test('creates a contact for the first QR profile update', () async {
-    await service.handleIncomingUsernameUpdate(
-      'peer-new',
-      jsonEncode(<String, dynamic>{
-        'type': 'username_update',
-        'v': 1,
-        'username': 'New peer',
-        'updatedAtMs': 200,
-      }),
-    );
+  test(
+    'stores profile update for non-contact without creating a contact',
+    () async {
+      await service.handleIncomingUsernameUpdate(
+        'peer-new',
+        jsonEncode(<String, dynamic>{
+          'type': 'username_update',
+          'v': 1,
+          'username': 'New peer',
+          'updatedAtMs': 200,
+        }),
+      );
 
-    expect(contacts.contacts.single.name, 'New peer');
-    expect(
-      contacts.contacts.single.displayNameSource,
-      ContactDisplayNameSource.inviteUsername,
-    );
-  });
+      expect(contacts.contacts, isEmpty);
+      expect(service.profileForPeer('peer-new')?.displayName, 'New peer');
+      expect(
+        SettingsPeerProfileStore(
+          storage: storage,
+        ).profileForPeer('peer-new')?.displayName,
+        'New peer',
+      );
+    },
+  );
+
+  test(
+    'preserves remote about when a legacy username update omits it',
+    () async {
+      await service.handleIncomingUsernameUpdate(
+        'peer-a',
+        jsonEncode(<String, dynamic>{
+          'type': 'username_update',
+          'v': 1,
+          'username': 'Alice',
+          'about': 'About Alice',
+          'updatedAtMs': 200,
+        }),
+      );
+      await service.handleIncomingUsernameUpdate(
+        'peer-a',
+        jsonEncode(<String, dynamic>{
+          'type': 'username_update',
+          'v': 1,
+          'username': 'Alice Two',
+          'updatedAtMs': 300,
+        }),
+      );
+
+      final profile = service.profileForPeer('peer-a');
+      expect(profile?.displayName, 'Alice Two');
+      expect(profile?.about, 'About Alice');
+    },
+  );
 }

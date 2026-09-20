@@ -3,6 +3,53 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.14.1+2026092001] - 2026-09-20
+
+### Изменено
+
+- Android build stack обновлён до Flutter 3.47.5, AGP 9.0.1 и Gradle 9.1.
+  В release-сборке сохранены R8 minify и resource shrinking.
+- Для совместимости с AGP 9 обновлены Android-зависимости: `audioplayers`,
+  `file_picker`, `flutter_secure_storage`, `mobile_scanner`, `record`,
+  `saver_gallery`, `share_plus`, `video_player` и
+  `flutter_webrtc 1.6.2+hotfix.3`. Вызовы file picker и сохранения в галерею
+  переведены на актуальные API.
+- AGP 9 пока работает с документированными Flutter compatibility opt-out для
+  legacy DSL и Kotlin Gradle Plugin: они ещё нужны `flutter_webrtc` и
+  `url_launcher_android`.
+- Предупреждение upstream о декодировании bitmap в `FrameCapturer` осталось и
+  в `flutter_webrtc 1.6.2+hotfix.3`; локальный fork не добавлялся. Известное
+  Android-зависание remote video по-прежнему требует real-device regression
+  проверки.
+- Старт больше не ждёт availability-probe серверов до показа UI: сохранённая
+  конфигурация серверов всё так же применяется первой, а health refresh идёт в фоне.
+- Одновременные push device-state sync используют одну активную операцию, без
+  повторной регистрации устройства и загрузки access-policy при запуске.
+
+## [Unreleased]
+
+## [3.14.0+2026091701] - 2026-09-17
+
+### Изменено
+
+- Добавлены локальное поле Profile «Обо мне», cache remote profile metadata и
+  reusable страницы peer profile/group info. В peer-card и списке участников
+  приоритет у локального имени контакта перед именем PeerLink и Peer ID; self-card скрывает
+  peer-only действия, а роли owner/admin отображаются при наличии group metadata.
+- В информации о группе используются compact-карточки участников; owner и admin
+  могут добавлять участников и удалять другого non-owner participant свайпом влево.
+- В peer/group card добавлены независимые persisted-переключатели уведомлений
+  «Сообщения» и «Звонки». По умолчанию они включены; schema-v2 access-policy
+  sync передаёт direct/group mute channels, а push-сервер подавляет только
+  соответствующий fanout, не меняя relay delivery или block state.
+- Фото в карточке профиля теперь сохраняет пропорции исходного изображения,
+  не обрезается в круг и масштабируется на доступную ширину карточки.
+- Добавлено cross-repo regression-покрытие mute/unmute, независимости
+  messages/calls и block, а также schema-v1 compatibility.
+- Исправлена быстрая последовательная смена notification mute: свежий snapshot
+  синхронизируется после уже активного push-policy запроса.
+
+
 ## [3.13.2+2026091601] - 2026-09-16
 
 ### Изменено
@@ -199,7 +246,6 @@
   disposal вынесены за `ChatMediaApi`.
 - Снижена прямая связанность `ChatController` с concrete media coordinators и
   добавлен architecture guard против возврата direct media workflow imports.
-- Обновлены architecture backlog и service-map docs под новую media boundary.
 
 ### Проверено
 
@@ -276,9 +322,8 @@
 
 ### Изменено
 
-- Закрыт локальный статус PR1/PR2 в refactor plan: добавлен safety-net
-  manifest test для CI/architecture/capability/critical-flow coverage и убран
-  singleton runtime state из `NetworkDependencies.create`.
+- Добавлен safety-net manifest test для CI/architecture/capability/critical-flow
+  coverage; singleton runtime state убран из `NetworkDependencies.create`.
 - Завершён первый срез PR7 runtime cleanup: call log/native call bridges
   перенесены в `features/calls`, contacts — в `features/contacts`,
   avatar/profile service — в `features/profile`, chat Drift database — в
@@ -286,8 +331,6 @@
 - Старые runtime/UI пути оставлены как временные compatibility exports.
 - Добавлены architecture guardrails для explicit `core/runtime` inventory,
   migrated forwarding exports и запрета concrete cross-feature imports.
-- Обновлена architecture, refactor-plan, backlog, project-structure,
-  service-map, service-API-map и provenance документация под PR7.
 - Завершён PR8 MeshNode integration boundaries: введён `CallControlTransport`,
   добавлен `ReliableCallControlAdapter`, а Calls ↔ Chat reliable-control wiring
   вынесен из `MeshNode` в `NetworkDependencies`.
@@ -318,8 +361,6 @@
   unrestricted `NodeFacade` на минимально нужные capability API.
 - Добавлены contract и architecture tests, чтобы мигрированные app/call
   surfaces не возвращались к broad `NodeFacade` imports.
-- Обновлена architecture, backlog, README, network-flow, project-structure и
-  service-map документация под PR5.
 - Начат PR6 Chat vertical ownership в `lib/features/chat`.
 - `Chat` и `Message` перенесены в `features/chat/domain`.
 - `ChatRepository` перенесён в `features/chat/infrastructure`, а его тесты
@@ -331,8 +372,6 @@
   временные compatibility exports.
 - Добавлен architecture boundary test, запрещающий `features/chat` импортировать
   UI implementation code.
-- Обновлена architecture, refactor-plan, backlog и project-structure
-  документация под PR6.
 
 ### Проверено
 
@@ -353,8 +392,6 @@
 - Создание main app storage/runtime dependencies вынесено из `main.dart`, а
   architecture guardrails обновлены так, чтобы разрешать это только в
   `lib/app/composition`.
-- Обновлены architecture, backlog, network-flow, README, project-structure и
-  service-map docs под этап AppCompositionRoot.
 - Initial FCM push callback registration вынесен из `UiApp.initState` в
   `AppPushCoordinator`, при этом UI navigation оставлена через injected
   callbacks.
@@ -385,8 +422,6 @@
 - FCM background handler оставлен явным background-isolate composition root со
   своим storage lifecycle.
 - `test/` добавлен в manifest публичного source mirror.
-- Обновлена architecture/service-map/backlog документация под завершённые этапы
-  architecture safety net и explicit storage DI.
 
 ### Проверено
 
@@ -457,7 +492,6 @@
 - iOS native push bridge теперь сразу передает silent `moderation_policy` в Flutter, если приложение/engine живы.
 - Повторный вход не показывает fullscreen warning/ban повторно, если warning уже подтвержден или appeal уже отправлена.
 - Клиент проверяет `signedStatus` moderation policy при заданном `MODERATION_STATUS_SIGNING_PUBLIC_KEY` и отклоняет неподписанные/поддельные moderation events.
-- Документация приложения синхронизирована с закрытым этапом App Store UGC/moderation.
 
 ### Проверено
 
@@ -476,7 +510,6 @@
 - Жалобы на UGC теперь metadata-only: текст/медиа сообщения не отправляются модератору, а выбранное сообщение скрывается локально у репортера.
 - Для групповых сообщений report таргетит автора сообщения и передает только metadata (`groupId`, message id/type/timestamp), без содержимого.
 - Push registration новых клиентов отправляет v2 identity binding в существующем `/devices/register`, чтобы сервер мог привязать `peerId` к `signingPub` без дополнительного запроса.
-- Документация обновлена под новый moderator UI: агрегаты reported users/reporters с total/direct/group счетчиками и общий список metadata-only жалоб.
 
 
 ## [3.10.0+2026082401] - 2026-08-24
@@ -508,7 +541,8 @@
 
 ### Изменено
 
-- Android release-сборка теперь включает R8 minify и resource shrinking; миграция на AGP 9+ оставлена отдельной задачей в backlog до проверки совместимости Flutter/Gradle/plugins.
+- Android release-сборка включает R8 minify и resource shrinking; совместимость
+  AGP 9+ требовала отдельной проверки Flutter, Gradle и plugins.
 - Журнал вызовов теперь показывает актуальное имя из контактов, если контакт сохранен; без контакта остается короткий peer id.
 - Входящий accept runtime-enrichment wait увеличен до 8 секунд, чтобы новая версия успевала принять bootstrap/TURN metadata перед ответом на звонок.
 - Критичные команды звонка (`call_invite`, `call_accept`, `call_reject`, `call_end`) теперь дублируются через direct reliable control payload `__peerlink_call_control_v1__` и дополнительно повторяются bounded-таймерами поверх bootstrap signaling.
@@ -805,7 +839,6 @@
 
 - Push-контракт приложения и `push.js` переведен на единый универсальный endpoint `POST /events/push`: клиент теперь отправляет `recipientUserIds`, произвольный `payload`, опциональные `notification` и `delivery`, а сервер работает как transport-only fanout слой без отдельных `/events/message`, `/events/call` и `/events/call-voip`.
 - `PushApiClient`, `MeshNode` и `MeshCallPushHelper` обновлены под новый универсальный контракт; call/message/group/account push-пути больше не требуют серверного thin wrapper-а для отдельных типов событий.
-- Обновлены `README_RU.md`, `ARCHITECTURE_RU.md` и `NETWORK_FLOW_RU.md`: зафиксирован transport-only подход `push.js` и новый контракт `/events/push`.
 
 ## [3.4.2] - 2026-06-09
 
@@ -814,7 +847,6 @@
 - Продолжена декомпозиция call-слоя: orchestration connect/timeout/TURN fallback, control-signal routing, media readiness/recovery и state-transition helper-логика вынесены из `CallService` в отдельные helper-модули, а сам `CallService` дополнительно сокращен до orchestration/facade-роли.
 - Для снижения риска старого сбоя первого звонка после cold start/update в audio-call bootstrap добавлен одноразовый `audio-only` warm-up перед первым боевым захватом локального media stream; также speaker-route теперь применяется после готовности локального потока.
 - Из `MeshNode` вынесен call-push слой в `lib/core/node/mesh_call_push_helper.dart`: регистрация device token-ов и отправка `/events/call` больше не смешаны с signaling/peer-session orchestration.
-- Обновлены `ARCHITECTURE_RU.md` и `BACKLOG_RU.md`: зафиксированы новая граница `MeshCallPushHelper` и текущий статус декомпозиции `mesh_node` / call-runtime слоя.
 
 ## [3.4.1] - 2026-06-08
 
@@ -846,11 +878,9 @@
 - Исправлено восстановление group/direct событий после cold start и reinstall: runtime теперь дополнительно вызывает `pollRelay()` на startup, `AppLifecycleState.resumed` и при восстановлении сетевой связности, поэтому получение сообщений не зависит только от открытия приложения через push.
 - Исправлена маршрутизация входящих relay group envelope: `groupId` больше не теряется по пути `ReliableRelayPollController -> ReliableInboundProcessor -> ChatService`, поэтому group payload публикуется в target группы, а не в peer отправителя.
 - Выполнена декомпозиция `lib/core/security/identity_service.dart`: `IdentityService` сокращен до orchestration/facade-слоя, key-store вынесен в `identity_key_store.dart`, membership/update signing — в `identity_membership_crypto.dart`, а storage/keypair/install-id helper-логика — в `identity_storage_support.dart`.
-- Обновлены `ARCHITECTURE*.md`, `PROJECT_STRUCTURE_RU.md` и `AI_CONTEXT*.md`: зафиксирована фактическая модульная структура identity/security слоя и правило не возвращать storage/signature helper-ответственности обратно в `IdentityService`.
 - Выполнена декомпозиция `lib/core/runtime/storage_service.dart`: facade `StorageService` сокращен до orchestration-слоя, а path-resolve, migration flow и media/storage cleanup вынесены в `storage_service_paths.dart`, `storage_service_migrations.dart` и `storage_service_media.dart`.
 - Выполнена полная декомпозиция `lib/core/messaging/reliable_messaging_service.dart`: reliable messaging разделен на facade `ReliableMessagingService`, `ReliableInboundProcessor`, `ReliableSessionController`, `ReliableRelayPollController`, `ReliablePendingOperationStore`, `ReliableRetryScheduler` и `ReliableCodec`.
 - `ReliableMessagingService` сокращен до orchestration/facade-слоя: poll loop, replay/decode, session/handshake lifecycle, pending persistence/retry и signature/header builders больше не живут в одном файле.
-- Обновлены `ARCHITECTURE_RU.md` и `PROJECT_STRUCTURE_RU.md`: зафиксирована фактическая модульная структура reliable messaging и роли новых подмодулей.
 - В `ios/Runner/Info.plist` отключен глобальный ATS-bypass `NSAllowsArbitraryLoads`; ручная проверка на текущем self-hosted стеке подтвердила рабочие подключения к bootstrap/relay/turn серверам по доменным именам и по IP, а также корректную доставку сообщений и звонков без этого флага.
 - Добавлена индикация пропущенных звонков в навигации приложения: вкладка `Звонки` теперь показывает бейдж новых входящих пропущенных вызовов и сбрасывает его после открытия экрана звонков.
 - Обновлен расчет бейджа иконки приложения: теперь учитывается сумма непрочитанных сообщений и новых пропущенных звонков (`сообщения + пропущенные звонки`), а не только непрочитанные сообщения.
@@ -878,7 +908,6 @@
 - Локальные уведомления сообщений/звонков теперь подавляются в активном приложении (`AppLifecycleState.resumed`), чтобы убрать дубли поверх открытого чата/экрана звонка.
 - В iOS VoIP/CallKit добавлена очередь отложенных bridge-событий (`call_incoming`/`call_action`): если Flutter event stream еще не поднят (приложение в фоне), события не теряются и доставляются при `onListen`, чтобы принятие звонка с системного экрана корректно запускало звонок в PeerLink.
 - При ответе на звонок из системного CallKit iOS теперь поднимает приложение через `peerlink://call`, чтобы пользователь переходил в экран звонка PeerLink и WebRTC-сессия быстрее доходила до активного состояния.
-- В `README_RU.md` добавлена явная документация VoIP push-контракта: `/devices/register-voip`, `/devices/unregister-voip`, `/events/call-voip`, обязательные APNs headers и готовый `.env` шаблон для `push.js`.
 - Для VoIP в `push.js` (`/Users/vladimir/peerlink_servers/push.js`) добавлена строгая валидация APNs topic (`*.voip`), поддержка override через `apns.topic` в запросе, явная ошибка `invalid_apns_topic` и расширенная диагностика `/health` (`apnsVoipTopicConfigured`, `apnsUseSandbox`).
 - В `push.js` отправка VoIP в APNs переведена с `fetch` на нативный `http2` клиент, чтобы убрать протокольные ошибки (`Expected HTTP/`, `HPE_INVALID_CONSTANT`), а `/events/call` и `/events/call-voip` теперь возвращают `502 push_send_failed`, если все доставки звонка провалились (`sent=0`, `failed>0`).
 - В `lib/core/firebase/firebase_messaging_service.dart` увеличено ожидание APNs token для iOS/macOS: количество попыток в `_waitForApnsTokenIfNeeded()` поднято с `10` до `20`.
@@ -1034,7 +1063,7 @@
   - общий pipeline скачивания blob и сохранения файла для direct и group media,
   - group-специфичные retry и decrypt шаги стали тонкими адаптерами над общим restore path,
   - декодирование group blob text/avatar теперь использует те же shared helper-ы.
-- Терминология runtime и документации приведена к реальной shipped-архитектуре:
+- Терминология runtime приведена к реальной shipped-архитектуре:
   - прием personal media теперь документирован только как `direct_blob_ref` + загрузка blob из relay,
   - удалены устаревшие упоминания legacy direct chunk receive как активного compatibility path,
   - architecture/network/AI-context документы обновлены под unified API layer.
@@ -1043,7 +1072,6 @@
 ### Исправлено
 
 - Уменьшено расхождение между direct и group реализациями восстановления медиа за счет удаления дублирующейся restore-логики.
-- Удалены устаревшие ссылки в документации на deprecated поведение direct media receive.
 - Усилена очистка локальных медиафайлов:
   - внутренние пути удаления сообщений теперь удаляют managed media до удаления состояния сообщения,
   - входящий delete-for-everyone и cleanup отмененных передач больше не оставляют orphaned media.
@@ -1318,13 +1346,11 @@
 
 - Управляемое версионирование приложения через `pubspec.yaml` как единый источник истины.
 - Скрипт `tool/bump_version.dart` для `patch`, `minor`, `major`, `build` и `set`.
-- Документы `VERSIONING.md` и `VERSIONING_RU.md`.
 - История релизов через `CHANGELOG.md` / `CHANGELOG_RU.md`.
 - Улучшенная диагностика серверов в Settings для bootstrap, relay и turn: статус доступности и более удобная очистка устаревших записей.
 
 ### Изменено
 
-- Документация проекта теперь явно описывает правила версионирования и bump релизов.
 - Базовая версия PeerLink поднята с `1.0.0+1` до `1.0.1+2`.
 - Повышена устойчивость bootstrap-подключения: приложение может держать несколько bootstrap-соединений одновременно и надежнее маршрутизировать signaling, если пользователи видны на разных серверах.
 - Ускорена доставка сообщений и медиа через relay:

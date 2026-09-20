@@ -30,6 +30,27 @@ void main() {
     );
   });
 
+  test('production NodeFacade consumers do not grow beyond the baseline', () {
+    final consumers = dartSourcesUnder(const ['lib'])
+        .where(
+          (source) => source.imports().any(
+            (import) =>
+                import.resolvePeerlinkPath() ==
+                'lib/core/node/node_facade.dart',
+          ),
+        )
+        .map((source) => source.path)
+        .toSet();
+
+    expect(
+      consumers.difference(_nodeFacadeConsumerBaseline),
+      isEmpty,
+      reason:
+          'NodeFacade is migration debt. New production consumers must use '
+          'narrow capability APIs; the baseline may only shrink.',
+    );
+  });
+
   test(
     'production StorageService construction does not grow outside baseline',
     () {
@@ -144,6 +165,30 @@ void main() {
     );
   });
 
+  test(
+    'composition modules do not contain imperative business control flow',
+    () {
+      final violations = <String>[];
+      final businessControlFlow = RegExp(
+        r'\b(?:if|for|while|switch|try|catch)\s*(?:\(|\{)',
+      );
+
+      for (final source in dartSourcesUnder(const ['lib/app/composition'])) {
+        if (businessControlFlow.hasMatch(source.content)) {
+          violations.add(source.path);
+        }
+      }
+
+      expect(
+        violations,
+        isEmpty,
+        reason:
+            'Composition may construct and connect services, but business '
+            'decisions and imperative workflows belong to application services.',
+      );
+    },
+  );
+
   test('ChatControllerDependencies exposes grouped dependency surface', () {
     final source = dartSourcesUnder(const ['lib/features/chat/application'])
         .singleWhere(
@@ -201,4 +246,16 @@ const _migratedRuntimeSupportServices = {
   'lib/core/runtime/relay_servers_service.dart',
   'lib/core/runtime/server_health_coordinator.dart',
   'lib/core/runtime/turn_servers_service.dart',
+};
+
+const _nodeFacadeConsumerBaseline = {
+  'lib/app/composition/app_dependencies.dart',
+  'lib/app/composition/app_ui_dependencies.dart',
+  'lib/app/composition/chat_runtime_node_adapter.dart',
+  'lib/app/composition/profile_avatar_node_adapter.dart',
+  'lib/core/runtime/network_dependencies.dart',
+  'lib/core/runtime/push_device_registration_service.dart',
+  'lib/features/calls/platform/ios_callkit_service.dart',
+  'lib/main.dart',
+  'lib/ui/ui_app.dart',
 };

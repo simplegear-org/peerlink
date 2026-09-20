@@ -74,7 +74,8 @@ class PushDeviceRegistrationService {
   }) async {
     final current = _syncFuture;
     if (current != null) {
-      await current;
+      _log('join in-flight sync reason=$reason');
+      return current;
     }
     final future = _syncNowImpl(
       reason: reason,

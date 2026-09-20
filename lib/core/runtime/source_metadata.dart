@@ -10,7 +10,7 @@ class PeerLinkSourceMetadata {
   static const license = 'MPL-2.0';
   static const licenseName = 'Mozilla Public License 2.0';
   static const fallbackSourceUrl =
-      'https://github.com/simplegear-org/peerlink/tree/source-v3.13.2-build-2026091601';
+      'https://github.com/simplegear-org/peerlink/tree/source-v3.14.1-build-2026092001';
   static const sourceUrl = String.fromEnvironment(
     'PEERLINK_SOURCE_URL',
     defaultValue: fallbackSourceUrl,

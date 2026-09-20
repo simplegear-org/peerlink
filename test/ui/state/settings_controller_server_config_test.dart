@@ -12,6 +12,8 @@ import 'package:peerlink/core/turn/turn_server_config.dart';
 import 'package:peerlink/ui/localization/app_language.dart';
 import 'package:peerlink/ui/localization/app_strings.dart';
 import 'package:peerlink/ui/state/settings_controller.dart';
+import 'package:peerlink/features/profile/application/profile_metadata_api.dart';
+import 'package:peerlink/features/profile/domain/profile.dart';
 
 void main() {
   test(
@@ -51,7 +53,11 @@ void main() {
     await controller.updateInviteUsername(' Alice ');
 
     final payload = controller.exportUserQrPayload();
+    final decoded = jsonDecode(payload) as Map<String, dynamic>;
     expect(controller.extractDisplayNameFromUserQr(payload), 'Alice');
+    expect(decoded, isNot(contains('endpointId')));
+    expect(decoded, isNot(contains('fcmTokenHash')));
+    expect(decoded, isNot(contains('stableUserId')));
   });
 
   test(
@@ -700,7 +706,7 @@ class _TestSettingsController extends SettingsController {
     String peerId = 'test-peer',
     AccountIdentity? accountIdentity,
     Map<String, dynamic>? seedSettings,
-    super.onInviteUsernameUpdated,
+    Future<void> Function(String)? onInviteUsernameUpdated,
     required List<String> bootstrapPeers,
     required List<String> relayServers,
     required List<TurnServerConfig> turnServers,
@@ -738,6 +744,9 @@ class _TestSettingsController extends SettingsController {
          network: _FakeNodeFacade(),
          messaging: _FakeNodeFacade(),
          storage: StorageService(),
+         profileMetadata: _TestProfileMetadata(
+           onUpdated: onInviteUsernameUpdated,
+         ),
          dependenciesFactory: SettingsControllerComposition.create,
        );
 
@@ -849,6 +858,37 @@ class _TestSettingsController extends SettingsController {
   @override
   SettingsServerState turnState(String url) =>
       _turnStates[url] ?? SettingsServerState.connecting;
+}
+
+class _TestProfileMetadata implements ProfileMetadataApi {
+  _TestProfileMetadata({this.onUpdated});
+
+  final Future<void> Function(String)? onUpdated;
+  String _displayName = '';
+  String _about = '';
+
+  @override
+  String get displayName => _displayName;
+
+  @override
+  String get about => _about;
+
+  @override
+  Future<void> updateDisplayName(String value) async {
+    _displayName = Profile.normalizeDisplayName(value);
+    final callback = onUpdated;
+    if (callback != null) {
+      unawaited(callback(_displayName));
+    }
+  }
+
+  @override
+  Future<void> updateAbout(String value) async {
+    _about = Profile.normalizeAbout(value);
+  }
+
+  @override
+  Future<void> sendLocalDisplayNameToPeer(String peerId) async {}
 }
 
 class _FakeNodeFacade implements NodeFacade {

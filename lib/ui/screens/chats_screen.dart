@@ -12,6 +12,8 @@ import 'package:peerlink/features/chat/domain/chat.dart';
 import '../localization/app_strings.dart';
 import '../state/chat_controller.dart';
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/peer_profile_read_model.dart';
+import '../../features/notifications/application/notification_mute_preferences.dart';
 import '../state/presence_service.dart';
 import '../widgets/compact_card_tile_styles.dart';
 import '../widgets/chat_tile.dart';
@@ -23,12 +25,16 @@ class ChatsScreen extends StatefulWidget {
   final ChatController controller;
   final PresenceService presenceService;
   final AvatarService avatarService;
+  final PeerProfileReadApi peerProfile;
+  final NotificationMutePreferences? notificationMutes;
 
   const ChatsScreen({
     super.key,
     required this.controller,
     required this.presenceService,
     required this.avatarService,
+    required this.peerProfile,
+    this.notificationMutes,
   });
 
   @override
@@ -114,6 +120,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                 controller: widget.controller,
                                 presenceService: widget.presenceService,
                                 avatarService: widget.avatarService,
+                                peerProfile: widget.peerProfile,
+                                notificationMutes: widget.notificationMutes,
                               ),
                             ),
                           );
@@ -220,6 +228,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
           controller: widget.controller,
           presenceService: widget.presenceService,
           avatarService: widget.avatarService,
+          peerProfile: widget.peerProfile,
+          notificationMutes: widget.notificationMutes,
         ),
       ),
     );
@@ -382,6 +392,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
           controller: widget.controller,
           presenceService: widget.presenceService,
           avatarService: widget.avatarService,
+          peerProfile: widget.peerProfile,
+          notificationMutes: widget.notificationMutes,
         ),
       ),
     );

@@ -16,6 +16,7 @@ import 'package:peerlink/features/settings/application/settings_pairing_state_se
 import 'package:peerlink/features/settings/application/settings_read_model_service.dart';
 import 'package:peerlink/features/settings/application/settings_server_config_service.dart';
 import 'package:peerlink/features/settings/application/settings_storage_maintenance_service.dart';
+import 'package:peerlink/features/profile/application/profile_metadata_api.dart';
 
 import 'settings_deep_link_codec.dart';
 import 'settings_invite_codec.dart';
@@ -42,8 +43,6 @@ import '../localization/app_strings.dart';
 
 /// Контроллер экрана настроек: peerId и bootstrap-серверы.
 class SettingsController {
-  static const String _inviteUsernameKey =
-      'peerlink.profile.invite_username.v1';
   static const String _inviteWebBaseUrl = String.fromEnvironment(
     'PEERLINK_INVITE_WEB_BASE_URL',
     defaultValue: 'https://simplegear.org/invite',
@@ -62,9 +61,7 @@ class SettingsController {
   final NetworkApi network;
   final MessagingApi messaging;
   final StorageService storage;
-  final Future<void> Function(String username)? onInviteUsernameUpdated;
-  final Future<void> Function(String peerId, String username)?
-  onInviteUsernamePeerRequested;
+  final ProfileMetadataApi profileMetadata;
   late final ServerHealthCoordinator _health;
   late final AppDataCleanerService _dataCleaner;
   late final PushTokenService _pushTokens;
@@ -84,9 +81,8 @@ class SettingsController {
     required this.network,
     required this.messaging,
     required this.storage,
+    required this.profileMetadata,
     required SettingsControllerDependenciesFactory dependenciesFactory,
-    this.onInviteUsernameUpdated,
-    this.onInviteUsernamePeerRequested,
   }) {
     final dependencies = dependenciesFactory(
       identity: identity,
@@ -135,41 +131,16 @@ class SettingsController {
   List<BlockedPeer> get blockedPeers => _accessControl.blockedPeers();
   int get blockedPeersCount => blockedPeers.length;
   String get termsVersion => TermsAcceptanceService.currentTermsVersion;
-  String get inviteUsername {
-    final value = readSettingValue(_inviteUsernameKey);
-    return value is String ? value.trim() : '';
-  }
+  String get inviteUsername => profileMetadata.displayName;
 
   Future<void> updateInviteUsername(String value) async {
-    final normalized = value.trim();
-    if (normalized.length > 64 ||
-        RegExp(r'[\x00-\x1F\x7F]').hasMatch(normalized)) {
-      throw const FormatException('Недопустимое имя в PeerLink');
-    }
-    await writeSettingValue(_inviteUsernameKey, normalized);
-    final notifyUsernameUpdated = onInviteUsernameUpdated;
-    if (notifyUsernameUpdated != null) {
-      unawaited(
-        _notifyInviteUsernameUpdated(notifyUsernameUpdated, normalized),
-      );
-    }
-  }
-
-  Future<void> _notifyInviteUsernameUpdated(
-    Future<void> Function(String username) notify,
-    String username,
-  ) async {
-    try {
-      await notify(username);
-    } catch (_) {
-      // Рассылка профиля best-effort и не должна влиять на сохранение имени.
-    }
+    await profileMetadata.updateDisplayName(value);
   }
 
   Future<void> sendInviteUsernameToPeer(String peerId) async {
     final normalizedPeerId = peerId.trim();
     if (normalizedPeerId.isEmpty) return;
-    await onInviteUsernamePeerRequested?.call(normalizedPeerId, inviteUsername);
+    await profileMetadata.sendLocalDisplayNameToPeer(normalizedPeerId);
   }
 
   bool get isCurrentTermsAccepted => _termsAcceptance.isCurrentVersionAccepted;
@@ -236,10 +207,7 @@ class SettingsController {
     return jsonEncode(<String, dynamic>{
       'type': 'peerlink_user_qr_v2',
       'schemaVersion': 2,
-      'stableUserId': peerId,
       'peerId': peerId,
-      'endpointId': endpointId,
-      'fcmTokenHash': fcmTokenHash,
       if (inviteUsername.isNotEmpty) 'displayName': inviteUsername,
       'identityBundleV3': identity.identityBundleV3Json,
     });

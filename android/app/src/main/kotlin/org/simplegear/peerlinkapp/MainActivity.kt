@@ -32,6 +32,8 @@ class MainActivity : FlutterActivity() {
     private val eventChannelName = "peerlink/deep_links/events"
     private val callLogMethodChannelName = "peerlink/android_call_log/methods"
     private val callNotificationsMethodChannelName = "peerlink/android_call_notifications/methods"
+    private val messageNotificationsMethodChannelName = "peerlink/android_message_notifications/methods"
+    private val callerNamesMethodChannelName = "peerlink/android_caller_names/methods"
     private val mediaThumbnailMethodChannelName = "peerlink/media_thumbnail/methods"
     private val pushPayloadMethodChannelName = "peerlink/push_payload/methods"
     private val accessControlMethodChannelName = "peerlink/access_control/methods"
@@ -70,6 +72,33 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "cancelAllCallNotifications" -> {
                         PeerlinkCallNotifications.cancelAll(this)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, messageNotificationsMethodChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "cancelAllMessageNotifications" -> {
+                        val chatId = call.arguments as? String
+                        if (chatId.isNullOrBlank()) {
+                            result.error("invalid_chat_id", "A chat ID is required", null)
+                            return@setMethodCallHandler
+                        }
+                        PeerlinkMessageNotifications.cancelForChat(this, chatId)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callerNamesMethodChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "syncCallerNames" -> {
+                        PeerlinkCallerNames.sync(this, call.arguments as? Map<*, *> ?: emptyMap<Any, Any>())
                         result.success(null)
                     }
                     else -> result.notImplemented()

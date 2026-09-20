@@ -132,4 +132,18 @@ void main() {
       ContactDisplayNameSource.inviteUsername,
     );
   });
+
+  test(
+    'adding an existing contact does not create an in-memory duplicate',
+    () async {
+      await controller.addContact(Contact(peerId: 'peer-a', name: 'Alice'));
+      await controller.addContact(
+        Contact(peerId: ' peer-a ', name: 'Alice Again'),
+      );
+
+      expect(controller.contacts, hasLength(1));
+      expect(controller.contacts.single.peerId, 'peer-a');
+      expect(controller.contacts.single.name, 'Alice');
+    },
+  );
 }

@@ -21,6 +21,9 @@ class PeerAvatar extends StatelessWidget {
   final bool transparentWhenNoAvatar;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final bool circular;
+  final BoxFit imageFit;
+  final double? fallbackSize;
 
   const PeerAvatar({
     super.key,
@@ -33,6 +36,9 @@ class PeerAvatar extends StatelessWidget {
     this.transparentWhenNoAvatar = false,
     this.backgroundColor,
     this.foregroundColor,
+    this.circular = true,
+    this.imageFit = BoxFit.cover,
+    this.fallbackSize,
   });
 
   @override
@@ -44,22 +50,26 @@ class PeerAvatar extends StatelessWidget {
 
     final avatarFile = _existingFile(path);
     if (avatarFile != null) {
-      return ClipOval(
-        child: Image.file(
-          avatarFile,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              _fallback(theme, bg, fg),
-        ),
+      final image = Image.file(
+        avatarFile,
+        width: size,
+        height: size,
+        fit: imageFit,
+        errorBuilder: (context, error, stackTrace) =>
+            _fallback(theme, bg, fg, size: fallbackSize ?? size),
       );
+      return circular ? ClipOval(child: image) : image;
     }
 
-    return _fallback(theme, bg, fg);
+    return _fallback(theme, bg, fg, size: fallbackSize ?? size);
   }
 
-  Widget _fallback(ThemeData theme, Color bg, Color fg) {
+  Widget _fallback(
+    ThemeData theme,
+    Color bg,
+    Color fg, {
+    required double size,
+  }) {
     return Container(
       width: size,
       height: size,

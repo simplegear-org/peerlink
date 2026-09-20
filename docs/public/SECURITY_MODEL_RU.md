@@ -66,6 +66,10 @@
 
 - Contacts-only privacy setting включен по умолчанию и передается на push-сервер как часть access-policy snapshot, чтобы сервер не отправлял push от Peer ID вне локальных контактов.
 - Локальный blacklist `blockedPeers` синхронизируется на push-сервер через `/devices/access-policy`; сервер отбрасывает push fanout от заблокированного Peer ID до APNs/FCM, а исходящий звонок к нему не стартует локально.
+- Notification mute — отдельная durable local policy: schema-v2 access-policy
+  передаёт независимые direct/group lists для messages/calls. Она подавляет
+  только соответствующий push fanout, не меняет `blockedPeers` и не мешает
+  encrypted relay delivery сообщений.
 - iOS Notification Service Extension и App Group не входят в модель серверной push-блокировки.
 - Блокировка относится только к конкретному `peerId`; из-за децентрализованной identity-модели она не является пожизненной блокировкой физического человека.
 - Push/relay/bootstrap серверы не получают приватные ключи, session keys или историю переписки для локальной блокировки.

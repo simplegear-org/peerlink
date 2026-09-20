@@ -137,6 +137,8 @@ class PushEventFactory {
     required String calleeUserId,
     required String callId,
     required CallMediaType mediaType,
+    String? callerDisplayName,
+    String? groupId,
     PushServersMetadata? servers,
     PushServersMetadata? priorityServers,
     bool standard = true,
@@ -150,7 +152,13 @@ class PushEventFactory {
       'calleeUserId': calleeUserId,
       'callId': callId,
       'mediaType': mediaType.name,
+      if (callerDisplayName?.trim().isNotEmpty ?? false)
+        'callerDisplayName': callerDisplayName!.trim(),
     };
+    final normalizedGroupId = groupId?.trim() ?? '';
+    if (normalizedGroupId.isNotEmpty) {
+      payload['groupId'] = normalizedGroupId;
+    }
     if (serversPayload != null) {
       payload['servers'] = serversPayload;
     }
@@ -168,6 +176,7 @@ class PushEventFactory {
     required String callerUserId,
     required String calleeUserId,
     required String callId,
+    String? groupId,
     bool standard = true,
     bool voip = true,
   }) {
@@ -180,6 +189,7 @@ class PushEventFactory {
         'callId': callId,
         'mediaType': 'end',
         'callAction': 'end',
+        if (groupId?.trim().isNotEmpty ?? false) 'groupId': groupId!.trim(),
       },
       delivery: PushDeliveryOptions(standard: standard, voip: voip),
     );

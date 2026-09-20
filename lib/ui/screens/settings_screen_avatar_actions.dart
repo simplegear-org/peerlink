@@ -4,7 +4,6 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -94,20 +93,16 @@ class SettingsScreenAvatarActions {
   }
 
   Future<void> _pickAvatarFromGallery(BuildContext context) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    if (!isMounted() || result == null || result.files.isEmpty) {
+    final files = await FilePicker.pickFiles(type: FileType.image);
+    if (!isMounted() || files.isEmpty) {
       return;
     }
-    final selected = result.files.first;
-    Uint8List? bytes = selected.bytes;
-    if (bytes == null || bytes.isEmpty) {
-      final path = selected.path;
-      if (path != null && path.isNotEmpty) {
-        bytes = await File(path).readAsBytes();
-      }
+    final selected = files.first;
+    Uint8List? bytes;
+    try {
+      bytes = await selected.readAsBytes();
+    } catch (_) {
+      bytes = null;
     }
     if (!isMounted() || bytes == null || bytes.isEmpty) {
       return;

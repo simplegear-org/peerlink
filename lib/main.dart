@@ -322,13 +322,9 @@ class _BootstrapAppState extends State<_BootstrapApp>
           },
         ),
       );
-      unawaited(
-        _syncFcmTokenWithRuntime(
-          deps.nodeFacade,
-          _firebaseMessagingService?.cachedToken,
-          previousToken: _registeredRelayFcmToken,
-        ),
-      );
+      // Initial tokens were persisted before the runtime was created and are
+      // synchronized by ServerHealthCoordinator's startup sync. Later token
+      // changes continue through the token-stream subscription.
 
       if (!mounted) {
         return;
@@ -649,6 +645,7 @@ Future<void> _applyServersFromStorageToRuntime({
     priorityRelay: const <String>[],
     priorityPush: const <String>[],
     priorityTurn: const <TurnServerConfig>[],
+    syncPushState: false,
   );
 }
 
@@ -663,6 +660,7 @@ Future<void> _applyPushServersToRuntime({
   required List<String> priorityRelay,
   required List<String> priorityPush,
   required List<TurnServerConfig> priorityTurn,
+  bool syncPushState = true,
 }) async {
   if (bootstrap.isEmpty &&
       relay.isEmpty &&
@@ -695,7 +693,7 @@ Future<void> _applyPushServersToRuntime({
   if (priorityPush.isNotEmpty) {
     await health.push.merge(priorityPush);
   }
-  if (push.isNotEmpty || priorityPush.isNotEmpty) {
+  if (syncPushState && (push.isNotEmpty || priorityPush.isNotEmpty)) {
     unawaited(
       facade
           .syncPushDeviceState(
@@ -722,8 +720,15 @@ Future<void> _applyPushServersToRuntime({
   if (priorityTurn.isNotEmpty) {
     await health.turn.putFirstMany(priorityTurn);
   }
-  await health.refreshAll();
-  AppFileLogger.log('[main][servers] apply done + refresh');
+  unawaited(
+    health.refreshAll().catchError((Object error, StackTrace stackTrace) {
+      AppFileLogger.log(
+        '[main][servers] background refresh failed error=$error',
+        stackTrace: stackTrace,
+      );
+    }),
+  );
+  AppFileLogger.log('[main][servers] apply done; refresh scheduled');
 }
 
 bool _shouldInitializeFcm() {

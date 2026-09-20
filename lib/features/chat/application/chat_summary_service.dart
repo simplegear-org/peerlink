@@ -100,6 +100,11 @@ class ChatSummaryService {
       name: name != null && name.isNotEmpty ? name : groupId,
       isGroup: true,
       memberPeerIds: members,
+      adminPeerIds: _normalizeMemberPeerIds(
+        (meta['adminPeerIds'] as List? ?? const <dynamic>[])
+            .whereType<String>()
+            .toList(growable: false),
+      ),
       ownerPeerId: (meta['ownerPeerId'] as String?)?.trim(),
       avatarPath: (meta['avatarPath'] as String?)?.trim(),
       messagesLoaded: false,
@@ -121,6 +126,7 @@ class ChatSummaryService {
       nextMeta['name'] = chat.name;
       nextMeta['ownerPeerId'] = chat.ownerPeerId;
       nextMeta['memberPeerIds'] = chat.memberPeerIds;
+      nextMeta['adminPeerIds'] = chat.adminPeerIds;
       nextMeta['avatarPath'] = chat.avatarPath;
     }
     _groupMetaByGroupId[groupId] = nextMeta;
@@ -165,6 +171,12 @@ class ChatSummaryService {
     if (owner != null && owner.isNotEmpty) {
       chat.ownerPeerId = owner;
     }
+    final rawAdmins = meta['adminPeerIds'];
+    if (rawAdmins is List) {
+      chat.adminPeerIds = _normalizeMemberPeerIds(
+        rawAdmins.whereType<String>().toList(growable: false),
+      );
+    }
     final isGroup = meta['isGroup'] as bool?;
     if (isGroup == true) {
       chat.isGroup = true;
@@ -193,11 +205,16 @@ class ChatSummaryService {
       if (!_sameMembers(chat.memberPeerIds, normalizedMembers)) {
         chat.memberPeerIds = normalizedMembers;
       }
+      final normalizedAdmins = _normalizeMemberPeerIds(chat.adminPeerIds);
+      if (!_sameMembers(chat.adminPeerIds, normalizedAdmins)) {
+        chat.adminPeerIds = normalizedAdmins;
+      }
       final nextMeta = <String, dynamic>{
         'isGroup': true,
         'name': chat.name,
         'ownerPeerId': chat.ownerPeerId,
         'memberPeerIds': normalizedMembers,
+        'adminPeerIds': normalizedAdmins,
         'avatarPath': chat.avatarPath,
       };
       final currentMeta = _groupMetaByGroupId[chat.peerId];
@@ -285,6 +302,15 @@ class ChatSummaryService {
       if (currentMembers[i] != nextMembers[i]) {
         return false;
       }
+    }
+    final currentAdmins = ((current['adminPeerIds'] as List?) ?? const [])
+        .whereType<String>()
+        .toList(growable: false);
+    final nextAdmins = ((next['adminPeerIds'] as List?) ?? const [])
+        .whereType<String>()
+        .toList(growable: false);
+    if (!_sameMembers(currentAdmins, nextAdmins)) {
+      return false;
     }
     final currentAvatarPath = (current['avatarPath'] as String?) ?? '';
     final nextAvatarPath = (next['avatarPath'] as String?) ?? '';

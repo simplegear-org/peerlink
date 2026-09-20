@@ -158,6 +158,10 @@ class PushApiClient {
     required bool allowMessagesOnlyFromContacts,
     required List<String> contactPeerIds,
     required List<String> blockedPeerIds,
+    required List<String> mutedMessagePeerIds,
+    required List<String> mutedMessageGroupIds,
+    required List<String> mutedCallPeerIds,
+    required List<String> mutedCallGroupIds,
     required int policyVersion,
     required String updatedAt,
     required String snapshotHash,
@@ -173,6 +177,10 @@ class PushApiClient {
     }
     final contacts = _normalizePeerIdList(contactPeerIds);
     final blocked = _normalizePeerIdList(blockedPeerIds);
+    final mutedMessages = _normalizePeerIdList(mutedMessagePeerIds);
+    final mutedMessageGroups = _normalizePeerIdList(mutedMessageGroupIds);
+    final mutedCalls = _normalizePeerIdList(mutedCallPeerIds);
+    final mutedCallGroups = _normalizePeerIdList(mutedCallGroupIds);
     final normalizedUpdatedAt = updatedAt.trim();
     final normalizedHash = snapshotHash.trim();
     final ts = DateTime.now().millisecondsSinceEpoch;
@@ -181,7 +189,9 @@ class PushApiClient {
         '$requestId|$normalizedUserId|$normalizedUserId|'
         '$allowMessagesOnlyFromContacts|${jsonEncode(contacts)}|'
         '${jsonEncode(blocked)}|$policyVersion|$normalizedUpdatedAt|'
-        '$normalizedHash|$ts';
+        '$normalizedHash|2|${jsonEncode(mutedMessages)}|'
+        '${jsonEncode(mutedMessageGroups)}|${jsonEncode(mutedCalls)}|'
+        '${jsonEncode(mutedCallGroups)}|$ts';
     final sig = await _sign(identity, payloadToSign);
     final signingPub = base64Encode(identity.signingPublicKey.bytes);
     final body =
@@ -195,6 +205,11 @@ class PushApiClient {
           'allowMessagesOnlyFromContacts': allowMessagesOnlyFromContacts,
           'contactPeerIds': contacts,
           'blockedPeerIds': blocked,
+          'policySchemaVersion': 2,
+          'mutedMessagePeerIds': mutedMessages,
+          'mutedMessageGroupIds': mutedMessageGroups,
+          'mutedCallPeerIds': mutedCalls,
+          'mutedCallGroupIds': mutedCallGroups,
           'policyVersion': policyVersion,
           'updatedAt': normalizedUpdatedAt,
           'snapshotHash': normalizedHash,

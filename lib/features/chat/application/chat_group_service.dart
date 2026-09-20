@@ -161,6 +161,7 @@ class ChatGroupService {
     if (chat == null || !chat.isGroup) {
       throw ArgumentError('Group chat not found');
     }
+    _requireGroupParticipantManager(chat);
     final additions = participantPeerIds
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
@@ -198,6 +199,7 @@ class ChatGroupService {
     if (chat == null || !chat.isGroup) {
       throw ArgumentError('Group chat not found');
     }
+    _requireGroupParticipantManager(chat);
     final removals = participantPeerIds
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
@@ -264,6 +266,16 @@ class ChatGroupService {
       return 'webp';
     }
     return 'jpg';
+  }
+
+  void _requireGroupParticipantManager(Chat chat) {
+    final localPeerId = facade.peerId;
+    final ownerPeerId = chat.ownerPeerId?.trim();
+    final isOwner = ownerPeerId == localPeerId;
+    final isAdmin = chat.adminPeerIds.contains(localPeerId);
+    if (!isOwner && !isAdmin) {
+      throw StateError('Only group owner or admin can manage participants');
+    }
   }
 
   Future<void> _broadcastGroupAvatarUpdate({

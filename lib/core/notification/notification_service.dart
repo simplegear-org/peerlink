@@ -7,6 +7,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_app_badger/flutter_app_badger.dart';
 
 import '../runtime/storage_service.dart';
@@ -18,6 +19,12 @@ class NotificationService {
   // Temporary switch: keep only remote push notifications.
   static const bool _localNotificationsEnabled = false;
   static const String _badgeCountStorageKey = 'peerlink.app.badge_count';
+  static const MethodChannel _androidMessageNotifications = MethodChannel(
+    'peerlink/android_message_notifications/methods',
+  );
+  static const MethodChannel _androidCallerNames = MethodChannel(
+    'peerlink/android_caller_names/methods',
+  );
 
   bool _initialized = false;
   bool _permissionGranted = false;
@@ -71,6 +78,28 @@ class NotificationService {
   void clearBadgeCount() {
     _badgeCount = 0;
     unawaited(_syncBadgeState());
+  }
+
+  Future<void> dismissMessageNotifications(String chatId) async {
+    if (chatId.trim().isEmpty) {
+      return;
+    }
+    try {
+      await _androidMessageNotifications.invokeMethod<void>(
+        'cancelAllMessageNotifications',
+        chatId,
+      );
+    } on MissingPluginException {
+      // The native bridge exists only on Android.
+    }
+  }
+
+  Future<void> syncAndroidCallerNames(Map<String, String> names) async {
+    try {
+      await _androidCallerNames.invokeMethod<void>('syncCallerNames', names);
+    } on MissingPluginException {
+      // The native bridge exists only on Android.
+    }
   }
 
   Future<void> syncStoredBadgeCount(int count) async {

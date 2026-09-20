@@ -114,8 +114,8 @@ class StorageService {
           fallbackDirectory: secureDirectory,
         );
 
-        await _migrations.migrateLegacyChatsToSqlite();
         await _migrations.loadFromSecureStorage();
+        await _migrations.migrateLegacyChatsToSqlite();
         await _migrations.migrateLegacyGroupStorageFromSettings();
         await _migrations.repairChatSummariesFromMessages();
         await _migrations.pruneLargeEmbeddedMedia();

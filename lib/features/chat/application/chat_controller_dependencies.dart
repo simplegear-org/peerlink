@@ -20,7 +20,7 @@ import 'package:peerlink/features/chat/application/chat_outbound_codec.dart';
 import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/application/chat_safety_api.dart';
 import 'package:peerlink/features/chat/application/chat_summary_service.dart';
-import 'package:peerlink/features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/profile/application/profile_inbound_handler.dart';
 
 class ChatControllerDependencies {
   const ChatControllerDependencies({
@@ -96,7 +96,7 @@ typedef ChatControllerDependenciesFactory =
     ChatControllerDependencies Function({
       required ChatRuntimeApi runtime,
       required StorageService storage,
-      required AvatarService avatarService,
+      required ProfileInboundHandler avatarService,
       required ChatPresentationStatePort presentationState,
       required ChatConnectionStatePort connectionState,
       required ChatMessageStatePort messageState,

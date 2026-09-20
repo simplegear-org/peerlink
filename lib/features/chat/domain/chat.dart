@@ -13,6 +13,7 @@ class Chat {
   String name;
   bool isGroup;
   List<String> memberPeerIds;
+  List<String> adminPeerIds;
   String? ownerPeerId;
   String? avatarPath;
   int unreadCount;
@@ -27,13 +28,15 @@ class Chat {
     required this.name,
     this.isGroup = false,
     List<String>? memberPeerIds,
+    List<String>? adminPeerIds,
     this.ownerPeerId,
     this.avatarPath,
     this.unreadCount = 0,
     this.messagesLoaded = false,
     this.hasMoreMessages = true,
     this.previewMessage,
-  }) : memberPeerIds = memberPeerIds ?? <String>[];
+  }) : memberPeerIds = memberPeerIds ?? <String>[],
+       adminPeerIds = adminPeerIds ?? <String>[];
 
   String get id => peerId;
 
@@ -53,6 +56,9 @@ class Chat {
       memberPeerIds: (json['memberPeerIds'] as List? ?? const <dynamic>[])
           .whereType<String>()
           .toList(growable: false),
+      adminPeerIds: (json['adminPeerIds'] as List? ?? const <dynamic>[])
+          .whereType<String>()
+          .toList(growable: false),
       ownerPeerId: json['ownerPeerId'] as String?,
       avatarPath: json['avatarPath'] as String?,
       unreadCount: json['unreadCount'] as int? ?? 0,
@@ -68,6 +74,7 @@ class Chat {
       'name': name,
       'isGroup': isGroup,
       'memberPeerIds': memberPeerIds,
+      'adminPeerIds': adminPeerIds,
       'ownerPeerId': ownerPeerId,
       'avatarPath': avatarPath,
       'unreadCount': unreadCount,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -127,6 +128,36 @@ void main() {
     expect(facade.registerCalls, 1);
     expect(facade.policySyncCalls, 1);
   });
+
+  test(
+    'joins concurrent sync requests instead of repeating registration',
+    () async {
+      final registerStarted = Completer<void>();
+      final releaseRegister = Completer<void>();
+      var registerCalls = 0;
+      final service = PushDeviceRegistrationService(
+        storage: storage,
+        now: () => now,
+        registerPushDeviceToken: (_, {force = false}) async {
+          registerCalls += 1;
+          registerStarted.complete();
+          await releaseRegister.future;
+        },
+        syncAccessPolicy: ({required reason, force = false}) async {},
+      );
+
+      final first = service.syncNow(reason: 'startup', forceRegister: true);
+      await registerStarted.future;
+      final second = service.syncNow(
+        reason: 'push_token_register',
+        forceRegister: true,
+      );
+      releaseRegister.complete();
+      await Future.wait(<Future<void>>[first, second]);
+
+      expect(registerCalls, 1);
+    },
+  );
 }
 
 class _FakeNodeFacade implements NodeFacade {

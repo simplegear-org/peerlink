@@ -4,28 +4,7 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-import 'dart:typed_data';
+import 'package:peerlink/features/profile/application/profile_transport.dart';
 
-import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
-import 'package:peerlink/core/relay/relay_models.dart';
-
-abstract class ProfileAvatarTransport {
-  String get peerId;
-
-  Future<String> uploadBlob({
-    required RelayBlobScopeKind scopeKind,
-    required String targetId,
-    required String fileName,
-    required String? mimeType,
-    required Uint8List bytes,
-    String? blobId,
-  });
-
-  Future<RelayBlobDownload> downloadBlob(String blobId);
-
-  Future<void> sendControlMessage(
-    String peerId, {
-    required String kind,
-    required String text,
-  });
-}
+@Deprecated('Use ProfileTransport. Kept for source compatibility.')
+abstract class ProfileAvatarTransport implements ProfileTransport {}

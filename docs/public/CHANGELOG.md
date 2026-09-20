@@ -3,6 +3,53 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.14.1+2026092001] - 2026-09-20
+
+### Changed
+
+- Upgraded the Android build stack to Flutter 3.47.5, AGP 9.0.1, and Gradle
+  9.1. Release builds retain R8 minification and resource shrinking.
+- Updated Android-facing packages for AGP 9 compatibility, including
+  `audioplayers`, `file_picker`, `flutter_secure_storage`, `mobile_scanner`,
+  `record`, `saver_gallery`, `share_plus`, `video_player`, and
+  `flutter_webrtc 1.6.2+hotfix.3`. File-picker and gallery-save call sites
+  now use their current APIs.
+- AGP 9 currently runs with its documented Flutter compatibility opt-outs for
+  the legacy DSL and Kotlin Gradle Plugin. `flutter_webrtc` and
+  `url_launcher_android` still require that temporary mode.
+- The upstream `FrameCapturer` bitmap-decoding warning remains in
+  `flutter_webrtc 1.6.2+hotfix.3`; no local fork was introduced. The known
+  Android remote-video freeze still requires real-device regression coverage.
+- Startup no longer waits for server availability probes before showing the UI;
+  persisted server configuration is still applied first and health refreshes
+  continue in the background.
+- Concurrent push device-state sync requests now share one in-flight operation,
+  avoiding duplicate device registration and access-policy uploads at startup.
+
+## [Unreleased]
+
+## [3.14.0+2026091701] - 2026-09-17
+
+### Changed
+
+- Added local Profile `About`, remote profile metadata cache and reusable peer
+  profile/group information screens. Peer cards and group members now prefer
+  local contact names over PeerLink names and Peer IDs; self cards hide peer-only actions,
+  and owner/admin labels render when group metadata provides them.
+- Group information now reuses compact member cards; owners and admins can add
+  participants or remove another non-owner participant with a left swipe.
+- Added independent, persisted Messages and Calls notification switches to peer
+  and group cards. The default is enabled; schema-v2 access-policy sync carries
+  direct/group mute channels so the push server suppresses only matching fanout
+  without affecting relay delivery or block state.
+- Profile-card photos now preserve the source aspect ratio without circular
+  cropping and scale to the available card width.
+- Added cross-repository regression coverage for mute/unmute, message/call
+  independence, block independence, and schema-v1 compatibility.
+- Fixed rapid notification-mute changes so each latest snapshot is synchronized
+  after an already active push-policy request.
+
+
 ## [3.13.2+2026091601] - 2026-09-16
 
 ### Changed
@@ -788,7 +835,7 @@ All notable PeerLink application changes should be recorded in this file.
 - Continued the call-layer decomposition: connect/timeout/TURN fallback orchestration, control-signal routing, media readiness/recovery, and state-transition helper logic were moved out of `CallService` into dedicated helper modules, reducing `CallService` further to an orchestration/facade role.
 - To reduce the long-standing first-call crash risk after cold start/update, audio-call bootstrap now performs a one-time `audio-only` warm-up before the first real local media capture; speaker routing is also applied only after the local stream is ready.
 - Moved the call-push layer out of `MeshNode` into `lib/core/node/mesh_call_push_helper.dart`, so device-token registration and `/events/call` fanout are no longer mixed into signaling/peer-session orchestration.
-- Updated `ARCHITECTURE_RU.md` and `BACKLOG_RU.md` to record the new `MeshCallPushHelper` boundary and the current decomposition status of the `mesh_node` / call-runtime layer.
+- Updated the architecture documentation to record the new `MeshCallPushHelper` boundary and the current decomposition status of the `mesh_node` / call-runtime layer.
 
 ## [3.4.1] - 2026-06-08
 

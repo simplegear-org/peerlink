@@ -15,7 +15,7 @@ import 'package:peerlink/features/moderation/application/access_policy_api.dart'
 import 'package:peerlink/features/moderation/application/access_policy_models.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
-import 'package:peerlink/features/profile/application/profile_avatar_inbound_handler.dart';
+import 'package:peerlink/features/profile/application/profile_inbound_handler.dart';
 import 'package:peerlink/features/chat/application/chat_account_inbound_handler.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
 import 'package:peerlink/features/chat/application/chat_direct_blob_inbound_handler.dart';
@@ -26,7 +26,7 @@ import 'package:peerlink/features/chat/application/chat_inbound_classifier.dart'
 class ChatInboundService {
   final ChatRuntimeApi facade;
   final SecureStorageBox settingsBox;
-  final ProfileAvatarInboundHandler avatarService;
+  final ProfileInboundHandler avatarService;
   final ChatInboundClassifier inboundClassifier;
   final AccessPolicyApi accessControl;
   late final ChatAccountInboundHandler _accountInboundHandler;

@@ -68,6 +68,32 @@ void main() {
     );
   });
 
+  test('StorageService public API is legacy baseline or low-level storage', () {
+    final source = File(
+      'lib/core/runtime/storage_service.dart',
+    ).readAsStringSync().split('class SecureStorageBox').first;
+    final publicMethods = RegExp(
+      r'^\s{2}(?:@visibleForTesting\s*\n\s*)?(?:static\s+)?'
+      r'(?:Future<[^>]+>|SecureStorageBox|bool)\s+([A-Za-z]\w*)\s*\(',
+      multiLine: true,
+    ).allMatches(source).map((match) => match.group(1)!).toSet();
+    final unclassified =
+        publicMethods
+            .difference(_storageServiceFeatureApiBaseline)
+            .difference(_approvedLowLevelStorageOperations)
+            .toList()
+          ..sort();
+
+    expect(
+      unclassified,
+      isEmpty,
+      reason:
+          'StorageService may retain only the documented legacy '
+          'feature-specific API or explicitly classified low-level storage '
+          'operations. New feature business APIs belong to feature stores.',
+    );
+  });
+
   test('StorageService does not expose call log business API', () {
     final content = File(
       'lib/core/runtime/storage_service.dart',
@@ -195,3 +221,28 @@ const _migratedFeatureRuntimeExports = [
   'contacts_repository.dart',
   'ios_callkit_service.dart',
 ];
+
+const _storageServiceFeatureApiBaseline = {
+  'getCalls',
+  'getContacts',
+  'getGroupKeys',
+  'getGroupMeta',
+  'deleteChatMessages',
+  'saveMediaBytes',
+  'saveMediaFile',
+  'deleteMediaFile',
+  'deletePeerMediaDirectory',
+  'isManagedMediaPath',
+  'recoverMediaFromLegacy',
+};
+
+const _approvedLowLevelStorageOperations = {
+  'init',
+  'initForTesting',
+  'resetForTesting',
+  'getSettings',
+  'computeAppStorageBreakdown',
+  'clearManagedMediaStorage',
+  'clearMessagesDatabase',
+  'clearSettingsAndServiceData',
+};

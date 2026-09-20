@@ -15,6 +15,8 @@ import '../state/chat_controller.dart';
 import '../state/calls_controller.dart';
 import '../state/contacts_controller.dart';
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/peer_profile_read_model.dart';
+import '../../features/notifications/application/notification_mute_preferences.dart';
 import '../state/presence_service.dart';
 import '../theme/app_theme.dart';
 import 'chat_screen.dart';
@@ -29,6 +31,8 @@ class CallsScreen extends StatefulWidget {
   final ContactsController contactsController;
   final PresenceService presenceService;
   final AvatarService avatarService;
+  final PeerProfileReadApi peerProfile;
+  final NotificationMutePreferences? notificationMutes;
   final int refreshVersion;
   final Future<void> Function()? onHistoryChanged;
 
@@ -40,6 +44,8 @@ class CallsScreen extends StatefulWidget {
     required this.contactsController,
     required this.presenceService,
     required this.avatarService,
+    required this.peerProfile,
+    this.notificationMutes,
     required this.refreshVersion,
     this.onHistoryChanged,
   });
@@ -268,6 +274,8 @@ class _CallsScreenState extends State<CallsScreen> {
           controller: widget.controller,
           presenceService: widget.presenceService,
           avatarService: widget.avatarService,
+          peerProfile: widget.peerProfile,
+          notificationMutes: widget.notificationMutes,
         ),
       ),
     );

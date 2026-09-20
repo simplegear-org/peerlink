@@ -18,7 +18,7 @@ import '../../core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import '../models/contact.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
-import '../../features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/profile/application/profile_inbound_handler.dart';
 import 'package:peerlink/features/chat/application/chat_account_payload_decoder.dart';
 import 'package:peerlink/features/chat/application/chat_controller_dependencies.dart';
 import 'package:peerlink/features/chat/application/chat_controller_models.dart';
@@ -68,7 +68,7 @@ class ChatController with WidgetsBindingObserver {
   ChatController(
     this.runtime, {
     required StorageService storage,
-    required AvatarService avatarService,
+    required ProfileInboundHandler avatarService,
     required ChatControllerDependenciesFactory dependenciesFactory,
     void Function(int unreadCount)? onUnreadBadgeCountChanged,
   }) : _onUnreadBadgeCountChanged = onUnreadBadgeCountChanged {
@@ -622,6 +622,7 @@ class ChatController with WidgetsBindingObserver {
 
   Future<void> markChatAsRead(String peerId) async {
     await _messagesApi.markChatAsRead(peerId);
+    await NotificationService.instance.dismissMessageNotifications(peerId);
   }
 
   Future<void> _handleIncomingMessageReceipt(

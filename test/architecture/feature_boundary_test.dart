@@ -86,6 +86,107 @@ void main() {
     );
   });
 
+  test('feature domain does not depend on application or infrastructure', () {
+    final violations = _layerImportViolations(
+      sourceLayer: 'domain',
+      forbiddenTargetLayers: const {'application', 'infrastructure'},
+    );
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Feature domain must not depend on application services or '
+          'infrastructure implementations.',
+    );
+  });
+
+  test(
+    'feature application infrastructure imports do not grow beyond legacy baseline',
+    () {
+      final imports = _layerImports(sourceLayer: 'application');
+      final violations =
+          imports
+              .where(
+                (import) =>
+                    _featureLayer(_projectPath(import)) == 'infrastructure',
+              )
+              .map((import) => _importEdge(import))
+              .where(
+                (edge) =>
+                    !_legacyApplicationInfrastructureImports.contains(edge),
+              )
+              .toList()
+            ..sort();
+
+      expect(
+        violations,
+        isEmpty,
+        reason:
+            'Application services must depend on ports/contracts, not '
+            'concrete infrastructure. Legacy imports may only be removed.',
+      );
+    },
+  );
+
+  test(
+    'feature modules do not import concrete implementations of other features',
+    () {
+      final violations = <String>[];
+      for (final import in dartSourcesUnder(const [
+        'lib/features',
+      ]).expand((source) => source.imports())) {
+        final sourceFeature = _featureName(import.sourcePath);
+        final targetPath = _projectPath(import);
+        final targetFeature = _featureName(targetPath);
+        if (sourceFeature == null ||
+            targetFeature == null ||
+            sourceFeature == targetFeature ||
+            _isApprovedCrossFeatureContract(targetPath)) {
+          continue;
+        }
+        final edge = _importEdge(import);
+        if (!_legacyCrossFeatureConcreteImports.contains(edge)) {
+          violations.add(edge);
+        }
+      }
+      violations.sort();
+
+      expect(
+        violations,
+        isEmpty,
+        reason:
+            'Cross-feature integration must use explicit contracts, not '
+            'concrete implementations. Legacy imports may only be removed.',
+      );
+    },
+  );
+
+  test(
+    'only composition imports concrete feature infrastructure from app layer',
+    () {
+      final violations = <String>[];
+      for (final import in dartSourcesUnder(const [
+        'lib/app',
+      ]).expand((source) => source.imports())) {
+        final targetPath = _projectPath(import);
+        if (_featureLayer(targetPath) == 'infrastructure' &&
+            !import.sourcePath.startsWith('lib/app/composition/')) {
+          violations.add(_importEdge(import));
+        }
+      }
+      violations.sort();
+
+      expect(
+        violations,
+        isEmpty,
+        reason:
+            'App orchestration must select concrete feature implementations '
+            'only in composition modules.',
+      );
+    },
+  );
+
   test('settings application does not import NodeFacade', () {
     final imports = dartSourcesUnder(const [
       'lib/features/settings/application',
@@ -302,6 +403,33 @@ void main() {
     );
   });
 
+  test(
+    'profile metadata has typed Profile persistence and no Settings owner',
+    () {
+      final source =
+          dartSourcesUnder(const [
+            'lib/features/profile/application',
+          ]).singleWhere(
+            (source) =>
+                source.path ==
+                'lib/features/profile/application/profile_metadata_service.dart',
+          );
+      final imports = source
+          .imports()
+          .map((import) => import.resolvePeerlinkPath())
+          .whereType<String>()
+          .toSet();
+
+      expect(
+        imports,
+        contains('features/profile/application/profile_store.dart'),
+      );
+      expect(imports, isNot(contains('ui/state/settings_controller.dart')));
+      expect(source.content, contains('updateAbout'));
+      expect(source.content, contains('PeerProfileStore'));
+    },
+  );
+
   test('Invite domain does not import dart:io', () {
     final violations = dartSourcesUnder(const ['lib/features/invites/domain'])
         .where((source) => source.content.contains("import 'dart:io'"))
@@ -339,37 +467,6 @@ void main() {
       );
     },
   );
-
-  test('feature modules do not import other feature concrete code', () {
-    final imports = dartSourcesUnder(const [
-      'lib/features',
-    ]).expand((source) => source.imports());
-
-    final violations = <String>[];
-    for (final import in imports) {
-      final sourceFeature = _featureName(import.sourcePath);
-      final targetPath = import.resolvePeerlinkPath();
-      final targetFeature = _featureName(targetPath);
-      if (sourceFeature == null ||
-          targetFeature == null ||
-          sourceFeature == targetFeature) {
-        continue;
-      }
-      if (_approvedCrossFeatureContracts.contains(targetPath)) {
-        continue;
-      }
-      violations.add('${import.location} -> ${import.uri}');
-    }
-    violations.sort();
-
-    expect(
-      violations,
-      isEmpty,
-      reason:
-          'Cross-feature integration must use explicit contracts/adapters, '
-          'not concrete implementation imports.',
-    );
-  });
 
   test(
     'MeshNode does not directly wire ChatService and CallService control callbacks',
@@ -423,13 +520,86 @@ String? _featureName(String? path) {
   return parts[2];
 }
 
+String? _featureLayer(String? path) {
+  if (path == null || !path.startsWith('lib/features/')) {
+    return null;
+  }
+  final parts = path.split('/');
+  return parts.length >= 4 ? parts[3] : null;
+}
+
+String? _projectPath(ImportRecord import) {
+  final resolved = import.resolvePeerlinkPath();
+  if (resolved == null) {
+    return null;
+  }
+  return resolved.startsWith('lib/') ? resolved : 'lib/$resolved';
+}
+
+String _importEdge(ImportRecord import) =>
+    '${import.sourcePath} -> ${_projectPath(import)}';
+
+List<ImportRecord> _layerImports({required String sourceLayer}) {
+  return dartSourcesUnder(const ['lib/features'])
+      .where((source) => _featureLayer(source.path) == sourceLayer)
+      .expand((source) => source.imports())
+      .toList();
+}
+
+List<String> _layerImportViolations({
+  required String sourceLayer,
+  required Set<String> forbiddenTargetLayers,
+}) {
+  final violations =
+      _layerImports(sourceLayer: sourceLayer)
+          .where(
+            (import) => forbiddenTargetLayers.contains(
+              _featureLayer(_projectPath(import)),
+            ),
+          )
+          .map(_importEdge)
+          .toList()
+        ..sort();
+  return violations;
+}
+
+bool _isApprovedCrossFeatureContract(String? path) {
+  if (path == null) {
+    return false;
+  }
+  return _approvedCrossFeatureContracts.contains(path) ||
+      _featureLayer(path) == 'domain';
+}
+
 const _approvedCrossFeatureContracts = {
-  'features/contacts/application/contact_profile_api.dart',
+  'lib/features/contacts/application/contact_profile_api.dart',
   'lib/features/contacts/domain/contact.dart',
   'lib/features/moderation/application/access_policy_api.dart',
+  'lib/features/moderation/application/access_policy_models.dart',
   'lib/features/moderation/application/moderation_reports_api.dart',
   'lib/features/moderation/domain/moderation_report_models.dart',
   'lib/features/profile/application/profile_avatar_inbound_handler.dart',
+  'lib/features/profile/application/profile_inbound_handler.dart',
+};
+
+const _legacyApplicationInfrastructureImports = {
+  'lib/features/chat/application/chat_cleanup_coordinator.dart -> lib/features/chat/infrastructure/chat_repository.dart',
+  'lib/features/chat/application/chat_cleanup_coordinator.dart -> lib/features/chat/infrastructure/chat_summary_store.dart',
+  'lib/features/chat/application/chat_history_load_coordinator.dart -> lib/features/chat/infrastructure/chat_repository.dart',
+  'lib/features/chat/application/chat_history_load_coordinator.dart -> lib/features/chat/infrastructure/chat_summary_store.dart',
+  'lib/features/chat/application/chat_message_mutation_service.dart -> lib/features/chat/infrastructure/chat_repository.dart',
+  'lib/features/chat/application/chat_messages_api.dart -> lib/features/chat/infrastructure/chat_repository.dart',
+  'lib/features/chat/application/chat_read_state_service.dart -> lib/features/chat/infrastructure/chat_repository.dart',
+  'lib/features/chat/application/chat_receipt_service.dart -> lib/features/chat/infrastructure/chat_repository.dart',
+  'lib/features/chat/application/chat_summary_service.dart -> lib/features/chat/infrastructure/chat_summary_store.dart',
+  'lib/features/moderation/application/peer_access_control_service.dart -> lib/features/contacts/infrastructure/contacts_repository.dart',
+  'lib/features/profile/application/avatar_service.dart -> lib/features/chat/infrastructure/chat_summary_store.dart',
+};
+
+const _legacyCrossFeatureConcreteImports = {
+  'lib/features/calls/platform/ios_callkit_service.dart -> lib/features/contacts/infrastructure/contact_name_resolver.dart',
+  'lib/features/moderation/application/peer_access_control_service.dart -> lib/features/contacts/infrastructure/contacts_repository.dart',
+  'lib/features/profile/application/avatar_service.dart -> lib/features/chat/infrastructure/chat_summary_store.dart',
 };
 
 const _meshNodeIntegrationHelpers = {

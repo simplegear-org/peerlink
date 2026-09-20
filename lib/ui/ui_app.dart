@@ -18,6 +18,7 @@ import '../app/push/app_push_coordinator.dart';
 import '../core/calls/call_models.dart';
 import '../core/firebase/firebase_push_payload.dart';
 import '../core/node/node_capability_apis.dart';
+import '../core/notification/notification_service.dart';
 import '../features/invites/infrastructure/android_install_referrer_service.dart';
 import '../features/calls/platform/ios_callkit_service.dart';
 import '../core/runtime/peer_access_control_service.dart';
@@ -44,6 +45,9 @@ import '../features/invites/application/invite_api.dart';
 import '../features/invites/application/pending_invite_store.dart';
 import '../core/runtime/self_hosted_deploy_service.dart';
 import '../core/firebase/firebase_messaging_service.dart';
+import '../features/profile/application/profile_metadata_api.dart';
+import '../features/profile/application/peer_profile_read_model.dart';
+import '../features/notifications/application/notification_mute_preferences.dart';
 
 class UiApp extends StatefulWidget {
   final AppDependencies dependencies;
@@ -64,6 +68,9 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   late final SettingsController _settingsController;
   late final SelfHostedDeployService _selfHostedDeployService;
   late final AvatarService _avatarService;
+  late final ProfileMetadataApi _profileMetadata;
+  late final PeerProfileReadApi _peerProfile;
+  late final NotificationMutePreferences _notificationMutes;
   late final InviteApi _inviteApi;
   late final PendingInviteStore _pendingInviteStore;
   late final PresenceService _presenceService;
@@ -91,10 +98,15 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     _chatController = ui.chatController;
     _callsController = ui.callsController;
     _contactsController = ui.contactsController;
+    _contactsController.addListener(_syncAndroidCallerNames);
+    unawaited(_syncAndroidCallerNames());
     _settingsController = ui.settingsController;
     _restrictionController = ui.restrictionController;
     _selfHostedDeployService = ui.selfHostedDeployService;
     _avatarService = ui.avatarService;
+    _profileMetadata = ui.profileMetadataService;
+    _peerProfile = ui.peerProfileReadService;
+    _notificationMutes = ui.notificationMutePreferences;
     _inviteApi = ui.inviteApi;
     _pendingInviteStore = ui.pendingInviteStore;
     _presenceService = ui.presenceService;
@@ -327,6 +339,7 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _contactsController.removeListener(_syncAndroidCallerNames);
     _pushCoordinator.dispose();
     unawaited(_deepLinkCoordinator.dispose());
     final route = _callRoute;
@@ -338,6 +351,16 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
     unawaited(_callCoordinator.dispose());
     unawaited(_chatUpdatesSubscription?.cancel());
     super.dispose();
+  }
+
+  Future<void> _syncAndroidCallerNames() {
+    final names = <String, String>{
+      for (final contact in _contactsController.contacts)
+        if (contact.name.trim().isNotEmpty &&
+            contact.name.trim() != contact.peerId.trim())
+          contact.peerId.trim(): contact.name.trim(),
+    };
+    return NotificationService.instance.syncAndroidCallerNames(names);
   }
 
   @override
@@ -368,12 +391,16 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         settingsController: _settingsController,
         presenceService: _presenceService,
         avatarService: _avatarService,
+        peerProfile: _peerProfile,
+        notificationMutes: _notificationMutes,
         createInviteUrl: _inviteFlowCoordinator.createInviteUrl,
       ),
       ChatsScreen(
         controller: _chatController,
         presenceService: _presenceService,
         avatarService: _avatarService,
+        peerProfile: _peerProfile,
+        notificationMutes: _notificationMutes,
       ),
       CallsScreen(
         calls: widget.facade,
@@ -383,11 +410,14 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
         refreshVersion: _callsRefreshVersion,
         presenceService: _presenceService,
         avatarService: _avatarService,
+        peerProfile: _peerProfile,
+        notificationMutes: _notificationMutes,
         onHistoryChanged: _handleCallsHistoryChanged,
       ),
       SettingsScreen(
         controller: _settingsController,
         avatarService: _avatarService,
+        profileMetadata: _profileMetadata,
         chatController: _chatController,
         selfHostedDeployService: _selfHostedDeployService,
         appearanceController: widget.dependencies.appearanceController,
@@ -569,6 +599,8 @@ class _UiAppState extends State<UiApp> with WidgetsBindingObserver {
           controller: _chatController,
           presenceService: _presenceService,
           avatarService: _avatarService,
+          peerProfile: _peerProfile,
+          notificationMutes: _notificationMutes,
         ),
       ),
     );

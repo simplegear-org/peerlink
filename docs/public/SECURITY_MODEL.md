@@ -66,6 +66,10 @@ Assume:
 
 - The contacts-only privacy setting is enabled by default and is sent to the push server as part of the access-policy snapshot, so the server does not send push from Peer IDs outside local contacts.
 - The local `blockedPeers` blacklist is synced to the push server through `/devices/access-policy`; the server drops push fanout from blocked Peer IDs before APNs/FCM, and outgoing calls to blocked Peer IDs do not start locally.
+- Notification mute is separate durable local policy: schema-v2 access-policy
+  carries independent direct/group message/call lists. It suppresses only the
+  matching push fanout; it neither changes `blockedPeers` nor prevents encrypted
+  relay message delivery.
 - iOS Notification Service Extension and App Group are not part of the server-side push-blocking model.
 - Blocking applies only to the specific `peerId`; because identity is decentralized, this is not a lifetime ban of a physical person.
 - Push/relay/bootstrap servers do not receive private keys, session keys, or chat history for local blocking.

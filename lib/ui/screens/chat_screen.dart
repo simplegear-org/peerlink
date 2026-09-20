@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/peer_profile_read_model.dart';
 import '../localization/app_strings.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
@@ -28,16 +29,21 @@ import 'chat_screen_composer_coordinator.dart';
 import 'chat_screen_lifecycle.dart';
 import 'chat_screen_media_actions.dart';
 import 'chat_screen_message_list.dart';
+import 'group_info_screen.dart';
+import 'peer_profile_screen.dart';
 import 'chat_screen_presenter.dart';
 import 'chat_report_actions.dart';
 import 'chat_screen_scroll_coordinator.dart';
 import 'package:peerlink/ui/screens/chat_screen_view.dart';
+import 'package:peerlink/features/notifications/application/notification_mute_preferences.dart';
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
   final ChatController controller;
   final PresenceService presenceService;
   final AvatarService avatarService;
+  final PeerProfileReadApi peerProfile;
+  final NotificationMutePreferences? notificationMutes;
 
   const ChatScreen({
     super.key,
@@ -45,6 +51,8 @@ class ChatScreen extends StatefulWidget {
     required this.controller,
     required this.presenceService,
     required this.avatarService,
+    required this.peerProfile,
+    this.notificationMutes,
   });
 
   @override
@@ -83,6 +91,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool get _isGroupChat => widget.chat.isGroup;
   bool get _isGroupOwner =>
       _isGroupChat && widget.chat.ownerPeerId == widget.controller.localPeerId;
+  bool get _isGroupAdmin =>
+      _isGroupChat &&
+      widget.chat.adminPeerIds.contains(widget.controller.localPeerId);
+  bool get _canManageGroupParticipants => _isGroupOwner || _isGroupAdmin;
   bool get _isCurrentUserInGroup =>
       !_isGroupChat ||
       widget.chat.memberPeerIds.contains(widget.controller.localPeerId);
@@ -247,6 +259,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         subtitle: _isGroupChat
             ? strings.groupMembers(widget.chat.memberPeerIds.length)
             : _presenter.statusLabel(),
+        onProfilePressed: _isGroupChat
+            ? _openGroupInfo
+            : () => _openPeerProfile(widget.chat.peerId),
         onCallPressed: _isGroupChat
             ? null
             : () {
@@ -612,14 +627,69 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openPeerProfile(String peerId) async {
+    final normalizedPeerId = peerId.trim();
+    if (normalizedPeerId.isEmpty) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PeerProfileScreen(
+          peerId: normalizedPeerId,
+          profile: widget.peerProfile,
+          avatarService: widget.avatarService,
+          notificationMutes: widget.notificationMutes,
+          onAddContact: _showAddContactDialog,
+        ),
+      ),
+    );
+    if (mounted) {
+      _refreshState();
+    }
+  }
+
+  Future<void> _openGroupInfo() async {
+    if (!_isGroupChat) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GroupInfoScreen(
+          chat: widget.chat,
+          peerProfile: widget.peerProfile,
+          avatarService: widget.avatarService,
+          notificationMutes: widget.notificationMutes,
+          onParticipantPressed: _openPeerProfile,
+          canManageParticipants: _canManageGroupParticipants,
+          localPeerId: widget.controller.localPeerId,
+          onAddParticipantsPressed: _showAddParticipantsSheet,
+          onRemoveParticipantPressed: _removeGroupParticipant,
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAddParticipantsSheet() async {
-    if (!_isGroupChat || !_isGroupOwner) {
+    if (!_isGroupChat || !_canManageGroupParticipants) {
       return;
     }
     await _screenActions.showAddParticipantsSheet(
       context: context,
       controller: widget.controller,
       chat: widget.chat,
+    );
+    _refreshState();
+  }
+
+  Future<void> _removeGroupParticipant(String peerId) async {
+    if (!_isGroupChat || !_canManageGroupParticipants) {
+      return;
+    }
+    await widget.controller.removeGroupParticipants(
+      groupId: widget.chat.peerId,
+      participantPeerIds: <String>[peerId],
+    );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.strings.participantsRemoved)),
     );
     _refreshState();
   }

@@ -14,7 +14,7 @@ import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/contacts/application/contact_profile_api.dart';
 import 'package:peerlink/features/profile/application/profile_avatar_inbound_handler.dart';
-import 'package:peerlink/features/profile/application/profile_avatar_transport.dart';
+import 'package:peerlink/features/profile/application/profile_transport.dart';
 
 class AvatarService implements ProfileAvatarInboundHandler {
   static const String _settingsKey = 'peer_avatars_v1';
@@ -23,11 +23,9 @@ class AvatarService implements ProfileAvatarInboundHandler {
       'local_avatar_updated_at_ms_v1';
   static const String _localAvatarBytesB64Key = 'local_avatar_bytes_b64_v1';
   static const String _localAvatarMimeTypeKey = 'local_avatar_mime_type_v1';
-  static const String _peerUsernameUpdatedAtKey =
-      'peer_profile_username_updated_at_v1';
   static const int _maxAvatarBytes = 1024 * 1024;
 
-  final ProfileAvatarTransport transport;
+  final ProfileTransport transport;
   final StorageService storage;
   final ChatSummaryStore chatSummaryStore;
   final ContactProfileApi contacts;
@@ -174,83 +172,6 @@ class AvatarService implements ProfileAvatarInboundHandler {
       );
     } catch (_) {
       // Profile sync remains best effort.
-    }
-  }
-
-  Future<void> broadcastLocalUsername(String username) async {
-    final normalized = username.trim();
-    if (normalized.length > 64 ||
-        RegExp(r'[\x00-\x1F\x7F]').hasMatch(normalized)) {
-      return;
-    }
-    final payload = _usernamePayload(normalized);
-    for (final peerId in await _knownPeerIds()) {
-      await _sendUsernamePayload(peerId, payload);
-    }
-  }
-
-  Future<void> sendLocalUsernameToPeer(String peerId, String username) async {
-    final normalizedPeerId = peerId.trim();
-    final normalizedUsername = username.trim();
-    if (normalizedPeerId.isEmpty ||
-        normalizedPeerId == transport.peerId ||
-        normalizedUsername.length > 64 ||
-        RegExp(r'[\x00-\x1F\x7F]').hasMatch(normalizedUsername)) {
-      return;
-    }
-    await _sendUsernamePayload(
-      normalizedPeerId,
-      _usernamePayload(normalizedUsername),
-    );
-  }
-
-  String _usernamePayload(String username) => jsonEncode(<String, dynamic>{
-    'type': 'username_update',
-    'v': 1,
-    'username': username,
-    'updatedAtMs': DateTime.now().millisecondsSinceEpoch,
-  });
-
-  Future<void> _sendUsernamePayload(String peerId, String payload) async {
-    try {
-      await transport.sendControlMessage(
-        peerId,
-        kind: 'profileUsername',
-        text: payload,
-      );
-    } catch (_) {
-      // Profile metadata is best effort.
-    }
-  }
-
-  @override
-  Future<void> handleIncomingUsernameUpdate(
-    String senderPeerId,
-    String payloadRaw,
-  ) async {
-    final sender = senderPeerId.trim();
-    if (sender.isEmpty) return;
-    try {
-      final decoded = jsonDecode(payloadRaw);
-      if (decoded is! Map ||
-          decoded['type'] != 'username_update' ||
-          decoded['v'] != 1) {
-        return;
-      }
-      final username = (decoded['username'] as String? ?? '').trim();
-      final updatedAtMs = decoded['updatedAtMs'] is int
-          ? decoded['updatedAtMs'] as int
-          : int.tryParse('${decoded['updatedAtMs']}') ?? 0;
-      if (username.length > 64 ||
-          RegExp(r'[\x00-\x1F\x7F]').hasMatch(username) ||
-          updatedAtMs <= 0 ||
-          !_acceptUsernameUpdate(sender, updatedAtMs)) {
-        return;
-      }
-      await contacts.applyRemoteUsername(peerId: sender, username: username);
-      await _persistUsernameUpdatedAt(sender, updatedAtMs);
-    } catch (_) {
-      // Ignore malformed profile metadata.
     }
   }
 
@@ -721,30 +642,6 @@ class AvatarService implements ProfileAvatarInboundHandler {
       };
     }
     await settings.put(_settingsKey, map);
-  }
-
-  bool _acceptUsernameUpdate(String peerId, int updatedAtMs) {
-    final raw = storage.getSettings().get(_peerUsernameUpdatedAtKey);
-    if (raw is! Map) return true;
-    final current = raw[peerId];
-    final currentMs = current is int
-        ? current
-        : int.tryParse('${current ?? 0}') ?? 0;
-    return updatedAtMs > currentMs;
-  }
-
-  Future<void> _persistUsernameUpdatedAt(String peerId, int updatedAtMs) async {
-    final settings = storage.getSettings();
-    final raw = settings.get(_peerUsernameUpdatedAtKey);
-    final updates = <String, dynamic>{};
-    if (raw is Map) {
-      for (final entry in raw.entries) {
-        final key = '${entry.key}'.trim();
-        if (key.isNotEmpty) updates[key] = entry.value;
-      }
-    }
-    updates[peerId] = updatedAtMs;
-    await settings.put(_peerUsernameUpdatedAtKey, updates);
   }
 
   String _safeMimeExt(String mimeType) {

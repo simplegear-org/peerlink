@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/profile_metadata_api.dart';
 import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../state/settings_controller.dart';
@@ -21,6 +22,7 @@ import 'settings_screen_shared_widgets.dart';
 class SettingsIdentitySection extends StatefulWidget {
   final SettingsController controller;
   final AvatarService avatarService;
+  final ProfileMetadataApi profileMetadata;
   final ModerationPolicySnapshot moderationPolicy;
   final Future<void> Function() onShowAvatarActions;
 
@@ -28,6 +30,7 @@ class SettingsIdentitySection extends StatefulWidget {
     super.key,
     required this.controller,
     required this.avatarService,
+    required this.profileMetadata,
     required this.moderationPolicy,
     required this.onShowAvatarActions,
   });
@@ -80,6 +83,49 @@ class _SettingsIdentitySectionState extends State<SettingsIdentitySection> {
     }
   }
 
+  Future<void> _editAbout() async {
+    final strings = context.strings;
+    final textController = TextEditingController(
+      text: widget.profileMetadata.about,
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.profileAbout),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          maxLength: 160,
+          minLines: 1,
+          maxLines: 4,
+          textInputAction: TextInputAction.newline,
+          decoration: InputDecoration(hintText: strings.profileAboutHint),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(textController.text),
+            child: Text(strings.save),
+          ),
+        ],
+      ),
+    );
+    textController.dispose();
+    if (value == null) return;
+    try {
+      await widget.profileMetadata.updateAbout(value);
+      if (mounted) setState(() {});
+    } on FormatException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.profileAboutHint)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -108,6 +154,16 @@ class _SettingsIdentitySectionState extends State<SettingsIdentitySection> {
                 ? context.strings.notSpecified
                 : controller.inviteUsername,
             onTap: _editInviteUsername,
+            trailing: const Icon(Icons.edit_outlined, size: 18),
+          ),
+          const SizedBox(height: 12),
+          _SettingsIdentityValueRow(
+            label: context.strings.profileAbout,
+            value: widget.profileMetadata.about.isEmpty
+                ? context.strings.notSpecified
+                : widget.profileMetadata.about,
+            onTap: _editAbout,
+            maxLines: 2,
             trailing: const Icon(Icons.edit_outlined, size: 18),
           ),
           const SizedBox(height: 12),
@@ -244,7 +300,7 @@ class _SettingsUserQrCodeState extends State<_SettingsUserQrCode> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
           ),
-          child: QrImageView(data: _payload, size: 190),
+          child: QrImageView(data: _payload, size: 220),
         ),
       ),
     );
@@ -257,8 +313,7 @@ class _SettingsUserQrCodeState extends State<_SettingsUserQrCode> {
 
   String _buildSignature() {
     final controller = widget.controller;
-    return '${controller.peerId}|${controller.endpointId ?? ''}|'
-        '${controller.fcmTokenHash ?? ''}|${controller.inviteUsername}';
+    return '${controller.peerId}|${controller.inviteUsername}';
   }
 }
 
@@ -266,12 +321,14 @@ class _SettingsIdentityValueRow extends StatelessWidget {
   final String label;
   final String value;
   final VoidCallback? onTap;
+  final int maxLines;
   final Widget? trailing;
 
   const _SettingsIdentityValueRow({
     required this.label,
     required this.value,
     this.onTap,
+    this.maxLines = 1,
     this.trailing,
   });
 
@@ -287,7 +344,7 @@ class _SettingsIdentityValueRow extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: SelectableText(
               value,
-              maxLines: 1,
+              maxLines: maxLines,
               textAlign: TextAlign.right,
               style: theme.textTheme.bodySmall,
             ),

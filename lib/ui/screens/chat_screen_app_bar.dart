@@ -23,6 +23,7 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool canAddChatContact;
   final bool isBlocked;
   final String subtitle;
+  final VoidCallback? onProfilePressed;
   final VoidCallback? onCallPressed;
   final Future<void> Function(String peerId) onAddContactPressed;
   final Future<void> Function() onAddParticipantsPressed;
@@ -43,6 +44,7 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.canAddChatContact,
     required this.isBlocked,
     required this.subtitle,
+    required this.onProfilePressed,
     required this.onCallPressed,
     required this.onAddContactPressed,
     required this.onAddParticipantsPressed,
@@ -64,33 +66,37 @@ class ChatScreenAppBar extends StatelessWidget implements PreferredSizeWidget {
     final strings = context.strings;
     return AppBar(
       titleSpacing: 20,
-      title: Row(
-        children: [
-          PeerAvatar(
-            peerId: chat.peerId,
-            displayName: chat.name,
-            avatarService: avatarService,
-            imagePath: isGroupChat ? chat.avatarPath : null,
-            size: 34,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(chat.name),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppTheme.muted,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+      title: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onProfilePressed,
+        child: Row(
+          children: [
+            PeerAvatar(
+              peerId: chat.peerId,
+              displayName: chat.name,
+              avatarService: avatarService,
+              imagePath: isGroupChat ? chat.avatarPath : null,
+              size: 34,
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(chat.name),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppTheme.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         if (!isGroupChat && onCallPressed != null)

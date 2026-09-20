@@ -32,6 +32,27 @@ class ContactsController extends ChangeNotifier implements ContactProfileApi {
   UnmodifiableListView<Contact> get contacts =>
       UnmodifiableListView<Contact>(_contacts);
 
+  @override
+  Iterable<String> get knownPeerIds =>
+      _contacts.map((contact) => contact.peerId).toList(growable: false);
+
+  @override
+  bool hasContact(String peerId) =>
+      _contacts.any((contact) => contact.peerId == peerId.trim());
+
+  @override
+  String? contactDisplayNameFor(String peerId) {
+    final normalizedPeerId = peerId.trim();
+    final index = _contacts.indexWhere(
+      (contact) => contact.peerId == normalizedPeerId,
+    );
+    if (index == -1) {
+      return null;
+    }
+    final name = _contacts[index].name.trim();
+    return name.isEmpty || name == normalizedPeerId ? null : name;
+  }
+
   List<Contact> loadContacts() {
     try {
       return repository.loadAll();
@@ -57,9 +78,7 @@ class ContactsController extends ChangeNotifier implements ContactProfileApi {
   }
 
   Future<void> addContact(Contact contact) async {
-    _contacts.add(contact);
-    await saveContact(contact);
-    notifyListeners();
+    await addOrUpdateContact(contact);
   }
 
   Future<bool> addOrUpdateContact(Contact contact) async {

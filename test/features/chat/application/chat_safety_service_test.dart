@@ -55,7 +55,8 @@ void main() {
       final safety = ChatSafetyService(
         accessControl: access,
         reports: reports,
-        notifyVisibilityChanged: events.add,
+        chats: () => const <Chat>[],
+        notifyMessageUpdated: events.add,
         syncPushPolicy: (_) => push.future,
         log: (_) {},
       );
@@ -123,7 +124,8 @@ void main() {
       final safety = ChatSafetyService(
         accessControl: access,
         reports: reports,
-        notifyVisibilityChanged: (_) {},
+        chats: () => const <Chat>[],
+        notifyMessageUpdated: (_) {},
         syncPushPolicy: (_) async {},
         log: (_) {},
       );
@@ -160,4 +162,25 @@ void main() {
       expect((queued.single as Map)['type'], 'group_report');
     },
   );
+
+  test('visibility refresh includes every group chat', () async {
+    final group = Chat(peerId: 'group:1', name: 'Group', isGroup: true);
+    final direct = Chat(peerId: 'friend', name: 'Friend');
+    final updates = <String>[];
+    final safety = ChatSafetyService(
+      accessControl: access,
+      reports: ModerationReportService(
+        settingsBox: storage.getSettings(),
+        localPeerId: () => 'me',
+      ),
+      chats: () => [group, direct],
+      notifyMessageUpdated: updates.add,
+      syncPushPolicy: (_) async {},
+      log: (_) {},
+    );
+
+    await safety.unblock('blocked-peer');
+
+    expect(updates, ['blocked-peer', group.peerId]);
+  });
 }

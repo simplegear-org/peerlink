@@ -6,6 +6,13 @@
 
 /// Applies profile metadata received from a remote peer to its contact.
 abstract interface class ContactProfileApi {
+  Iterable<String> get knownPeerIds;
+
+  bool hasContact(String peerId);
+
+  /// Returns the locally chosen contact name, if it is not just a Peer ID.
+  String? contactDisplayNameFor(String peerId);
+
   Future<bool> applyRemoteUsername({
     required String peerId,
     required String username,

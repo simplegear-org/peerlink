@@ -15,6 +15,8 @@ import '../models/contact.dart';
 import '../state/chat_controller.dart';
 import '../state/contacts_controller.dart';
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/peer_profile_read_model.dart';
+import '../../features/notifications/application/notification_mute_preferences.dart';
 import '../state/presence_service.dart';
 import '../state/settings_controller.dart';
 import '../localization/app_strings.dart';
@@ -102,6 +104,8 @@ class ContactsScreen extends StatefulWidget {
   final SettingsController settingsController;
   final PresenceService presenceService;
   final AvatarService avatarService;
+  final PeerProfileReadApi peerProfile;
+  final NotificationMutePreferences? notificationMutes;
   final Future<String> Function() createInviteUrl;
 
   const ContactsScreen({
@@ -111,6 +115,8 @@ class ContactsScreen extends StatefulWidget {
     required this.settingsController,
     required this.presenceService,
     required this.avatarService,
+    required this.peerProfile,
+    this.notificationMutes,
     required this.createInviteUrl,
   });
 
@@ -339,6 +345,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               controller: widget.controller,
                               presenceService: widget.presenceService,
                               avatarService: widget.avatarService,
+                              peerProfile: widget.peerProfile,
+                              notificationMutes: widget.notificationMutes,
                             ),
                           ),
                         ).then((_) => setState(() {}));

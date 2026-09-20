@@ -270,7 +270,7 @@ class ChatScreenMediaActions {
     final result = await SaverGallery.saveFile(
       filePath: file.path,
       fileName: fileName,
-      androidRelativePath: 'Pictures/PeerLink',
+      albumPath: 'Pictures/PeerLink',
       skipIfExists: true,
     );
     if (!result.isSuccess) {
@@ -287,20 +287,16 @@ class ChatScreenMediaActions {
     Message? replyTo,
   }) async {
     final strings = context.strings;
-    final result = await FilePicker.pickFiles(
-      type: FileType.media,
-      allowMultiple: true,
-      withData: false,
-    );
-    if (result == null || result.files.isEmpty) {
+    final files = await FilePicker.pickFiles(type: FileType.media);
+    if (files.isEmpty) {
       AppFileLogger.log('[chat_ui] media pick cancelled');
       return;
     }
-    AppFileLogger.log('[chat_ui] media pick count=${result.files.length}');
+    AppFileLogger.log('[chat_ui] media pick count=${files.length}');
 
     var failedCount = 0;
     String? firstError;
-    for (final file in result.files) {
+    for (final file in files) {
       final path = file.path;
       if (path == null || path.isEmpty || file.name.isEmpty) {
         AppFileLogger.log(
@@ -308,9 +304,14 @@ class ChatScreenMediaActions {
         );
         continue;
       }
-      if (file.size > maxFileSize) {
+      final fileSize = await file.length();
+      if (fileSize == null) {
+        AppFileLogger.log('[chat_ui] media skip unknown size file=${file.name}');
+        continue;
+      }
+      if (fileSize > maxFileSize) {
         AppFileLogger.log(
-          '[chat_ui] media skip too large file=${file.name} size=${file.size}',
+          '[chat_ui] media skip too large file=${file.name} size=$fileSize',
         );
         showPlaceholder(strings.fileTooLarge);
         continue;
@@ -318,13 +319,13 @@ class ChatScreenMediaActions {
 
       try {
         AppFileLogger.log(
-          '[chat_ui] media enqueue file=${file.name} size=${file.size}',
+          '[chat_ui] media enqueue file=${file.name} size=$fileSize',
         );
         await controller.sendFile(
           peerId,
           fileName: file.name,
           filePath: path,
-          fileSizeBytes: file.size,
+          fileSizeBytes: fileSize,
           mimeType: _mimeTypeForFile(file.name, file.extension),
           replyTo: replyTo,
         );
@@ -339,7 +340,7 @@ class ChatScreenMediaActions {
 
     if (!context.mounted) return;
     if (failedCount > 0) {
-      final total = result.files.length;
+      final total = files.length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

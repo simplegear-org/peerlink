@@ -23,6 +23,7 @@ class MeshCallPushHelper {
     required this.pushEventService,
     required this.pushRuntimeMetadataBuilder,
     required this.platformName,
+    required this.callerDisplayName,
     required this.log,
   });
 
@@ -35,6 +36,7 @@ class MeshCallPushHelper {
   final PushEventService pushEventService;
   final PushRuntimeMetadataBuilder pushRuntimeMetadataBuilder;
   final String Function() platformName;
+  final String? Function() callerDisplayName;
   final void Function(String message) log;
   String? _lastRegisterSignature;
   Future<void>? _registerFuture;
@@ -185,6 +187,7 @@ class MeshCallPushHelper {
       calleeUserId: calleeUserId,
       callId: callId,
       mediaType: mediaType,
+      callerDisplayName: callerDisplayName(),
       servers: pushRuntimeMetadataBuilder.collectAvailableServers(),
       priorityServers: pushRuntimeMetadataBuilder.collectPriorityCallServers(
         calleeUserId,

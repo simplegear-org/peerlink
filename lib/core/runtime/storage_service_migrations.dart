@@ -90,18 +90,29 @@ class StorageServiceMigrations {
 
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
+        return;
+      }
+      if (decoded.isEmpty) {
         await SecureStorageWrapper.delete(legacyChatsStorageKey);
         return;
       }
 
+      var groupMetaChanged = false;
+      final migratedPeerIds = <String>[];
       for (final entry in decoded.entries) {
         final value = entry.value;
-        if (value is! Map<String, dynamic>) {
-          continue;
+        if (value is! Map) {
+          return;
         }
 
         final legacyChat = Map<String, dynamic>.from(value);
         final peerId = legacyChat['peerId'] as String? ?? entry.key;
+        if (peerId.trim().isEmpty) {
+          return;
+        }
+        migratedPeerIds.add(peerId);
+        groupMetaChanged =
+            _preserveLegacyGroupMeta(peerId, legacyChat) || groupMetaChanged;
         await _migrateLegacyChatMessages(peerId, legacyChat);
         final existing = await getChatSummary(peerId);
         if (_shouldSkipLegacyChatMigration(existing, legacyChat)) {
@@ -111,10 +122,72 @@ class StorageServiceMigrations {
         await saveChatSummaryMap(peerId, legacyChat);
       }
 
+      if (groupMetaChanged) {
+        await persistBox(groupMetaBoxName);
+      }
+
+      for (final peerId in migratedPeerIds) {
+        if (await getChatSummary(peerId) == null) {
+          return;
+        }
+      }
       await SecureStorageWrapper.delete(legacyChatsStorageKey);
     } catch (_) {
       // Diagnostics disabled.
     }
+  }
+
+  bool _preserveLegacyGroupMeta(
+    String peerId,
+    Map<String, dynamic> legacyChat,
+  ) {
+    final isGroup =
+        legacyChat['isGroup'] == true || peerId.trim().startsWith('group:');
+    if (!isGroup) {
+      return false;
+    }
+
+    final groupMeta = boxes[groupMetaBoxName];
+    if (groupMeta == null) {
+      return false;
+    }
+    final currentState = groupMeta[groupMetaStateKey];
+    final nextState = currentState is Map
+        ? Map<String, dynamic>.from(currentState)
+        : <String, dynamic>{};
+    final current = nextState[peerId];
+    final next = current is Map
+        ? Map<String, dynamic>.from(current)
+        : <String, dynamic>{};
+    var changed = current is! Map;
+
+    void preserve(String key) {
+      final value = legacyChat[key];
+      if (value == null || next[key] != null) {
+        return;
+      }
+      if (value is String && value.trim().isEmpty) {
+        return;
+      }
+      next[key] = value;
+      changed = true;
+    }
+
+    if (next['isGroup'] != true) {
+      next['isGroup'] = true;
+      changed = true;
+    }
+    preserve('name');
+    preserve('ownerPeerId');
+    preserve('memberPeerIds');
+    preserve('adminPeerIds');
+    preserve('avatarPath');
+    if (!changed) {
+      return false;
+    }
+    nextState[peerId] = next;
+    groupMeta[groupMetaStateKey] = nextState;
+    return true;
   }
 
   Future<void> repairChatSummariesFromMessages() async {
@@ -189,9 +262,23 @@ class StorageServiceMigrations {
     var groupKeysChanged = false;
 
     final legacyMeta = settings[legacyGroupMetaSettingsKey];
-    if (legacyMeta is Map && groupMeta[groupMetaStateKey] == null) {
-      groupMeta[groupMetaStateKey] = Map<String, dynamic>.from(legacyMeta);
-      groupMetaChanged = true;
+    if (legacyMeta is Map) {
+      final current = groupMeta[groupMetaStateKey];
+      final merged = current is Map
+          ? Map<String, dynamic>.from(current)
+          : <String, dynamic>{};
+      var mergedChanged = current is! Map;
+      for (final entry in legacyMeta.entries) {
+        if (entry.key is! String || merged.containsKey(entry.key)) {
+          continue;
+        }
+        merged[entry.key as String] = entry.value;
+        mergedChanged = true;
+      }
+      if (mergedChanged) {
+        groupMeta[groupMetaStateKey] = merged;
+        groupMetaChanged = true;
+      }
     }
     if (settings.remove(legacyGroupMetaSettingsKey) != null) {
       settingsChanged = true;

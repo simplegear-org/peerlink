@@ -55,7 +55,7 @@ import 'package:peerlink/features/chat/application/chat_summary_service.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_repository.dart';
 import 'package:peerlink/features/chat/infrastructure/chat_summary_store.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
-import 'package:peerlink/features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/profile/application/profile_inbound_handler.dart';
 import 'package:peerlink/features/moderation/infrastructure/storage_moderation_report_outbox.dart';
 
 class ChatControllerComposition {
@@ -64,7 +64,7 @@ class ChatControllerComposition {
   static ChatControllerDependencies create({
     required ChatRuntimeApi runtime,
     required StorageService storage,
-    required AvatarService avatarService,
+    required ProfileInboundHandler avatarService,
     required ChatPresentationStatePort presentationState,
     required ChatConnectionStatePort connectionState,
     required ChatMessageStatePort messageState,
@@ -604,12 +604,8 @@ class ChatControllerComposition {
           safetyService: ChatSafetyService(
             accessControl: accessControl,
             reports: moderationReports,
-            notifyVisibilityChanged: (peerId) {
-              notifyMessageUpdated(peerId);
-              for (final chat in chats.values.where((chat) => chat.isGroup)) {
-                notifyMessageUpdated(chat.peerId);
-              }
-            },
+            chats: () => chats.values,
+            notifyMessageUpdated: notifyMessageUpdated,
             syncPushPolicy: (reason) =>
                 runtime.syncPushDeviceState(reason: reason, forcePolicy: true),
             log: logQueue,

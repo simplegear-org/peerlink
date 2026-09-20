@@ -12,13 +12,13 @@ import 'package:peerlink/features/chat/application/chat_runtime_api.dart';
 import 'package:peerlink/features/chat/domain/chat.dart';
 import 'package:peerlink/features/chat/domain/message.dart';
 import 'package:peerlink/features/contacts/infrastructure/contacts_repository.dart';
-import 'package:peerlink/features/profile/application/avatar_service.dart';
+import 'package:peerlink/features/profile/application/profile_inbound_handler.dart';
 
 class _FakeNodeFacade extends Fake implements ChatRuntimeApi {}
 
 class _FakeStorageBox extends Fake implements SecureStorageBox {}
 
-class _FakeAvatarService extends Fake implements AvatarService {}
+class _FakeAvatarService extends Fake implements ProfileInboundHandler {}
 
 PeerAccessControlService _allowAllAccessControl(StorageService storage) {
   return PeerAccessControlService(

@@ -9,9 +9,9 @@ import 'dart:typed_data';
 import 'package:peerlink/core/messaging/reliable_messaging_service.dart';
 import 'package:peerlink/core/node/node_facade.dart';
 import 'package:peerlink/core/relay/relay_models.dart';
-import 'package:peerlink/features/profile/application/profile_avatar_transport.dart';
+import 'package:peerlink/features/profile/application/profile_transport.dart';
 
-class ProfileAvatarNodeAdapter implements ProfileAvatarTransport {
+class ProfileAvatarNodeAdapter implements ProfileTransport {
   final NodeFacade _facade;
 
   const ProfileAvatarNodeAdapter(this._facade);

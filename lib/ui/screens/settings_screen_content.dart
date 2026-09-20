@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/runtime/app_file_logger.dart';
 import '../../features/profile/application/avatar_service.dart';
+import '../../features/profile/application/profile_metadata_api.dart';
 import '../../core/runtime/moderation_policy_service.dart';
 import '../localization/app_strings.dart';
 import '../state/app_appearance_controller.dart';
@@ -21,6 +22,7 @@ import 'settings_screen_styles.dart';
 class SettingsScreenContent extends StatelessWidget {
   final SettingsController controller;
   final AvatarService avatarService;
+  final ProfileMetadataApi profileMetadata;
   final ModerationPolicySnapshot moderationPolicy;
   final AppAppearanceController appearanceController;
   final AppLocaleController localeController;
@@ -56,6 +58,7 @@ class SettingsScreenContent extends StatelessWidget {
     super.key,
     required this.controller,
     required this.avatarService,
+    required this.profileMetadata,
     required this.moderationPolicy,
     required this.appearanceController,
     required this.localeController,
@@ -94,6 +97,7 @@ class SettingsScreenContent extends StatelessWidget {
         SettingsIdentitySection(
           controller: controller,
           avatarService: avatarService,
+          profileMetadata: profileMetadata,
           moderationPolicy: moderationPolicy,
           onShowAvatarActions: onShowAvatarActions,
         ),

@@ -1,6 +1,6 @@
 # ARCHITECTURE
 
-Обновлено: 2026-09-16
+Обновлено: 2026-09-19
 
 ## 1. Назначение
 
@@ -26,6 +26,9 @@ PeerLink — Flutter-мессенджер с децентрализованны�
   `NetworkDependencies.create` создаёт owned graph на каждый вызов и больше не
   держит singleton runtime state.
 - Стартовая оркестрация через `AppBootstrapCoordinator`.
+- Сохранённая server configuration применяется до готовности UI, но availability
+  probing bootstrap/relay/TURN/push запускается в фоне и не задерживает первый
+  доступный UI.
 - `NodeFacade` как internal aggregate/core entrypoint на период migration, с
   узкими capability contracts в `lib/core/node/node_capability_apis.dart`
   (`MessagingApi`, `CallsApi`, `IdentityApi`, `NetworkApi`, `ModerationApi`,
@@ -47,7 +50,15 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - Внутренний push/call payload model унифицирован через `FirebasePushPayload`: UI open path, FCM open/foreground/native-fallback и iOS CallKit path не должны держать параллельные call-payload DTO.
 - `AppBadgeService` владеет состоянием badge иконки приложения и синхронизирует platform badge как сумму непрочитанных сообщений и пропущенных звонков.
 - `PeerAccessControlService` владеет локальными privacy/block правилами: contacts-only включен по умолчанию, `blockedPeers` хранится локально, а исходящие звонки к blocked peer запрещаются в `CallService`.
-- `PushAccessPolicySyncService` отправляет privacy/block snapshot (`allowMessagesOnlyFromContacts`, `contactPeerIds`, `blockedPeerIds`, `policyVersion`, `updatedAt`, `snapshotHash`) в `push.js` через `/devices/access-policy`; при `stale` ответе повторяет snapshot с версией выше серверной `effectivePolicyVersion`, чтобы server-side blocklist не зависал после локального отката версии. Push-сервер фильтрует fanout до APNs/FCM. iOS Notification Service Extension и App Group для этой схемы не используются.
+- `PushAccessPolicySyncService` отправляет schema-v2 privacy/block и
+  notification-mute snapshot (`allowMessagesOnlyFromContacts`, контакты,
+  `blockedPeerIds`, четыре direct/group списка message/call mute,
+  `policyVersion`, `updatedAt`, `snapshotHash`) в `push.js` через
+  `/devices/access-policy`. Изменение mute использует тот же sync path, но
+  остаётся независимым от block state. При `stale` ответе сервис повторяет
+  snapshot с версией выше `effectivePolicyVersion`; сервер фильтрует только
+  соответствующий push fanout до APNs/FCM и никогда не relay delivery. iOS
+  Notification Service Extension и App Group для этой схемы не используются.
 - Для всех push-событий используется единый контракт `/events/push`: подписывается весь `payload` приложения, а сервер работает как transport-only fanout слой без собственной message/call-семантики.
 - Если в `payload` присутствуют `servers` / `priority_servers`, они считаются runtime-метаданными приложения и обрабатываются только клиентом.
 - `AccountIdentity` поверх device identity: `accountId`, `displayName`, список устройств и QR/deep link `peerlink://pair` для привязки второго устройства без изменения текущей device-based маршрутизации.
@@ -298,10 +309,30 @@ UI
   `ProfileAvatarInboundHandler`, а profile sync использует
   `ProfileAvatarTransport` / `ProfileAvatarNodeAdapter` вместо зависимости от
   unrestricted `NodeFacade`.
+- Remote display name/about хранится в typed `PeerProfileStore` независимо от
+  Contacts: inbound update неизвестного peer не создаёт контакт. Изменение
+  локального профиля отправляется как best-effort reliable control traffic:
+  offline-получатель может получить поставленное в очередь обновление после
+  запуска, но отдельного end-to-end подтверждения или полного повторного
+  profile sync при каждом следующем запуске пока нет.
+- `PeerProfileReadService` формирует snapshot для peer-card из Profile,
+  Contacts и moderation contracts. Для текущего peer используются локальные
+  name/about и скрываются peer-only actions уведомлений и добавления контакта.
+  В peer-card и `GroupInfoScreen` имя выбирается в порядке local contact name →
+  remote PeerLink profile → сокращённый Peer ID; справа у участника отображается
+  owner/admin, если роль есть в additive metadata `adminPeerIds`.
+- Строки участников `GroupInfoScreen` используют общий compact card/swipe-delete
+  UI из Chats/Contacts. Owner и известный admin получают кнопку добавления у
+  счётчика участников и могут запустить существующие workflows добавления или
+  удаления другого non-owner participant; удалить себя или owner этим действием
+  нельзя. Swipe-удаление требует явного подтверждения до запуска workflow.
 - Сервисы проверки серверов теперь разделяют общий контракт `ServerAvailabilityProvider`, чтобы будущая runtime-оркестрация могла единообразно работать с probing для bootstrap/relay/turn.
 - `ServerHealthCoordinator` владеет общими health-сервисами bootstrap/relay/turn и запускает их после app bootstrap, поэтому runtime и Settings используют одно и то же состояние доступности без дублирующихся probe loop.
 - При полностью пустой локальной серверной конфигурации `ServerHealthCoordinator` запускает `InitialServerConfigBootstrapper`: он best-effort скачивает `https://simplegear.org/config/initial-server-config.json`, проверяет `ServerConfigPayload` и merge-ит bootstrap/relay/TURN/push. Недоступность сайта или некорректный ответ только логируются и не останавливают startup.
 - Эти health-сервисы также используют общий polling/backoff engine, поэтому cadence повторных проверок унифицирован для bootstrap/relay/turn, а повторные неудачи автоматически увеличивают интервал probing.
+- Начальная конфигурация применяется до UI, а явный общий refresh health-состояния
+  выполняется в фоне: недоступные endpoint-ы обновляют availability snapshot без
+  увеличения стартовой задержки.
 - При общем refresh availability due-probes выполняются параллельно, чтобы несколько мертвых bootstrap/relay/turn endpoint-ов не суммировали startup/foreground latency последовательными timeout-ами.
 - Bootstrap health refresh работает single-flight и переводит WebSocket connect timeout в availability snapshot `unavailable`, а не пробрасывает timeout exception из периодических проверок.
 - `HttpRelayClient` и `TurnAllocator` подключены к coordinator-backed lookup-ам доступности relay/turn, поэтому runtime-выбор серверов использует те же shared health snapshot, что и Settings.
@@ -405,7 +436,7 @@ UI
 - `IosCallkitService` должен оставаться native bridge-слоем и не должен обратно забирать в себя orchestration merge серверов или payload normalization.
 - Для снижения риска первого нативного WebRTC cold start после обновления приложения audio path использует одноразовый `audio-only` warm-up перед первым боевым `getUserMedia`, не затрагивая video transceiver/media-type flow.
 - Текущая политика звонков: TURN-only для всех типов сети.
-- Android release policy: R8 minify и resource shrinking включены с явными keep rules для `flutter_webrtc`, native `org.webrtc` и `org.jni_zero`; AGP 9+ остается отдельной миграцией после проверки совместимости Flutter/Gradle/plugins.
+- Android release policy: R8 minify и resource shrinking включены с явными keep rules для `flutter_webrtc`, native `org.webrtc` и `org.jni_zero`. Build stack использует Flutter 3.47.5, AGP 9.0.1 и Gradle 9.1; `android.newDsl=false` и `android.builtInKotlin=false` остаются временными compatibility opt-out, пока все plugins, в особенности `flutter_webrtc` и `url_launcher_android`, не поддержат новый AGP DSL и built-in Kotlin.
 
 ### 4.6 Signaling (`lib/core/signaling`)
 

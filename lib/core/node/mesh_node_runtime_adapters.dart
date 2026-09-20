@@ -153,6 +153,7 @@ class DefaultMeshNodeRuntimeAdapterFactory
       pushEventService: pushEventService,
       pushRuntimeMetadataBuilder: pushRuntimeMetadataBuilder,
       platformName: context.platformName,
+      callerDisplayName: () => _localProfileDisplayName(context.settingsBox),
       log: context.log,
     );
     final pushDeviceSync = PushDeviceRegistrationService(
@@ -181,4 +182,19 @@ class DefaultMeshNodeRuntimeAdapterFactory
       moderationDelivery: moderationDelivery,
     );
   }
+}
+
+String? _localProfileDisplayName(SecureStorageBox settings) {
+  final profile = settings.get('peerlink.profile.v1');
+  final name = profile is Map
+      ? profile['displayName']?.toString().trim()
+      : null;
+  if (name != null && name.isNotEmpty) {
+    return name;
+  }
+  final legacy = settings
+      .get('peerlink.profile.invite_username.v1')
+      ?.toString()
+      .trim();
+  return legacy?.isNotEmpty == true ? legacy : null;
 }

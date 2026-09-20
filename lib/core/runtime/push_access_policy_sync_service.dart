@@ -11,6 +11,7 @@ import 'package:crypto/crypto.dart';
 
 import '../push/push_api_client.dart';
 import '../security/identity_service.dart';
+import '../../features/notifications/domain/notification_mute_state.dart';
 import 'app_file_logger.dart';
 import 'contacts_repository.dart';
 import 'peer_access_control_service.dart';
@@ -18,6 +19,7 @@ import 'push_servers_service.dart';
 import 'storage_service.dart';
 
 class PushAccessPolicySyncService {
+  static const _notificationMuteStorageKey = 'peerlink.notification_mute.v1';
   static const _lastSnapshotHashKey = 'push_access_policy_last_hash.v1';
   static const _policyVersionKey = 'push_access_policy_version.v1';
   static const _pendingSyncKey = 'push_access_policy_pending.v1';
@@ -46,21 +48,29 @@ class PushAccessPolicySyncService {
   SecureStorageBox get _settings => storage.getSettings();
 
   Future<void> syncNow({required String reason, bool force = false}) async {
-    final current = _syncFuture;
-    if (current != null) {
-      await current;
-      if (!force) {
-        return;
+    while (true) {
+      final current = _syncFuture;
+      if (current != null) {
+        try {
+          await current;
+        } catch (_) {
+          if (!force) rethrow;
+        }
+        if (!force) {
+          return;
+        }
+        continue;
       }
-    }
-    final future = _syncNowImpl(reason: reason, force: force);
-    _syncFuture = future;
-    try {
-      await future;
-    } finally {
-      if (identical(_syncFuture, future)) {
-        _syncFuture = null;
+      final future = _syncNowImpl(reason: reason, force: force);
+      _syncFuture = future;
+      try {
+        await future;
+      } finally {
+        if (identical(_syncFuture, future)) {
+          _syncFuture = null;
+        }
       }
+      return;
     }
   }
 
@@ -96,7 +106,10 @@ class PushAccessPolicySyncService {
       'start reason=$reason force=$force pending=$pending '
       'version=$version endpoints=${endpoints.length} '
       'contacts=${snapshot.contactPeerIds.length} '
-      'blocked=${snapshot.blockedPeerIds.length} hash=${snapshot.hash}',
+      'blocked=${snapshot.blockedPeerIds.length} '
+      'mutedMessages=${snapshot.mutedMessagePeerIds.length + snapshot.mutedMessageGroupIds.length} '
+      'mutedCalls=${snapshot.mutedCallPeerIds.length + snapshot.mutedCallGroupIds.length} '
+      'hash=${snapshot.hash}',
     );
     final bearerToken = _pushBearerToken();
     var failed = 0;
@@ -149,6 +162,10 @@ class PushAccessPolicySyncService {
         allowMessagesOnlyFromContacts: snapshot.allowMessagesOnlyFromContacts,
         contactPeerIds: snapshot.contactPeerIds,
         blockedPeerIds: snapshot.blockedPeerIds,
+        mutedMessagePeerIds: snapshot.mutedMessagePeerIds,
+        mutedMessageGroupIds: snapshot.mutedMessageGroupIds,
+        mutedCallPeerIds: snapshot.mutedCallPeerIds,
+        mutedCallGroupIds: snapshot.mutedCallGroupIds,
         policyVersion: version,
         updatedAt: snapshot.updatedAt,
         snapshotHash: snapshot.hash,
@@ -195,18 +212,41 @@ class PushAccessPolicySyncService {
             .toList(growable: false)
           ..sort();
     final updatedAt = _serverCompatibleIso8601(now());
+    final muteState = NotificationMuteState.fromJson(
+      _settings.get(_notificationMuteStorageKey),
+    );
+    final mutedMessagePeerIds = _sortedMuteIds(
+      muteState.mutedIdsFor(NotificationMuteChannel.directMessage),
+    );
+    final mutedMessageGroupIds = _sortedMuteIds(
+      muteState.mutedIdsFor(NotificationMuteChannel.groupMessage),
+    );
+    final mutedCallPeerIds = _sortedMuteIds(
+      muteState.mutedIdsFor(NotificationMuteChannel.directCall),
+    );
+    final mutedCallGroupIds = _sortedMuteIds(
+      muteState.mutedIdsFor(NotificationMuteChannel.groupCall),
+    );
     final body = <String, dynamic>{
       'userId': identity.nodeId,
       'allowMessagesOnlyFromContacts':
           accessControl.allowMessagesOnlyFromContacts,
       'contactPeerIds': contacts,
       'blockedPeerIds': blocked,
+      'mutedMessagePeerIds': mutedMessagePeerIds,
+      'mutedMessageGroupIds': mutedMessageGroupIds,
+      'mutedCallPeerIds': mutedCallPeerIds,
+      'mutedCallGroupIds': mutedCallGroupIds,
     };
     return _AccessPolicySnapshot(
       allowMessagesOnlyFromContacts:
           accessControl.allowMessagesOnlyFromContacts,
       contactPeerIds: contacts,
       blockedPeerIds: blocked,
+      mutedMessagePeerIds: mutedMessagePeerIds,
+      mutedMessageGroupIds: mutedMessageGroupIds,
+      mutedCallPeerIds: mutedCallPeerIds,
+      mutedCallGroupIds: mutedCallGroupIds,
       updatedAt: updatedAt,
       hash: sha256.convert(utf8.encode(jsonEncode(body))).toString(),
     );
@@ -268,6 +308,14 @@ class PushAccessPolicySyncService {
     return token.isEmpty ? null : token;
   }
 
+  List<String> _sortedMuteIds(Iterable<String> ids) =>
+      ids
+          .map((id) => id.trim())
+          .where((id) => id.isNotEmpty && id.length <= 128)
+          .toSet()
+          .toList(growable: false)
+        ..sort();
+
   void _log(String message, {StackTrace? stackTrace}) {
     AppFileLogger.log('[push_access_policy] $message', stackTrace: stackTrace);
   }
@@ -285,6 +333,10 @@ class _AccessPolicySnapshot {
   final bool allowMessagesOnlyFromContacts;
   final List<String> contactPeerIds;
   final List<String> blockedPeerIds;
+  final List<String> mutedMessagePeerIds;
+  final List<String> mutedMessageGroupIds;
+  final List<String> mutedCallPeerIds;
+  final List<String> mutedCallGroupIds;
   final String updatedAt;
   final String hash;
 
@@ -292,6 +344,10 @@ class _AccessPolicySnapshot {
     required this.allowMessagesOnlyFromContacts,
     required this.contactPeerIds,
     required this.blockedPeerIds,
+    required this.mutedMessagePeerIds,
+    required this.mutedMessageGroupIds,
+    required this.mutedCallPeerIds,
+    required this.mutedCallGroupIds,
     required this.updatedAt,
     required this.hash,
   });

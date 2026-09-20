@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:peerlink/core/push/push_api_client.dart';
@@ -6,6 +7,8 @@ import 'package:peerlink/core/runtime/peer_access_control_service.dart';
 import 'package:peerlink/core/runtime/push_access_policy_sync_service.dart';
 import 'package:peerlink/core/runtime/storage_service.dart';
 import 'package:peerlink/core/security/identity_service.dart';
+import 'package:peerlink/features/notifications/domain/notification_mute_state.dart';
+import 'package:peerlink/features/notifications/infrastructure/settings_notification_mute_preferences.dart';
 import 'package:peerlink/ui/models/contact.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -69,6 +72,7 @@ void main() {
         'peer-b',
       ]);
       expect(apiClient.calls.single.blockedPeerIds, <String>['peer-z']);
+      expect(apiClient.calls.single.mutedMessagePeerIds, isEmpty);
       expect(apiClient.calls.single.policyVersion, 1);
       expect(apiClient.calls.single.updatedAt, matches(RegExp(r'\.\d{3}Z$')));
     },
@@ -141,11 +145,120 @@ void main() {
     expect(apiClient.calls, hasLength(1));
     expect(apiClient.calls.single.baseUri.toString(), 'https://runtime.push');
   });
+
+  test(
+    'mute changes produce an independent, versioned policy snapshot',
+    () async {
+      final mutes = SettingsNotificationMutePreferences(
+        settings: storage.getSettings(),
+      );
+      await mutes.setMuted(
+        channel: NotificationMuteChannel.directMessage,
+        id: 'peer-message',
+        muted: true,
+      );
+      await mutes.setMuted(
+        channel: NotificationMuteChannel.groupCall,
+        id: 'group-call',
+        muted: true,
+      );
+      final service = PushAccessPolicySyncService(
+        identity: identity,
+        storage: storage,
+        pushApiClient: apiClient,
+      );
+
+      await service.syncNow(reason: 'mute', force: true);
+
+      expect(apiClient.calls.single.policyVersion, 1);
+      expect(apiClient.calls.single.mutedMessagePeerIds, <String>[
+        'peer-message',
+      ]);
+      expect(apiClient.calls.single.mutedMessageGroupIds, isEmpty);
+      expect(apiClient.calls.single.mutedCallPeerIds, isEmpty);
+      expect(apiClient.calls.single.mutedCallGroupIds, <String>['group-call']);
+    },
+  );
+
+  test('unmute preserves unrelated mute and block policy fields', () async {
+    final access = PeerAccessControlService.forStorage(storage);
+    await access.blockPeer('peer-blocked');
+    final mutes = SettingsNotificationMutePreferences(
+      settings: storage.getSettings(),
+    );
+    await mutes.setMuted(
+      channel: NotificationMuteChannel.directMessage,
+      id: 'peer-message',
+      muted: true,
+    );
+    await mutes.setMuted(
+      channel: NotificationMuteChannel.groupCall,
+      id: 'group-call',
+      muted: true,
+    );
+    final service = PushAccessPolicySyncService(
+      identity: identity,
+      storage: storage,
+      pushApiClient: apiClient,
+    );
+
+    await service.syncNow(reason: 'mute', force: true);
+    await mutes.setMuted(
+      channel: NotificationMuteChannel.directMessage,
+      id: 'peer-message',
+      muted: false,
+    );
+    await service.syncNow(reason: 'unmute', force: true);
+
+    final latest = apiClient.calls.last;
+    expect(latest.blockedPeerIds, <String>['peer-blocked']);
+    expect(latest.mutedMessagePeerIds, isEmpty);
+    expect(latest.mutedCallGroupIds, <String>['group-call']);
+  });
+
+  test(
+    'forced sync queued during an active request sends latest mute state',
+    () async {
+      final firstSyncGate = Completer<void>();
+      apiClient.firstSyncGate = firstSyncGate;
+      final mutes = SettingsNotificationMutePreferences(
+        settings: storage.getSettings(),
+      );
+      final service = PushAccessPolicySyncService(
+        identity: identity,
+        storage: storage,
+        pushApiClient: apiClient,
+      );
+      await mutes.setMuted(
+        channel: NotificationMuteChannel.directMessage,
+        id: 'peer-a',
+        muted: true,
+      );
+
+      final first = service.syncNow(reason: 'first_mute', force: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(apiClient.calls, hasLength(1));
+
+      await mutes.setMuted(
+        channel: NotificationMuteChannel.directCall,
+        id: 'peer-a',
+        muted: true,
+      );
+      final second = service.syncNow(reason: 'second_mute', force: true);
+      firstSyncGate.complete();
+      await Future.wait(<Future<void>>[first, second]);
+
+      expect(apiClient.calls, hasLength(2));
+      expect(apiClient.calls.last.mutedMessagePeerIds, <String>['peer-a']);
+      expect(apiClient.calls.last.mutedCallPeerIds, <String>['peer-a']);
+    },
+  );
 }
 
 class _FakePushApiClient extends PushApiClient {
   bool fail = false;
   int? stalePolicyVersion;
+  Completer<void>? firstSyncGate;
   final List<_PolicyCall> calls = <_PolicyCall>[];
 
   @override
@@ -156,6 +269,10 @@ class _FakePushApiClient extends PushApiClient {
     required bool allowMessagesOnlyFromContacts,
     required List<String> contactPeerIds,
     required List<String> blockedPeerIds,
+    required List<String> mutedMessagePeerIds,
+    required List<String> mutedMessageGroupIds,
+    required List<String> mutedCallPeerIds,
+    required List<String> mutedCallGroupIds,
     required int policyVersion,
     required String updatedAt,
     required String snapshotHash,
@@ -168,12 +285,21 @@ class _FakePushApiClient extends PushApiClient {
         allowMessagesOnlyFromContacts: allowMessagesOnlyFromContacts,
         contactPeerIds: contactPeerIds,
         blockedPeerIds: blockedPeerIds,
+        mutedMessagePeerIds: mutedMessagePeerIds,
+        mutedMessageGroupIds: mutedMessageGroupIds,
+        mutedCallPeerIds: mutedCallPeerIds,
+        mutedCallGroupIds: mutedCallGroupIds,
         policyVersion: policyVersion,
         updatedAt: updatedAt,
       ),
     );
     if (fail) {
       throw const SocketException('offline');
+    }
+    final gate = firstSyncGate;
+    if (gate != null) {
+      firstSyncGate = null;
+      await gate.future;
     }
     final staleVersion = stalePolicyVersion;
     if (staleVersion != null && policyVersion < staleVersion) {
@@ -198,6 +324,10 @@ class _PolicyCall {
   final bool allowMessagesOnlyFromContacts;
   final List<String> contactPeerIds;
   final List<String> blockedPeerIds;
+  final List<String> mutedMessagePeerIds;
+  final List<String> mutedMessageGroupIds;
+  final List<String> mutedCallPeerIds;
+  final List<String> mutedCallGroupIds;
   final int policyVersion;
   final String updatedAt;
 
@@ -207,6 +337,10 @@ class _PolicyCall {
     required this.allowMessagesOnlyFromContacts,
     required this.contactPeerIds,
     required this.blockedPeerIds,
+    required this.mutedMessagePeerIds,
+    required this.mutedMessageGroupIds,
+    required this.mutedCallPeerIds,
+    required this.mutedCallGroupIds,
     required this.policyVersion,
     required this.updatedAt,
   });
