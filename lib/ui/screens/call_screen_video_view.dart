@@ -53,6 +53,7 @@ bool hasRenderableVideo({
 class VideoStreamView extends StatefulWidget {
   final MediaStream? stream;
   final String? trackId;
+  final bool useTrackBinding;
   final bool active;
   final bool mirrored;
   final Widget placeholder;
@@ -61,6 +62,7 @@ class VideoStreamView extends StatefulWidget {
     super.key,
     required this.stream,
     this.trackId,
+    this.useTrackBinding = true,
     required this.active,
     required this.mirrored,
     required this.placeholder,
@@ -85,16 +87,17 @@ class _VideoStreamViewState extends State<VideoStreamView> {
     super.didUpdateWidget(oldWidget);
     final oldSignature = _streamSignature(oldWidget.stream, oldWidget.trackId);
     final newSignature = _streamSignature(widget.stream, widget.trackId);
-    if (shouldRefreshVideoRenderer(
-      oldSignature: oldSignature,
-      newSignature: newSignature,
-      oldTrackId: oldWidget.trackId,
-      newTrackId: widget.trackId,
-      oldStreamId: oldWidget.stream?.id,
-      newStreamId: widget.stream?.id,
-      oldActive: oldWidget.active,
-      newActive: widget.active,
-    )) {
+    if (oldWidget.useTrackBinding != widget.useTrackBinding ||
+        shouldRefreshVideoRenderer(
+          oldSignature: oldSignature,
+          newSignature: newSignature,
+          oldTrackId: oldWidget.trackId,
+          newTrackId: widget.trackId,
+          oldStreamId: oldWidget.stream?.id,
+          newStreamId: widget.stream?.id,
+          oldActive: oldWidget.active,
+          newActive: widget.active,
+        )) {
       unawaited(_applyRendererSource());
     }
   }
@@ -178,7 +181,9 @@ class _VideoStreamViewState extends State<VideoStreamView> {
     final currentTrackId = currentSrc == null
         ? null
         : _selectedVideoTrackId(currentSrc);
-    if (currentSrc?.id == stream?.id && currentTrackId == selectedTrackId) {
+    if (currentSrc?.id == stream?.id &&
+        widget.useTrackBinding &&
+        currentTrackId == selectedTrackId) {
       return;
     }
     if (currentSrc?.id == stream?.id &&
@@ -187,7 +192,11 @@ class _VideoStreamViewState extends State<VideoStreamView> {
       await _renderer.setSrcObject(stream: null);
     }
     try {
-      await _renderer.setSrcObject(stream: stream, trackId: selectedTrackId);
+      if (widget.useTrackBinding) {
+        await _renderer.setSrcObject(stream: stream, trackId: selectedTrackId);
+      } else {
+        await _renderer.setSrcObject(stream: stream);
+      }
     } catch (_) {
       if (stream == null) {
         rethrow;

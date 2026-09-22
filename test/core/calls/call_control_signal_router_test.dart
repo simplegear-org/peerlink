@@ -8,11 +8,12 @@ void main() {
   group('CallControlSignalRouter', () {
     test('applies invite runtime metadata before incoming ringing', () async {
       final events = <String>[];
-      late CallState emittedState;
+      CallState? emittedState;
       final router = CallControlSignalRouter(
         sendSignal: (_, _, _) async {},
         isPendingRemoteEndedCall: ({required peerId, required callId}) => false,
         rememberPendingRemoteEndedCall: ({required peerId, required callId}) {},
+        isExpiredIncomingCall: (_) => false,
         parseMediaType: (_) => CallMediaType.audio,
         cancelOutgoingTimeout: () {},
         emit: (state) {
@@ -75,8 +76,9 @@ void main() {
 
       expect(handled, isTrue);
       expect(events, <String>['metadata:true', 'emit:incomingRinging']);
-      expect(emittedState.peerId, 'peer-a');
-      expect(emittedState.callId, 'call-a');
+      expect(emittedState, isNotNull);
+      expect(emittedState!.peerId, 'peer-a');
+      expect(emittedState!.callId, 'call-a');
     });
 
     test('routes remote audio mute state for current call', () async {
@@ -86,6 +88,7 @@ void main() {
         sendSignal: (_, _, _) async {},
         isPendingRemoteEndedCall: ({required peerId, required callId}) => false,
         rememberPendingRemoteEndedCall: ({required peerId, required callId}) {},
+        isExpiredIncomingCall: (_) => false,
         parseMediaType: (_) => CallMediaType.audio,
         cancelOutgoingTimeout: () {},
         emit: (_) {},
@@ -169,6 +172,7 @@ void main() {
               false,
           rememberPendingRemoteEndedCall:
               ({required peerId, required callId}) {},
+          isExpiredIncomingCall: (_) => false,
           parseMediaType: (_) => CallMediaType.audio,
           cancelOutgoingTimeout: () {},
           emit: (_) {
@@ -252,6 +256,7 @@ void main() {
         sendSignal: (_, _, _) async {},
         isPendingRemoteEndedCall: ({required peerId, required callId}) => false,
         rememberPendingRemoteEndedCall: ({required peerId, required callId}) {},
+        isExpiredIncomingCall: (_) => false,
         parseMediaType: (_) => CallMediaType.audio,
         cancelOutgoingTimeout: () {},
         emit: (_) {},
@@ -327,6 +332,7 @@ void main() {
         sendSignal: (_, _, _) async {},
         isPendingRemoteEndedCall: ({required peerId, required callId}) => false,
         rememberPendingRemoteEndedCall: ({required peerId, required callId}) {},
+        isExpiredIncomingCall: (_) => false,
         parseMediaType: (_) => CallMediaType.audio,
         cancelOutgoingTimeout: () {},
         emit: (_) {},
@@ -407,6 +413,7 @@ void main() {
           rememberPendingRemoteEndedCall: ({required peerId, required callId}) {
             remembered.add('$peerId:$callId');
           },
+          isExpiredIncomingCall: (_) => false,
           parseMediaType: (_) => CallMediaType.audio,
           cancelOutgoingTimeout: () {},
           emit: (_) {},

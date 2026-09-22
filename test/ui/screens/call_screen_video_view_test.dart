@@ -1,7 +1,71 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:peerlink/ui/screens/call_screen_video_view.dart';
 
+class _Track implements MediaStreamTrack {
+  _Track(this.id);
+  @override
+  final String id;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Stream implements MediaStream {
+  final tracks = <MediaStreamTrack>[_Track('first')];
+  @override
+  String get id => 'stream';
+  @override
+  String get ownerTag => 'peer';
+  @override
+  List<MediaStreamTrack> getVideoTracks() => tracks;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  testWidgets('binds a native remote stream without selecting its track', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    const methods = MethodChannel('FlutterWebRTC.Method');
+    const events = MethodChannel('FlutterWebRTC/Texture42');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      calls.add(call);
+      return call.method == 'createVideoRenderer' ? {'textureId': 42} : null;
+    });
+    messenger.setMockMethodCallHandler(events, (_) async => null);
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(methods, null);
+      messenger.setMockMethodCallHandler(events, null);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: VideoStreamView(
+          stream: _Stream(),
+          trackId: 'first',
+          useTrackBinding: false,
+          active: true,
+          mirrored: false,
+          placeholder: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final bindings = calls
+        .where((call) => call.method == 'videoRendererSetSrcObject')
+        .map((call) => call.arguments as Map)
+        .toList();
+    expect(bindings, hasLength(1));
+    expect(bindings.single['trackId'], '0');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
   group('shouldRefreshVideoRenderer', () {
     test('returns true when remote track id changes on same stream', () {
       expect(

@@ -10,6 +10,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'call_local_video_track_controller.dart';
 import 'call_models.dart';
+import 'call_remote_receiver_owner.dart'
+    if (dart.library.io) 'call_remote_receiver_owner_native.dart';
 
 class CallMediaStreamController {
   static bool _audioWarmupCompleted = false;
@@ -23,6 +25,7 @@ class CallMediaStreamController {
   MediaStream? _localStream;
   MediaStream? _remoteStream;
   bool _remoteStreamIsSynthetic = false;
+  bool _remoteStreamUsesReceiverTracks = false;
   Future<void> _remoteStreamMutationQueue = Future<void>.value();
 
   CallMediaStreamController({
@@ -39,6 +42,7 @@ class CallMediaStreamController {
   }
 
   MediaStream? get localStream => _localStream;
+  bool get remoteStreamIsSynthetic => _remoteStreamIsSynthetic;
   bool get localVideoTrackAttached =>
       _localVideoTrackController.localVideoTrackAttached;
   bool get isFrontCamera => _localVideoTrackController.isFrontCamera;
@@ -281,6 +285,7 @@ class CallMediaStreamController {
       } catch (_) {}
       _remoteStream = null;
       _remoteStreamIsSynthetic = false;
+      _remoteStreamUsesReceiverTracks = false;
     });
   }
 
@@ -299,7 +304,10 @@ class CallMediaStreamController {
       final tracks = List<MediaStreamTrack>.from(stream.getTracks());
       for (final track in tracks) {
         try {
-          await stream.removeTrack(track);
+          await stream.removeTrack(
+            track,
+            removeFromNative: !_remoteStreamUsesReceiverTracks,
+          );
         } catch (_) {}
       }
       _log(
@@ -347,6 +355,7 @@ class CallMediaStreamController {
         }
         _remoteStream = incoming;
         _remoteStreamIsSynthetic = false;
+        _remoteStreamUsesReceiverTracks = false;
         _log(
           'stream:remote native '
           'incoming=${_streamSummary(incoming)} '
@@ -359,7 +368,9 @@ class CallMediaStreamController {
         }
         return;
       }
-      final renderStream = await _ensureRemoteRenderStream();
+      final renderStream = await _ensureRemoteRenderStream(
+        preferredTrack ?? incomingAudioTracks.lastOrNull,
+      );
       final currentAudioTracks = List<MediaStreamTrack>.from(
         renderStream.getAudioTracks(),
       );
@@ -419,7 +430,7 @@ class CallMediaStreamController {
 
   Future<void> attachRemoteTrack(MediaStreamTrack track) async {
     await _serializeRemoteStreamMutation(() async {
-      final stream = await _ensureRemoteRenderStream();
+      final stream = await _ensureRemoteRenderStream(track);
       final mergeResult = await _mergeRemoteTrack(stream, track);
       final activeStream = mergeResult.stream;
       _log(
@@ -435,14 +446,16 @@ class CallMediaStreamController {
     });
   }
 
-  Future<MediaStream> _ensureRemoteRenderStream() async {
+  Future<MediaStream> _ensureRemoteRenderStream(MediaStreamTrack? track) async {
     var stream = _remoteStream;
     if (stream != null) {
       return stream;
     }
-    stream = await _createRemoteRenderStream('remote');
+    final receiverOwner = remoteReceiverOwner(track);
+    stream = await _createRemoteRenderStream(receiverOwner ?? 'remote');
     _remoteStream = stream;
     _remoteStreamIsSynthetic = true;
+    _remoteStreamUsesReceiverTracks = receiverOwner != null;
     _log('stream:remote created synthetic ${_streamSummary(stream)}');
     return stream;
   }
@@ -462,7 +475,10 @@ class CallMediaStreamController {
     }
     for (final existing in existingTracks) {
       try {
-        await stream.removeTrack(existing);
+        await stream.removeTrack(
+          existing,
+          removeFromNative: !_remoteStreamUsesReceiverTracks,
+        );
       } catch (_) {}
       _log(
         'stream:remote replaced kind=${track.kind} '
@@ -470,7 +486,11 @@ class CallMediaStreamController {
         'stream=${_streamSummary(stream)}',
       );
     }
-    await stream.addTrack(track);
+    // On Android a synthetic render stream is only a Dart-side selection of
+    // receiver tracks. Adding them to a native local stream caches Java track
+    // wrappers that getTransceivers() can dispose during renegotiation. The
+    // renderer instead resolves the selected track in its real peer owner.
+    await stream.addTrack(track, addToNative: !_remoteStreamUsesReceiverTracks);
     _log(
       'stream:remote addTrack kind=${track.kind} '
       'track=${track.id} stream=${_streamSummary(stream)}',

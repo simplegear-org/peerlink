@@ -99,6 +99,9 @@ Group-specific path (current):
 - large group media prefers chunked blob upload (`/relay/blob/upload/chunk` + `/complete`) with fallback to single upload endpoint.
 - group owner synchronizes current membership via `/relay/group/members/update`,
 - relay validates membership for group write-path calls,
+- receivers apply `groupMembers(action=add/remove)` only when its transport
+  sender matches the pre-existing local group owner; owner/admin values in the
+  payload are not an authorization source, and `leave` stays member-originated,
 - group key rotates on add/remove participant events.
 - if the group media blob was already uploaded but group write is rejected because relay membership is stale, the client uses direct reliable fallback with the encrypted blob reference for each member and discards the pending group payload after success,
 - `group-members-update owner mismatch` is not retried indefinitely: it is a terminal state for the pending membership update.

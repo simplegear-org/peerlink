@@ -45,6 +45,10 @@ class CallState {
   final bool remoteVideoAvailable;
   final bool remoteVideoActive;
   final String? remoteVideoTrackId;
+
+  /// Synthetic streams are Dart-side receiver-track selections; native
+  /// incoming streams must be passed to the platform renderer as a stream.
+  final bool remoteVideoUsesTrackBinding;
   final String? videoCodec;
   final bool videoToggleInProgress;
   final CallRecoveryKind? recoveryKind;
@@ -75,6 +79,7 @@ class CallState {
     this.remoteVideoAvailable = false,
     this.remoteVideoActive = false,
     this.remoteVideoTrackId,
+    this.remoteVideoUsesTrackBinding = true,
     this.videoCodec,
     this.videoToggleInProgress = false,
     this.recoveryKind,
@@ -117,6 +122,7 @@ class CallState {
     bool? remoteVideoAvailable,
     bool? remoteVideoActive,
     String? remoteVideoTrackId,
+    bool? remoteVideoUsesTrackBinding,
     String? videoCodec,
     bool? videoToggleInProgress,
     CallRecoveryKind? recoveryKind,
@@ -166,6 +172,8 @@ class CallState {
       remoteVideoTrackId: clearRemoteVideoTrackId
           ? null
           : (remoteVideoTrackId ?? this.remoteVideoTrackId),
+      remoteVideoUsesTrackBinding:
+          remoteVideoUsesTrackBinding ?? this.remoteVideoUsesTrackBinding,
       videoCodec: clearVideoCodec ? null : (videoCodec ?? this.videoCodec),
       videoToggleInProgress:
           videoToggleInProgress ?? this.videoToggleInProgress,

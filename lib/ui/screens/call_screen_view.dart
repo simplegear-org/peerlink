@@ -183,8 +183,15 @@ class CallScreenContent extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.06),
                 ),
                 child: VideoStreamView(
+                  key: ValueKey<String>(
+                    'remote-video:${_remoteDisplayStream?.id ?? 'none'}:'
+                    '${state.remoteVideoTrackId ?? 'auto'}:'
+                    '${state.remoteVideoUsesTrackBinding}:'
+                    '$_showsRemoteVideoStage',
+                  ),
                   stream: _remoteDisplayStream,
                   trackId: state.remoteVideoTrackId,
+                  useTrackBinding: state.remoteVideoUsesTrackBinding,
                   active: _showsRemoteVideoStage,
                   mirrored: false,
                   placeholder: _buildVideoPlaceholder(context),

@@ -53,6 +53,10 @@
   message envelope, но никогда не зашифрованный media blob.
 - Relay-сервер валидирует Ed25519-подпись на blob upload/finalize endpoint-ах.
 - Relay-сервер применяет server-side проверку членства на group write endpoint-ах.
+- Клиент применяет входящие `groupMembers(action=add/remove)` только от owner,
+  уже известного из локального group state или persisted metadata; owner/admin
+  из payload не дают authority. До signed admin-роли управление участниками
+  доступно только owner.
 - В reliable-envelope обработке применяются replay-window проверки.
 - Direct fallback для группового медиа переносит только зашифрованную blob-ссылку и relay metadata; plaintext медиа не отправляется через push или direct payload.
 

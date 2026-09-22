@@ -74,6 +74,11 @@ Working now:
 - Server-side group membership enforcement in relay write path.
 - Group membership sync via `/relay/group/members/update`.
 - Group key rotation on membership changes.
+- Incoming `groupMembers(action=add/remove)` is applied only when its transport
+  sender matches the owner already known from local group state or persisted
+  group metadata; owner/admin fields in that payload are not an authority.
+- Until signed admin-role assignment exists, adding or removing participants is
+  owner-only in both the UI and application service.
 - Chunked blob upload support in relay protocol (`chunk` + `complete`) with client fallback.
 - Group media encrypted bytes use compact binary `PLG2` payload format (legacy decode path remains).
 - Group media crypto for large payloads is offloaded from UI isolate to background isolate.
@@ -219,6 +224,10 @@ UI
 - Account pairing/membership payload decoding lives in `chat_account_payload_decoder.dart`, and reply metadata creation lives in `chat_reply_metadata_resolver.dart`; `ChatController` must not absorb these responsibilities back into its body.
 - Group crypto is moved out of `ChatController` into `lib/core/security/group_message_crypto_service.dart` next to `group_key_service.dart`; UI/state code must not keep its own pack/unpack or encrypt/decrypt implementation for group payloads.
 - Group `memberPeerIds` must be kept in canonical form (`trim + unique + sort`) in both runtime state and persisted group meta, so equivalent membership sets do not create fake persistence churn due only to ordering.
+- `groupMembers(action=add/remove)` must resolve authorization from pre-existing
+  local group ownership before mutating `memberPeerIds`; payload-declared owner
+  or admin metadata cannot grant that authority. `leave` remains a separate
+  member-originated flow.
 - Local group avatar path should be committed only after successful `groupMembers(action=avatar)` broadcast; a failed fan-out must not leave the local group state partially updated with a new avatar path.
 - Top-level Contacts/Chats/Settings pages use compact AppBar-led layouts without descriptive page-copy headers; contact, chat, and call-history rows share the same tight spacing/internal-padding constants via `CompactCardTileStyles`.
 - `MessageBubbleStatusRow` renders outgoing receipt checks as overlapping marks: 1 check for sent, 2 for delivered, 3 for read.
@@ -362,6 +371,9 @@ UI
 - `ServerHealthCoordinator` owns the shared bootstrap/relay/turn health services and starts them after app bootstrap, so runtime and Settings use the same availability state instead of duplicate probe loops. The coordinator and bootstrap/relay/TURN support services depend on `NetworkApi`, not unrestricted `NodeFacade`.
 - When local server configuration is completely empty, `ServerHealthCoordinator` runs `InitialServerConfigBootstrapper`: it best-effort fetches `https://simplegear.org/config/initial-server-config.json`, validates `ServerConfigPayload`, and merges bootstrap/relay/TURN/push. Site unavailability or malformed responses are logged and do not stop startup.
 - Those health services also share a common polling/backoff engine, so retry cadence is unified across bootstrap/relay/turn and repeated failures automatically widen the probe interval.
+- `TurnPriorityFailurePolicy` owns only transient TURN failure statistics and
+  the bounded priority penalty; `TurnServersService` retains TURN persistence,
+  runtime configuration and reachability probing.
 - Initial configuration applies before the UI, while the explicit shared health
   refresh runs in the background; unavailable endpoints therefore update
   availability state without extending startup latency.
@@ -437,6 +449,7 @@ UI
   callbacks/state through `MeshNodeRuntimeAdapterContext` and keeps the returned
   `MeshNodeRuntimeAdapters`.
 - `CallCommandHelper`, control-signal helpers/routers, connect orchestration, network policy, peer binding/lifecycle, lifecycle reset, media readiness/timeout, state update, and pending remote-end helpers own bounded call-flow responsibilities outside `CallService`.
+- Incoming timestamp-based call IDs older than two minutes are dropped before CallKit/UI in both push and signaling paths; legacy non-timestamp IDs remain compatible.
 - `AudioCallPeer` is now a thin orchestration/facade layer over call controllers and should not grow back into a god object.
 - `CallPeerSessionController` owns peer bootstrap, incoming/outgoing session flow, and cleanup/reset.
 - `CallPeerSessionController.disposePeerConnection()` is the single terminal cleanup path for peer-runtime timers/pollers; timer cancellation must not be duplicated higher in the call stack.
@@ -445,6 +458,11 @@ UI
 - Live media stall after an active call is no longer diagnostic-only: inbound-only/full media stall moves the call to `recovering`, resets media-flow baselines, and initiates an ICE restart offer; recovery clears only after new inbound media stats arrive.
 - `CallVideoController` owns the video state machine, transceiver/video-handle sync, and quality policy.
 - `CallMediaFlowController` owns audio/video flow detection, stats polling, and media-flow fallback logic.
+- On Android, a synthetic remote render stream remains a Dart-side selection of
+  receiver tracks with its original peer owner, while a native incoming video
+  stream is passed to `RTCVideoRenderer` as a whole stream without `trackId`.
+  This prevents a renderer bind to a stale native receiver wrapper after
+  renegotiation.
 - `CallMediaReadinessController`, `CallLiveMediaStallDetector`, `CallPostIceRecoveryFlowWatch`, stats/recovery trackers, and diagnostics formatter own media readiness/recovery observation outside the core facade.
 - Remote control, renegotiation, video signaling/transceiver/quality, camera flip, runtime snapshot/tracking, signal transition serialization, terminal lifecycle, and epoch-safe timer logic live in dedicated `call_*` modules.
 - `CallPeerEventController` owns WebRTC peer-event binding into runtime state updates.
@@ -453,7 +471,7 @@ UI
 - `CallConnectionStateController` owns connected-state policy and the transition point to connected transport.
 - `IosCallkitService` should remain a native bridge layer and must not absorb server-merge orchestration or payload normalization back into itself.
 - Current call policy: TURN-only for all network types.
-- Android release policy: R8 minify and resource shrinking are enabled with explicit keep rules for `flutter_webrtc`, native `org.webrtc`, and `org.jni_zero`. The build stack uses Flutter 3.47.5, AGP 9.0.1, and Gradle 9.1; `android.newDsl=false` and `android.builtInKotlin=false` remain temporary compatibility opt-outs until all plugins, notably `flutter_webrtc` and `url_launcher_android`, support the new AGP DSL and built-in Kotlin.
+- Android release policy: R8 minify and resource shrinking are enabled with explicit keep rules for `flutter_webrtc`, native `org.webrtc`, and `org.jni_zero`. The build stack uses Flutter 3.47.5, AGP 9.0.1, Gradle 9.1, and AGP built-in Kotlin; the app module does not apply the legacy Kotlin Gradle Plugin. `android.newDsl=false` remains a temporary opt-out because Flutter Gradle Plugin 3.47.5 still accesses the legacy AGP application extension under the new DSL.
 
 ### 4.6 Signaling (`lib/core/signaling`)
 

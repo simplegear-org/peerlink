@@ -91,10 +91,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool get _isGroupChat => widget.chat.isGroup;
   bool get _isGroupOwner =>
       _isGroupChat && widget.chat.ownerPeerId == widget.controller.localPeerId;
-  bool get _isGroupAdmin =>
-      _isGroupChat &&
-      widget.chat.adminPeerIds.contains(widget.controller.localPeerId);
-  bool get _canManageGroupParticipants => _isGroupOwner || _isGroupAdmin;
+  bool get _canManageGroupParticipants => _isGroupOwner;
   bool get _isCurrentUserInGroup =>
       !_isGroupChat ||
       widget.chat.memberPeerIds.contains(widget.controller.localPeerId);

@@ -469,6 +469,7 @@ class ChatGroupInboundCoordinator {
       isGroupDeleted: _isGroupDeleted,
       restoreDeletedGroup: _restoreDeletedGroup,
       chats: _chats,
+      knownGroupOwnerPeerId: knownGroupOwnerPeerId,
       localPeerId: _facade.peerId,
       persistChatSummary: _persistChatSummary,
       saveGroupAvatarBytes: _saveGroupAvatarBytes,

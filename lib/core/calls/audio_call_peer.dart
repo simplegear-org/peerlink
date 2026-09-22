@@ -93,6 +93,12 @@ class AudioCallPeer {
   CallSessionEpoch _sessionEpoch = CallSessionEpoch.initial();
   late final CallRuntimeLogger _logger;
 
+  /// A synthetic stream only selects receiver tracks in Dart and therefore
+  /// must be resolved by track id. Native incoming streams retain their own
+  /// Android WebRTC owner and are safer to render as a complete stream.
+  bool get remoteRenderStreamUsesTrackBinding =>
+      _mediaStreamController.remoteStreamIsSynthetic;
+
   AudioCallPeer({
     required String localPeerId,
     required SignalingService signaling,

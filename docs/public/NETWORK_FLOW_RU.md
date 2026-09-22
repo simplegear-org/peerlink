@@ -99,6 +99,9 @@ Group runtime path:
 - для больших blob клиент использует chunked upload (`/relay/blob/upload/chunk` + `/complete`) с fallback на одиночный `/relay/blob/upload`.
 - owner группы синхронизирует актуальный состав через `/relay/group/members/update`,
 - relay выполняет проверку членства на group write-path,
+- получатель применяет `groupMembers(action=add/remove)`, только если transport
+  sender совпадает с уже известным локальным owner; owner/admin из payload не
+  являются источником authority, а `leave` остаётся member-originated потоком,
 - group key ротируется при add/remove участников.
 - если group media blob уже загружен, но group write получает отказ членства из-за устаревшего состава на relay, клиент выполняет direct reliable fallback с зашифрованной blob-ссылкой для каждого участника и очищает pending group payload после успеха,
 - `group-members-update owner mismatch` не ретраится бесконечно: это terminal state для pending membership update.

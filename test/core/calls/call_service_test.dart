@@ -229,6 +229,41 @@ void main() {
       },
     );
 
+    test(
+      'delayed timestamp invite is ignored from push and signaling',
+      () async {
+        final signaling = _FakeSignalingService();
+        final service = CallService(
+          selfPeerId: 'self',
+          signaling: signaling,
+          turnAllocator: null,
+        );
+        final delayedCallId = DateTime.now()
+            .subtract(const Duration(minutes: 3))
+            .microsecondsSinceEpoch
+            .toString();
+
+        addTearDown(signaling.close);
+
+        await service.presentIncomingCallFromPush(
+          peerId: 'peer-delayed',
+          callId: delayedCallId,
+        );
+        expect(service.state.phase, CallPhase.idle);
+
+        await service.handleControlSignal(
+          SignalingMessage(
+            type: 'call_invite',
+            fromPeerId: 'peer-delayed',
+            toPeerId: 'self',
+            data: <String, dynamic>{'callId': delayedCallId},
+          ),
+        );
+        expect(service.state.phase, CallPhase.idle);
+        expect(signaling.sentSignals, isEmpty);
+      },
+    );
+
     test('blocked peer cannot be called directly', () async {
       final signaling = _FakeSignalingService();
       final service = CallService(

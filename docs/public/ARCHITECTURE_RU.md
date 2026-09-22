@@ -80,6 +80,11 @@ PeerLink — Flutter-мессенджер с децентрализованны�
 - Server-side проверка членства группы на relay write path.
 - Синхронизация состава группы через `/relay/group/members/update`.
 - Ротация group key при изменении состава участников.
+- Входящие `groupMembers(action=add/remove)` применяются только если transport
+  sender совпадает с owner, уже известным из локального состояния или
+  persisted group metadata; owner/admin из payload не являются authority.
+- До signed назначения admin-роли управлять участниками в UI и application
+  service может только owner.
 - Chunked blob upload (`chunk` + `complete`) с fallback на single upload.
 - Для encrypted group media используется компактный бинарный payload-формат `PLG2` (legacy decode path сохранен).
 - Криптообработка больших group media вынесена из UI isolate в background isolate.
@@ -210,6 +215,10 @@ UI
 - Общие presentation formatters для Settings/account/storage/call экранов живут в `settings_screen_formatters.dart`, без локальных копий `formatBytes`, `shortId`, `formatDateTime`.
 - Group crypto вынесена из `ChatController` в `lib/core/security/group_message_crypto_service.dart`, рядом с `group_key_service.dart`; UI/state слой не должен содержать собственную реализацию pack/unpack и encrypt/decrypt для group payload.
 - `memberPeerIds` в group meta и runtime-потоках должны храниться в каноническом виде (`trim + unique + sort`), чтобы одинаковый состав участников не создавал ложные persistence-изменения только из-за порядка элементов.
+- Для `groupMembers(action=add/remove)` авторизация должна разрешаться по
+  pre-existing локальному owner до изменения `memberPeerIds`; owner/admin из
+  payload не могут предоставить это право. `leave` остаётся отдельным
+  member-originated потоком.
 - Локальный group avatar path должен коммититься только после успешной рассылки `groupMembers(action=avatar)`; staging-файл при ошибке fan-out не должен оставлять локальное состояние группы в частично обновленном виде.
 - Верхние страницы Contacts/Chats/Settings используют компактный layout с AppBar без описательных header-текстов; строки контактов, чатов и истории звонков разделяют одни compact spacing/internal-padding константы через `CompactCardTileStyles`.
 - `MessageBubble` остается composition wrapper-ом; text/emoji, reply preview, status row, file/audio/video preview и transfer progress живут в отдельных `message_bubble_*` widget-модулях.
@@ -330,6 +339,9 @@ UI
 - `ServerHealthCoordinator` владеет общими health-сервисами bootstrap/relay/turn и запускает их после app bootstrap, поэтому runtime и Settings используют одно и то же состояние доступности без дублирующихся probe loop.
 - При полностью пустой локальной серверной конфигурации `ServerHealthCoordinator` запускает `InitialServerConfigBootstrapper`: он best-effort скачивает `https://simplegear.org/config/initial-server-config.json`, проверяет `ServerConfigPayload` и merge-ит bootstrap/relay/TURN/push. Недоступность сайта или некорректный ответ только логируются и не останавливают startup.
 - Эти health-сервисы также используют общий polling/backoff engine, поэтому cadence повторных проверок унифицирован для bootstrap/relay/turn, а повторные неудачи автоматически увеличивают интервал probing.
+- `TurnPriorityFailurePolicy` владеет только transient-статистикой ошибок TURN
+  и ограниченным снижением приоритета; за `TurnServersService` остаются
+  persistence, runtime-конфигурация и availability probing TURN.
 - Начальная конфигурация применяется до UI, а явный общий refresh health-состояния
   выполняется в фоне: недоступные endpoint-ы обновляют availability snapshot без
   увеличения стартовой задержки.
@@ -410,6 +422,7 @@ UI
 - Декомпозиция `CallService` уже вынесена в helper-слои:
   - `CallCommandHelper` — публичные user/system команды (`start/accept/reject/end`),
   - `CallControlSignalHelper` / `CallControlSignalRouter` — ожидание signaling-ready и маршрутизация `call_*` control-сигналов,
+  - `CallInviteFreshnessPolicy` — отбрасывание timestamp-based входящего `callId` старше двух минут до CallKit/UI в путях push и signaling; legacy non-timestamp ID остаются совместимыми,
   - `CallConnectOrchestrationHelper` — start/connect timeout/TURN fallback orchestration,
   - `CallNetworkPolicyHelper` — TURN availability, transport label и timeout policy,
   - `CallPeerBindingHelper` / `CallPeerLifecycleHelper` — bind callback-ов `AudioCallPeer`, attach/reset peer lifecycle,
@@ -433,10 +446,14 @@ UI
 - `CallConnectionStateController` управляет connected-state policy и моментом перехода transport в connected.
 - `CallService` suppress-ит полностью идентичные `CallState` и не считает byte-counter updates полноценными state-transition trace-событиями, чтобы активный звонок не создавал лишний UI/state churn.
 - `CallMediaStreamController` и `VideoStreamView` считаются частью hot media path: synthetic remote stream нельзя публиковать в UI пустым, no-op merge того же remote track не должен триггерить `onRemoteStream`, а renderer не должен повторно rebinding-ить тот же `MediaStream`/track без фактической смены источника.
+- Для Android synthetic remote stream остаётся Dart-side выбором receiver track
+  с исходным peer owner, а нативный incoming `MediaStream` передаётся в
+  `RTCVideoRenderer` целиком, без `trackId`; это не даёт renderer использовать
+  устаревший native track wrapper после renegotiation.
 - `IosCallkitService` должен оставаться native bridge-слоем и не должен обратно забирать в себя orchestration merge серверов или payload normalization.
 - Для снижения риска первого нативного WebRTC cold start после обновления приложения audio path использует одноразовый `audio-only` warm-up перед первым боевым `getUserMedia`, не затрагивая video transceiver/media-type flow.
 - Текущая политика звонков: TURN-only для всех типов сети.
-- Android release policy: R8 minify и resource shrinking включены с явными keep rules для `flutter_webrtc`, native `org.webrtc` и `org.jni_zero`. Build stack использует Flutter 3.47.5, AGP 9.0.1 и Gradle 9.1; `android.newDsl=false` и `android.builtInKotlin=false` остаются временными compatibility opt-out, пока все plugins, в особенности `flutter_webrtc` и `url_launcher_android`, не поддержат новый AGP DSL и built-in Kotlin.
+- Android release policy: R8 minify и resource shrinking включены с явными keep rules для `flutter_webrtc`, native `org.webrtc` и `org.jni_zero`. Build stack использует Flutter 3.47.5, AGP 9.0.1, Gradle 9.1 и built-in Kotlin AGP; app-модуль не применяет legacy Kotlin Gradle Plugin. `android.newDsl=false` остаётся временным opt-out: Flutter Gradle Plugin 3.47.5 всё ещё обращается к legacy AGP application extension при новом DSL.
 
 ### 4.6 Signaling (`lib/core/signaling`)
 

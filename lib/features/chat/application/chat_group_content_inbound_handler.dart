@@ -345,6 +345,7 @@ class ChatGroupContentInboundHandler {
     required bool Function(String groupId) isGroupDeleted,
     required Future<void> Function(String groupId) restoreDeletedGroup,
     required Map<String, Chat> chats,
+    required String? Function(String groupId) knownGroupOwnerPeerId,
     required String localPeerId,
     required Future<void> Function(Chat chat) persistChatSummary,
     required Future<void> Function({
@@ -383,8 +384,37 @@ class ChatGroupContentInboundHandler {
     if (groupId.isEmpty) {
       return;
     }
+    if (action == 'leave') {
+      await handleIncomingGroupLeave(msg, payload: resolvedPayload);
+      return;
+    }
+
+    final knownOwnerPeerId = knownGroupOwnerPeerId(groupId)?.trim();
+    final isMembershipMutation = action == 'add' || action == 'remove';
+    if (isMembershipMutation &&
+        (knownOwnerPeerId == null ||
+            knownOwnerPeerId.isEmpty ||
+            sourcePeerId.isEmpty ||
+            sourcePeerId != knownOwnerPeerId)) {
+      developer.log(
+        'group members drop: sender is not known owner '
+        'group=$groupId sender=$sourcePeerId action=$action',
+        name: 'chat',
+      );
+      return;
+    }
+    if (isMembershipMutation &&
+        ownerPeerId.isNotEmpty &&
+        ownerPeerId != knownOwnerPeerId) {
+      developer.log(
+        'group members drop: owner metadata conflicts with known owner '
+        'group=$groupId sender=$sourcePeerId',
+        name: 'chat',
+      );
+      return;
+    }
     if (isGroupDeleted(groupId)) {
-      if (ownerPeerId != localPeerId) {
+      if (knownOwnerPeerId != localPeerId) {
         developer.log(
           'group members drop: group is deleted group=$groupId from=$sourcePeerId',
           name: 'chat',
@@ -393,13 +423,21 @@ class ChatGroupContentInboundHandler {
       }
       await restoreDeletedGroup(groupId);
     }
-    if (action == 'leave') {
-      await handleIncomingGroupLeave(msg, payload: resolvedPayload);
+
+    final existingChat = chats[groupId];
+    if (!isMembershipMutation && existingChat == null) {
+      developer.log(
+        'group members drop: unknown group control group=$groupId '
+        'from=$sourcePeerId action=$action',
+        name: 'chat',
+      );
       return;
     }
 
-    final members = <String>{...resolvedPayload.memberPeerIds};
-    if (sourcePeerId.isNotEmpty) {
+    final members = isMembershipMutation
+        ? <String>{...resolvedPayload.memberPeerIds}
+        : <String>{...existingChat!.memberPeerIds};
+    if (isMembershipMutation && sourcePeerId.isNotEmpty) {
       members.add(sourcePeerId);
     }
     final changedPeerIds = <String>{...resolvedPayload.changedPeerIds};
@@ -409,13 +447,13 @@ class ChatGroupContentInboundHandler {
       members.add(localPeerId);
     }
     final chat =
-        chats[groupId] ??
+        existingChat ??
         Chat(
           peerId: groupId,
           name: groupName.isNotEmpty ? groupName : groupId,
           isGroup: true,
           memberPeerIds: members.toList(growable: false),
-          ownerPeerId: ownerPeerId.isNotEmpty ? ownerPeerId : sourcePeerId,
+          ownerPeerId: knownOwnerPeerId,
           messagesLoaded: true,
           hasMoreMessages: false,
         );
@@ -423,9 +461,13 @@ class ChatGroupContentInboundHandler {
     if (groupName.isNotEmpty) {
       chat.name = groupName;
     }
-    chat.memberPeerIds = members.toList(growable: false);
-    if (ownerPeerId.isNotEmpty) {
-      chat.ownerPeerId = ownerPeerId;
+    if (isMembershipMutation) {
+      chat.memberPeerIds = members.toList(growable: false);
+    }
+    if ((chat.ownerPeerId ?? '').trim().isEmpty &&
+        knownOwnerPeerId != null &&
+        knownOwnerPeerId.isNotEmpty) {
+      chat.ownerPeerId = knownOwnerPeerId;
     }
     chats[groupId] = chat;
     await persistChatSummary(chat);
@@ -433,7 +475,7 @@ class ChatGroupContentInboundHandler {
     if (action == 'avatar') {
       final avatarBlobId = (resolvedPayload.avatarBlobId ?? '').trim();
       if (avatarBlobId.isNotEmpty) {
-        final knownOwner = (chat.ownerPeerId ?? '').trim();
+        final knownOwner = (knownOwnerPeerId ?? chat.ownerPeerId ?? '').trim();
         if (knownOwner.isNotEmpty && sourcePeerId != knownOwner) {
           developer.log(
             'group avatar drop: sender is not owner group=$groupId sender=$sourcePeerId',

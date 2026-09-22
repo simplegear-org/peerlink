@@ -3,6 +3,25 @@
 В этом файле фиксируются заметные изменения релизов приложения PeerLink.
 
 
+## [3.14.2+2026092201] - 2026-09-22
+
+### Изменено
+
+- Изменение состава группы теперь доступно только owner. Клиент отклоняет
+  membership-изменения от не-owner и конфликтующие owner-метаданные, поэтому
+  недоверенное control-сообщение не может изменить или восстановить группу.
+- Исправлен remote-video после renegotiation между Android и iOS: synthetic
+  stream сохраняет owner peer receiver-трека, а native incoming stream
+  передаётся renderer целиком. Это устраняет зависание видео из-за устаревшего
+  native track wrapper.
+- Отложенный timestamp-based `call_invite` старше двух минут отбрасывается до
+  CallKit и in-app UI, поэтому после восстановления push/resume не возникает
+  зомби-звонок.
+- Android app-модуль переведён на AGP built-in Kotlin, а
+  `url_launcher_android` обновлён для совместимости. Legacy opt-out нового DSL
+  остаётся только из-за ограничения текущего Flutter Gradle Plugin.
+
+
 ## [3.14.1+2026092001] - 2026-09-20
 
 ### Изменено

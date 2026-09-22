@@ -509,6 +509,7 @@ class ChatInboundService {
     required bool Function(String groupId) isGroupDeleted,
     required Future<void> Function(String groupId) restoreDeletedGroup,
     required Map<String, Chat> chats,
+    required String? Function(String groupId) knownGroupOwnerPeerId,
     required String localPeerId,
     required Future<void> Function(Chat chat) persistChatSummary,
     required Future<void> Function({
@@ -538,6 +539,7 @@ class ChatInboundService {
       isGroupDeleted: isGroupDeleted,
       restoreDeletedGroup: restoreDeletedGroup,
       chats: chats,
+      knownGroupOwnerPeerId: knownGroupOwnerPeerId,
       localPeerId: localPeerId,
       persistChatSummary: persistChatSummary,
       saveGroupAvatarBytes: saveGroupAvatarBytes,

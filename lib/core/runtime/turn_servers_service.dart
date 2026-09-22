@@ -11,6 +11,7 @@ import 'dart:typed_data';
 
 import '../node/node_capability_apis.dart';
 import '../turn/turn_server_config.dart';
+import '../turn/turn_priority_failure_policy.dart';
 import 'app_file_logger.dart';
 import 'server_availability.dart';
 import 'server_availability_poller.dart';
@@ -28,11 +29,9 @@ class TurnServersService implements ServerAvailabilityProvider {
   final StorageService storage;
   final Duration _probeTimeout;
   late final ServerAvailabilityPoller _poller;
+  final TurnPriorityFailurePolicy _priorityPolicy = TurnPriorityFailurePolicy();
 
   final List<TurnServerConfig> servers = <TurnServerConfig>[];
-  final Map<String, int> _failureCounts = <String, int>{};
-  final Map<String, DateTime> _lastFailureTime = <String, DateTime>{};
-  final Map<String, int> _basePriorityByUrl = <String, int>{};
   bool _disposed = false;
 
   TurnServersService({
@@ -68,7 +67,7 @@ class TurnServersService implements ServerAvailabilityProvider {
     _logServers('initialize:loaded', servers);
     _poller.syncKeys();
     await _persist();
-    _rememberBasePriorities(servers);
+    _priorityPolicy.replaceBasePriorities(servers);
     await facade.configureTurnServers(getServersWithAdjustedPriorities());
     facade.turnAllocator.setCallbacks(
       onSuccess: reportConnectionSuccess,
@@ -80,8 +79,7 @@ class TurnServersService implements ServerAvailabilityProvider {
 
   /// Отмечает неудачу подключения к TURN серверу и автоматически понижает приоритет
   void reportConnectionFailure(String url) {
-    _failureCounts[url] = (_failureCounts[url] ?? 0) + 1;
-    _lastFailureTime[url] = DateTime.now();
+    _priorityPolicy.reportFailure(url);
     unawaited(facade.configureTurnServers(getServersWithAdjustedPriorities()));
     _poller.overrideAvailability(
       url,
@@ -94,22 +92,7 @@ class TurnServersService implements ServerAvailabilityProvider {
 
   /// Сбрасывает счетчик неудач для успешного сервера
   void reportConnectionSuccess(String url) {
-    if (_failureCounts.containsKey(url)) {
-      _failureCounts[url] = 0;
-      _lastFailureTime.remove(url);
-
-      // Восстанавливаем оригинальный приоритет для TURNS серверов
-      final serverIndex = servers.indexWhere((s) => s.url == url);
-      if (serverIndex != -1) {
-        final server = servers[serverIndex];
-        final originalPriority = _getOriginalPriority(server.url);
-
-        if (server.priority != originalPriority) {
-          servers[serverIndex] = server.copyWith(priority: originalPriority);
-          _basePriorityByUrl[url] = originalPriority;
-        }
-      }
-    }
+    _priorityPolicy.reportSuccess(url);
     unawaited(facade.configureTurnServers(getServersWithAdjustedPriorities()));
     _poller.overrideAvailability(
       url,
@@ -119,20 +102,12 @@ class TurnServersService implements ServerAvailabilityProvider {
 
   /// Возвращает список серверов с актуальными приоритетами
   List<TurnServerConfig> getServersWithAdjustedPriorities() {
-    return servers.map((server) {
-      final failureCount = _failureCounts[server.url] ?? 0;
-      final adjustedPriority = _calculatePriorityWithFailures(
-        _getOriginalPriority(server.url),
-        failureCount,
-      );
-      return server.copyWith(priority: adjustedPriority);
-    }).toList();
+    return _priorityPolicy.apply(servers);
   }
 
   /// Очистить статистику неудач для всех серверов (для тестирования)
   void resetFailureStats() {
-    _failureCounts.clear();
-    _lastFailureTime.clear();
+    _priorityPolicy.reset();
     facade.configureTurnServers(getServersWithAdjustedPriorities());
     unawaited(refreshAvailability());
   }
@@ -143,23 +118,14 @@ class TurnServersService implements ServerAvailabilityProvider {
       for (final server in servers)
         server.url: {
           'priority': server.priority,
-          'adjustedPriority': _calculatePriorityWithFailures(
-            _getOriginalPriority(server.url),
-            _failureCounts[server.url] ?? 0,
-          ),
-          'failureCount': _failureCounts[server.url] ?? 0,
-          'lastFailure': _lastFailureTime[server.url]?.toIso8601String(),
+          'adjustedPriority': _priorityPolicy.priorityFor(server.url),
+          'failureCount': _priorityPolicy.failureCountFor(server.url),
+          'lastFailure': _priorityPolicy
+              .lastFailureFor(server.url)
+              ?.toIso8601String(),
         },
     };
   }
-
-  int _calculatePriorityWithFailures(int originalPriority, int failureCount) {
-    if (failureCount == 0) return originalPriority;
-    final penalty = failureCount * 100;
-    return (originalPriority - penalty).clamp(0, originalPriority);
-  }
-
-  int _getOriginalPriority(String url) => _basePriorityByUrl[url] ?? 100;
 
   Future<void> add(TurnServerConfig server) async {
     final normalized = _normalizeServerConfig(server);
@@ -168,7 +134,7 @@ class TurnServersService implements ServerAvailabilityProvider {
       return;
     }
     servers.add(normalized);
-    _basePriorityByUrl[normalized.url] = normalized.priority;
+    _priorityPolicy.rememberBasePriority(normalized);
     _poller.syncKeys();
     await _persist();
     await facade.configureTurnServers(getServersWithAdjustedPriorities());
@@ -177,10 +143,11 @@ class TurnServersService implements ServerAvailabilityProvider {
 
   Future<void> remove(String url) async {
     final normalized = normalizeTurnsEndpoint(url);
+    if (normalized == null) {
+      return;
+    }
     servers.removeWhere((entry) => entry.url == normalized);
-    _failureCounts.remove(normalized);
-    _lastFailureTime.remove(normalized);
-    _basePriorityByUrl.remove(normalized);
+    _priorityPolicy.forget(normalized);
     _poller.syncKeys();
     await _persist();
     await facade.configureTurnServers(getServersWithAdjustedPriorities());
@@ -199,9 +166,9 @@ class TurnServersService implements ServerAvailabilityProvider {
         }).whereType<TurnServerConfig>(),
       );
     _logServers('replace:normalized', servers);
-    _failureCounts.clear();
-    _lastFailureTime.clear();
-    _rememberBasePriorities(servers);
+    _priorityPolicy
+      ..reset()
+      ..replaceBasePriorities(servers);
     _poller.syncKeys();
     await _persist();
     await facade.configureTurnServers(getServersWithAdjustedPriorities());
@@ -219,7 +186,7 @@ class TurnServersService implements ServerAvailabilityProvider {
         continue;
       }
       servers.add(normalized);
-      _basePriorityByUrl[normalized.url] = normalized.priority;
+      _priorityPolicy.rememberBasePriority(normalized);
     }
     _logServers('merge:result', servers);
     _poller.syncKeys();
@@ -235,7 +202,7 @@ class TurnServersService implements ServerAvailabilityProvider {
     }
     servers.removeWhere((entry) => entry.url == normalized.url);
     servers.insert(0, normalized);
-    _basePriorityByUrl[normalized.url] = normalized.priority;
+    _priorityPolicy.rememberBasePriority(normalized);
     _poller.syncKeys();
     await _persist();
     await facade.configureTurnServers(getServersWithAdjustedPriorities());
@@ -254,7 +221,7 @@ class TurnServersService implements ServerAvailabilityProvider {
     for (final server in normalized.reversed) {
       servers.removeWhere((entry) => entry.url == server.url);
       servers.insert(0, server);
-      _basePriorityByUrl[server.url] = server.priority;
+      _priorityPolicy.rememberBasePriority(server);
     }
     _logServers('putFirstMany:result', servers);
     _poller.syncKeys();
@@ -345,12 +312,6 @@ class TurnServersService implements ServerAvailabilityProvider {
       _storageKey,
       servers.map((entry) => entry.toJson()).toList(growable: false),
     );
-  }
-
-  void _rememberBasePriorities(List<TurnServerConfig> items) {
-    _basePriorityByUrl
-      ..clear()
-      ..addEntries(items.map((item) => MapEntry(item.url, item.priority)));
   }
 
   ServerAvailability _initialAvailabilityForUrl(String raw) {

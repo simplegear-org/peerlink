@@ -3,6 +3,25 @@
 All notable PeerLink application changes should be recorded in this file.
 
 
+## [3.14.2+2026092201] - 2026-09-22
+
+### Changed
+
+- Group membership changes are now owner-only. Clients reject membership
+  mutations from non-owners and conflicting owner metadata, preventing an
+  untrusted control message from altering or restoring a group.
+- Fixed remote-video rendering across Android and iOS after renegotiation by
+  retaining the receiver's peer owner for synthetic streams and binding native
+  incoming streams as a whole. This prevents stale native track wrappers from
+  freezing remote video.
+- Delayed timestamp-based call invites older than two minutes are rejected
+  before CallKit and in-app incoming-call UI, preventing zombie calls after
+  push restoration or resume.
+- Migrated the Android app module to AGP built-in Kotlin and updated
+  `url_launcher_android` for compatibility. The legacy new-DSL opt-out remains
+  only for the current Flutter Gradle Plugin limitation.
+
+
 ## [3.14.1+2026092001] - 2026-09-20
 
 ### Changed

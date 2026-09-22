@@ -272,9 +272,8 @@ class ChatGroupService {
     final localPeerId = facade.peerId;
     final ownerPeerId = chat.ownerPeerId?.trim();
     final isOwner = ownerPeerId == localPeerId;
-    final isAdmin = chat.adminPeerIds.contains(localPeerId);
-    if (!isOwner && !isAdmin) {
-      throw StateError('Only group owner or admin can manage participants');
+    if (!isOwner) {
+      throw StateError('Only group owner can manage participants');
     }
   }
 

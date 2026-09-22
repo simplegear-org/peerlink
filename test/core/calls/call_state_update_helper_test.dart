@@ -4,6 +4,17 @@ import 'package:peerlink/core/calls/call_state_update_helper.dart';
 import 'package:peerlink/core/transport/transport_mode.dart';
 
 void main() {
+  test('native remote stream can disable track-specific renderer binding', () {
+    const state = CallState(
+      phase: CallPhase.active,
+      remoteVideoUsesTrackBinding: true,
+    );
+
+    final refreshed = state.copyWith(remoteVideoUsesTrackBinding: false);
+
+    expect(refreshed.remoteVideoUsesTrackBinding, isFalse);
+  });
+
   group('CallStateUpdateHelper', () {
     const helper = CallStateUpdateHelper();
 

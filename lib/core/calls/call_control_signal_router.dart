@@ -20,6 +20,7 @@ class CallControlSignalRouter {
     required this.sendSignal,
     required this.isPendingRemoteEndedCall,
     required this.rememberPendingRemoteEndedCall,
+    required this.isExpiredIncomingCall,
     required this.parseMediaType,
     required this.cancelOutgoingTimeout,
     required this.emit,
@@ -41,6 +42,7 @@ class CallControlSignalRouter {
   isPendingRemoteEndedCall;
   final void Function({required String peerId, required String callId})
   rememberPendingRemoteEndedCall;
+  final bool Function(String callId) isExpiredIncomingCall;
   final CallMediaType Function(Object? raw) parseMediaType;
   final void Function() cancelOutgoingTimeout;
   final void Function(CallState state) emit;
@@ -123,6 +125,10 @@ class CallControlSignalRouter {
         }
         if (isPendingRemoteEndedCall(peerId: peerId, callId: callId)) {
           log('invite:signal skip ended peerId=$peerId callId=$callId');
+          return true;
+        }
+        if (isExpiredIncomingCall(callId)) {
+          log('invite:signal skip expired peerId=$peerId callId=$callId');
           return true;
         }
         await applyInviteRuntimeMetadata(data);

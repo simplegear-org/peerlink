@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter_webrtc/src/native/media_stream_track_impl.dart';
 import 'package:peerlink/core/calls/call_media_stream_controller.dart';
 
 class _FakeMediaStreamTrack extends MediaStreamTrack {
@@ -44,6 +46,8 @@ class _FakeMediaStream extends MediaStream {
 
   final List<MediaStreamTrack> _tracks = <MediaStreamTrack>[];
   final List<String> operations = <String>[];
+  final List<bool> nativeAdds = <bool>[];
+  final List<bool> nativeRemoves = <bool>[];
   var disposeCalls = 0;
 
   @override
@@ -55,6 +59,7 @@ class _FakeMediaStream extends MediaStream {
     bool addToNative = true,
   }) async {
     _tracks.add(track);
+    nativeAdds.add(addToNative);
     operations.add('add:${track.kind}:${track.id}');
   }
 
@@ -64,6 +69,7 @@ class _FakeMediaStream extends MediaStream {
     bool removeFromNative = true,
   }) async {
     _tracks.removeWhere((existing) => existing.id == track.id);
+    nativeRemoves.add(removeFromNative);
     operations.add('remove:${track.kind}:${track.id}');
   }
 
@@ -89,6 +95,102 @@ class _FakeMediaStream extends MediaStream {
 
 void main() {
   group('CallMediaStreamController', () {
+    test(
+      'Android streamless receiver uses peer owner without native copies',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final labels = <String>[];
+        final stream = _FakeMediaStream('synthetic');
+        final controller = CallMediaStreamController(
+          log: (_) {},
+          onLocalStream: (_) {},
+          onRemoteStream: (_) {},
+          createRemoteRenderStream: (label) async {
+            labels.add(label);
+            return stream;
+          },
+        );
+        MediaStreamTrack receiver(String id, String kind) =>
+            MediaStreamTrackNative(id, kind, kind, true, 'peer-connection-1');
+
+        await controller.attachRemoteTrack(receiver('audio', 'audio'));
+        await controller.attachRemoteTrack(receiver('video-1', 'video'));
+        await controller.attachRemoteTrack(receiver('video-2', 'video'));
+
+        expect(labels, ['peer-connection-1']);
+        expect(stream.nativeAdds, [false, false, false]);
+        expect(stream.nativeRemoves, [false]);
+        expect(stream.getVideoTracks().single.id, 'video-2');
+        await controller.clearRemoteRenderStreamTracks();
+        expect(stream.nativeRemoves, [false, false, false]);
+        await controller.disposeRemoteStream();
+        expect(stream.disposeCalls, 1);
+      },
+    );
+
+    test('iOS keeps native synthetic stream attachment', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final labels = <String>[];
+      final stream = _FakeMediaStream('synthetic');
+      final controller = CallMediaStreamController(
+        log: (_) {},
+        onLocalStream: (_) {},
+        onRemoteStream: (_) {},
+        createRemoteRenderStream: (label) async {
+          labels.add(label);
+          return stream;
+        },
+      );
+      await controller.attachRemoteTrack(
+        MediaStreamTrackNative('video', 'video', 'video', true, 'peer-1'),
+      );
+      expect(labels, ['remote']);
+      expect(stream.nativeAdds, [true]);
+      await controller.disposeRemoteStream();
+    });
+
+    test('Android audio stream preserves owner before video upgrade', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final labels = <String>[];
+      final synthetic = _FakeMediaStream('synthetic');
+      final incoming = _FakeMediaStream('incoming');
+      await incoming.addTrack(
+        MediaStreamTrackNative('audio', 'audio', 'audio', true, 'peer-1'),
+      );
+      final controller = CallMediaStreamController(
+        log: (_) {},
+        onLocalStream: (_) {},
+        onRemoteStream: (_) {},
+        createRemoteRenderStream: (label) async {
+          labels.add(label);
+          return synthetic;
+        },
+      );
+      await controller.ingestRemoteStream(incoming);
+      await controller.attachRemoteTrack(
+        MediaStreamTrackNative('video', 'video', 'video', true, 'peer-1'),
+      );
+      expect(labels, ['peer-1']);
+      expect(synthetic.nativeAdds, [false, false]);
+
+      final nativeVideo = _FakeMediaStream('native-video');
+      await nativeVideo.addTrack(
+        MediaStreamTrackNative('video', 'video', 'video', true, 'peer-1'),
+      );
+      await controller.ingestRemoteStream(nativeVideo);
+      expect(synthetic.disposeCalls, 1);
+      await controller.attachRemoteTrack(
+        MediaStreamTrackNative('video-2', 'video', 'video', true, 'peer-1'),
+      );
+      expect(nativeVideo.nativeAdds, [true, true]);
+      expect(nativeVideo.nativeRemoves, [true]);
+      await controller.disposeRemoteStream();
+      expect(nativeVideo.disposeCalls, 0);
+    });
+
     test(
       'attachRemoteTrack suppresses duplicate reattach for same track',
       () async {

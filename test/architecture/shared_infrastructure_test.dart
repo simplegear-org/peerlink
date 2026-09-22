@@ -62,6 +62,8 @@ const _approvedPlatformImports = {
     'lib/core/calls/call_peer_session_controller.dart',
     'lib/core/calls/call_post_ice_recovery_flow_watch.dart',
     'lib/core/calls/call_remote_control_handler.dart',
+    'lib/core/calls/call_remote_receiver_owner.dart',
+    'lib/core/calls/call_remote_receiver_owner_native.dart',
     'lib/core/calls/call_service.dart',
     'lib/core/calls/call_signaling_invariants.dart',
     'lib/core/calls/call_state_update_helper.dart',
@@ -74,6 +76,9 @@ const _approvedPlatformImports = {
     'lib/ui/screens/avatar_capture_screen.dart',
     'lib/ui/screens/call_screen_video_view.dart',
     'lib/ui/screens/call_screen_view.dart',
+  ],
+  'package:flutter_webrtc/src/native/media_stream_track_impl.dart': [
+    'lib/core/calls/call_remote_receiver_owner_native.dart',
   ],
   'package:http/http.dart': [
     'lib/core/relay/http_relay_client.dart',

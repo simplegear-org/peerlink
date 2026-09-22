@@ -24,6 +24,7 @@ import 'call_command_helper.dart';
 import 'call_connection_orchestrator.dart';
 import 'call_control_signal_router.dart';
 import 'call_heartbeat_controller.dart';
+import 'call_invite_freshness_policy.dart';
 import 'call_incoming_runtime_enrichment.dart';
 import 'call_network_policy_helper.dart';
 import 'call_media_readiness_controller.dart';
@@ -78,9 +79,11 @@ class CallService {
   CallControlReliableSender? _reliableControlSender;
   final CallControlTransport? _callControlTransport;
   static const Duration _pendingRemoteEndTtl = Duration(minutes: 2);
+  static const Duration _incomingInviteMaxAge = Duration(minutes: 2);
   final RuntimeServersMergeOrchestrator? _serversMergeOrchestrator;
   static const Duration _heartbeatMediaActiveGrace = Duration(seconds: 6);
   late final CallPendingRemoteEndRegistry _pendingRemoteEndedCalls;
+  late final CallInviteFreshnessPolicy _inviteFreshnessPolicy;
   late final CallControlSignalHelper _controlSignalHelper;
   late final CallControlSignalRouter _controlSignalRouter;
   late final CallHeartbeatController _heartbeatController;
@@ -131,6 +134,9 @@ class CallService {
     );
     _pendingRemoteEndedCalls = CallPendingRemoteEndRegistry(
       ttl: _pendingRemoteEndTtl,
+    );
+    _inviteFreshnessPolicy = const CallInviteFreshnessPolicy(
+      maxAge: _incomingInviteMaxAge,
     );
     _controlSignalHelper = CallControlSignalHelper(
       signaling: signaling,
@@ -259,6 +265,7 @@ class CallService {
       rememberPendingRemoteEndedCall:
           ({required String peerId, required String callId}) =>
               _pendingRemoteEndedCalls.remember(peerId: peerId, callId: callId),
+      isExpiredIncomingCall: _inviteFreshnessPolicy.isExpired,
       parseMediaType: _parseMediaType,
       cancelOutgoingTimeout: () => _outgoingTimeout?.cancel(),
       emit: _emit,
@@ -375,6 +382,7 @@ class CallService {
       isPendingRemoteEndedCall:
           ({required String peerId, required String callId}) =>
               _pendingRemoteEndedCalls.contains(peerId: peerId, callId: callId),
+      isExpiredIncomingCall: _inviteFreshnessPolicy.isExpired,
       resetRuntimeTracking: _resetRuntimeTracking,
       emit: _emit,
       log: _log,
@@ -786,6 +794,7 @@ class CallService {
         left.remoteVideoAvailable == right.remoteVideoAvailable &&
         left.remoteVideoActive == right.remoteVideoActive &&
         left.remoteVideoTrackId == right.remoteVideoTrackId &&
+        left.remoteVideoUsesTrackBinding == right.remoteVideoUsesTrackBinding &&
         left.videoCodec == right.videoCodec &&
         left.videoToggleInProgress == right.videoToggleInProgress &&
         left.recoveryKind == right.recoveryKind &&
@@ -815,6 +824,8 @@ class CallService {
         previous.remoteVideoAvailable == next.remoteVideoAvailable &&
         previous.remoteVideoActive == next.remoteVideoActive &&
         previous.remoteVideoTrackId == next.remoteVideoTrackId &&
+        previous.remoteVideoUsesTrackBinding ==
+            next.remoteVideoUsesTrackBinding &&
         previous.videoCodec == next.videoCodec &&
         previous.videoToggleInProgress == next.videoToggleInProgress &&
         previous.recoveryKind == next.recoveryKind &&

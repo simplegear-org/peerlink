@@ -115,6 +115,7 @@ class CallCommandHelper {
     required CallMediaType mediaType,
     required bool Function({required String peerId, required String callId})
     isPendingRemoteEndedCall,
+    required bool Function(String callId) isExpiredIncomingCall,
     required void Function() resetRuntimeTracking,
     required void Function(CallState state) emit,
     required void Function(String message) log,
@@ -124,6 +125,10 @@ class CallCommandHelper {
     }
     if (isPendingRemoteEndedCall(peerId: peerId, callId: callId)) {
       log('invite:push skip ended peerId=$peerId callId=$callId');
+      return;
+    }
+    if (isExpiredIncomingCall(callId)) {
+      log('invite:push skip expired peerId=$peerId callId=$callId');
       return;
     }
     resetRuntimeTracking();

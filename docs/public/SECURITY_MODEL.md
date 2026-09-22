@@ -53,6 +53,10 @@ Assume:
   matching message envelope, never an encrypted media blob.
 - Relay server validates Ed25519 signatures on blob upload/finalize endpoints.
 - Relay enforces server-side membership on group write endpoints.
+- The client accepts incoming `groupMembers(action=add/remove)` mutations only
+  from the owner already known in local group state or persisted group metadata;
+  payload-declared owner/admin roles do not grant authority. Until signed admin
+  roles exist, participant management is owner-only.
 - Replay-window style checks are applied in reliable envelope handling.
 - Direct fallback for group media carries only the encrypted blob reference and relay metadata; plaintext media is not sent through push or direct payloads.
 

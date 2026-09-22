@@ -133,6 +133,8 @@ class CallPeerBindingHelper {
         emit(
           state.copyWith(
             remoteStream: stream,
+            remoteVideoUsesTrackBinding:
+                peer.remoteRenderStreamUsesTrackBinding,
             remoteVideoAvailable: remoteVideoAvailable,
             remoteVideoActive: remoteVideoAvailable && state.remoteVideoEnabled
                 ? true

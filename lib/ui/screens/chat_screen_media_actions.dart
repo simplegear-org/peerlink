@@ -306,7 +306,9 @@ class ChatScreenMediaActions {
       }
       final fileSize = await file.length();
       if (fileSize == null) {
-        AppFileLogger.log('[chat_ui] media skip unknown size file=${file.name}');
+        AppFileLogger.log(
+          '[chat_ui] media skip unknown size file=${file.name}',
+        );
         continue;
       }
       if (fileSize > maxFileSize) {
